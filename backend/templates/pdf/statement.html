@@ -1,0 +1,22 @@
+{% extends 'pdf/base.html' %}
+{% block content %}
+<div class="doc-title">STUDENT STATEMENT — {{ stmt.student.name }} ({{ stmt.student.code }})</div>
+<div class="muted">Period {{ stmt.start }} to {{ stmt.end }} · Currency {{ stmt.currency }}</div>
+<table class="data">
+  <tr><th>Date</th><th>Category</th><th>Reference</th><th>Description</th>
+      <th class="right">Debit</th><th class="right">Credit</th><th class="right">Balance</th></tr>
+  <tr><td colspan="6">Opening balance</td><td class="right">{{ stmt.opening_balance|floatformat:2 }}</td></tr>
+  {% for row in stmt.rows %}
+  <tr>
+    <td>{{ row.date }}</td>
+    <td>{{ row.category }}</td>
+    <td>{{ row.reference }}</td>
+    <td>{{ row.description|truncatechars:48 }}</td>
+    <td class="right">{% if row.debit %}{{ row.debit|floatformat:2 }}{% endif %}</td>
+    <td class="right">{% if row.credit %}{{ row.credit|floatformat:2 }}{% endif %}</td>
+    <td class="right">{{ row.balance|floatformat:2 }}</td>
+  </tr>
+  {% endfor %}
+  <tr class="total-row"><td colspan="6">Closing balance</td><td class="right">{{ stmt.closing_balance|floatformat:2 }}</td></tr>
+</table>
+{% endblock %}

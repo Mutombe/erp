@@ -1,0 +1,27 @@
+{% extends 'pdf/base.html' %}
+{% block content %}
+<div class="doc-title">FEE INVOICE {{ invoice.number }}</div>
+<table class="meta">
+  <tr><td class="muted">Student:</td><td>{{ invoice.student.full_name }} ({{ invoice.student.code }})</td>
+      <td class="muted">Date:</td><td>{{ invoice.date }}</td></tr>
+  <tr><td class="muted">Term:</td><td>{{ invoice.term|default:"—" }}</td>
+      <td class="muted">Due date:</td><td>{{ invoice.due_date }}</td></tr>
+  <tr><td class="muted">Currency:</td><td>{{ invoice.currency }}</td>
+      <td class="muted">Status:</td><td>{{ invoice.get_status_display }}</td></tr>
+</table>
+<table class="data">
+  <tr><th>Fee</th><th>Description</th><th class="right">Amount</th><th class="right">Bursary</th><th class="right">Net</th></tr>
+  {% for line in invoice.lines.all %}
+  <tr>
+    <td>{{ line.fee_category.name }}</td>
+    <td>{{ line.description }}</td>
+    <td class="right">{{ line.amount|floatformat:2 }}</td>
+    <td class="right">{{ line.discount_amount|floatformat:2 }}</td>
+    <td class="right">{{ line.net_amount|floatformat:2 }}</td>
+  </tr>
+  {% endfor %}
+  <tr class="total-row"><td colspan="4">Total ({{ invoice.currency }})</td><td class="right">{{ invoice.total|floatformat:2 }}</td></tr>
+  <tr><td colspan="4">Paid</td><td class="right">{{ invoice.amount_paid|floatformat:2 }}</td></tr>
+  <tr class="total-row"><td colspan="4">Balance due</td><td class="right">{{ invoice.balance|floatformat:2 }}</td></tr>
+</table>
+{% endblock %}

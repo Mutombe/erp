@@ -1,0 +1,16 @@
+Django>=5.2,<5.3
+djangorestframework>=3.16
+django-filter>=24.3
+drf-spectacular>=0.28
+django-cors-headers>=4.6
+django-q2>=1.7
+python-decouple>=3.8
+whitenoise>=6.8
+gunicorn>=23.0
+xhtml2pdf>=0.2.16
+reportlab>=4.2
+openpyxl>=3.1
+dj-database-url>=2.3
+psycopg[binary]>=3.2
+pytest>=8.3
+pytest-django>=4.9

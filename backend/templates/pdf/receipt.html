@@ -1,0 +1,22 @@
+{% extends 'pdf/base.html' %}
+{% block content %}
+<div class="doc-title">RECEIPT {{ receipt.number }}</div>
+<table class="meta">
+  <tr><td class="muted">Received from:</td><td>{{ receipt.student.full_name }} ({{ receipt.student.code }})</td>
+      <td class="muted">Date:</td><td>{{ receipt.date }}</td></tr>
+  <tr><td class="muted">Method:</td><td>{{ receipt.get_payment_method_display }}</td>
+      <td class="muted">Paid into:</td><td>{{ receipt.bank_account.name }}</td></tr>
+  <tr><td class="muted">Reference:</td><td>{{ receipt.reference|default:"—" }}</td>
+      <td class="muted">Status:</td><td>{{ receipt.get_status_display }}</td></tr>
+</table>
+<table class="data">
+  <tr><th>Applied to</th><th class="right">Amount ({{ receipt.currency }})</th></tr>
+  {% for alloc in receipt.allocations.all %}
+  <tr><td>Invoice {{ alloc.invoice.number }}</td><td class="right">{{ alloc.amount|floatformat:2 }}</td></tr>
+  {% endfor %}
+  {% if receipt.unallocated_amount %}
+  <tr><td>Unallocated (credit on account)</td><td class="right">{{ receipt.unallocated_amount|floatformat:2 }}</td></tr>
+  {% endif %}
+  <tr class="total-row"><td>Total received</td><td class="right">{{ receipt.amount|floatformat:2 }}</td></tr>
+</table>
+{% endblock %}
