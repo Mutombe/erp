@@ -71,12 +71,17 @@ export default function AgedReceivables() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <label className="text-sm text-gray-600 dark:text-gray-300">
-          As at{' '}
-          <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)}
-            className="ml-1 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800" />
-        </label>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <label className="text-sm text-gray-600 dark:text-gray-300">
+            As at{' '}
+            <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)}
+              className="ml-1 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800" />
+          </label>
+          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+            Balances as they stood on this date (later payments excluded)
+          </p>
+        </div>
         <Button variant="secondary" size="sm" disabled={!data || data.rows.length === 0} onClick={handleExport}>
           <Download className="w-4 h-4 mr-2" /> Export CSV
         </Button>

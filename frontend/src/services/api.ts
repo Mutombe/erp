@@ -267,6 +267,7 @@ export const reportsApi = {
   studentStatement: (id: Id, params?: ListParams) =>
     api.get(`/reports/student-statement/${id}/`, { params }),
   cashbook: (params?: ListParams) => api.get('/reports/cashbook/', { params }),
+  cashFlow: (params?: ListParams) => api.get('/reports/cash-flow/', { params }),
   assetRegister: (params?: ListParams) => api.get('/reports/asset-register/', { params }),
   stockValuation: (params?: ListParams) => api.get('/reports/stock-valuation/', { params }),
   feeCollection: (params?: ListParams) => api.get('/reports/fee-collection/', { params }),

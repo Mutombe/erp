@@ -10,6 +10,7 @@ urlpatterns = [
     path('trial-balance/', views.TrialBalanceView.as_view()),
     path('balance-sheet/', views.BalanceSheetView.as_view()),
     path('income-statement/', views.IncomeStatementView.as_view()),
+    path('cash-flow/', views.CashFlowView.as_view()),
     path('aged-receivables/', views.AgedReceivablesView.as_view()),
     path('aged-payables/', views.AgedPayablesView.as_view()),
     path('student-statement/<int:student_id>/', views.StudentStatementView.as_view()),

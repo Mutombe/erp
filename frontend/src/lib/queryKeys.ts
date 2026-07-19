@@ -97,6 +97,7 @@ export const qk = {
     studentStatement: (id: Id, filters: Filters = {}) =>
       ['reports', 'studentStatement', id, filters] as QueryKey,
     cashbook: (filters: Filters = {}) => ['reports', 'cashbook', filters] as QueryKey,
+    cashFlow: (filters: Filters = {}) => ['reports', 'cashFlow', filters] as QueryKey,
     assetRegister: (filters: Filters = {}) => ['reports', 'assetRegister', filters] as QueryKey,
     stockValuation: (filters: Filters = {}) => ['reports', 'stockValuation', filters] as QueryKey,
     feeCollection: (filters: Filters = {}) => ['reports', 'feeCollection', filters] as QueryKey,

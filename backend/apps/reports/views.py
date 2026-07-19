@@ -76,6 +76,9 @@ class ReportView(APIView):
 
 class TrialBalanceView(ReportView):
     def build(self, request):
+        # Movement mode: ?start=&end= → Opening | Debits | Credits | Closing.
+        if request.query_params.get('start'):
+            return self._movements(request)
         as_of = _parse_date(request.query_params.get('as_of_date'), timezone.localdate())
         currency = request.query_params.get('currency') or None
         rows, total_debit, total_credit = [], ZERO, ZERO
@@ -105,10 +108,67 @@ class TrialBalanceView(ReportView):
             'balanced': total_debit == total_credit,
         }
 
+    def _movements(self, request):
+        today = timezone.localdate()
+        start = _parse_date(request.query_params.get('start'), today.replace(day=1))
+        end = _parse_date(request.query_params.get('end'), today)
+        currency = request.query_params.get('currency') or None
+        from datetime import timedelta
+
+        opening = {
+            r['account_id']: r for r in _aggregate_balances_from_gl(
+                end_date=start - timedelta(days=1), currency=currency)
+        }
+        period = {
+            r['account_id']: r for r in _aggregate_balances_from_gl(
+                start_date=start, end_date=end, currency=currency)
+        }
+        rows = []
+        totals = {'opening': ZERO, 'debit': ZERO, 'credit': ZERO, 'closing': ZERO}
+        for account_id in sorted(set(opening) | set(period), key=lambda i: (opening.get(i) or period[i])['code']):
+            meta = opening.get(account_id) or period[account_id]
+            open_bal = _natural_balance(opening[account_id]) if account_id in opening else ZERO
+            debit = (period.get(account_id) or {}).get('debit') or ZERO
+            credit = (period.get(account_id) or {}).get('credit') or ZERO
+            signed = debit - credit if meta['account_type'] in ('asset', 'expense') else credit - debit
+            closing = open_bal + signed
+            if open_bal == 0 and debit == 0 and credit == 0:
+                continue
+            rows.append({
+                'account_id': account_id, 'code': meta['code'], 'name': meta['name'],
+                'account_type': meta['account_type'],
+                'opening': open_bal, 'debit': debit, 'credit': credit, 'closing': closing,
+            })
+            totals['opening'] += open_bal if meta['account_type'] in ('asset', 'expense') else -open_bal
+            totals['debit'] += debit
+            totals['credit'] += credit
+            totals['closing'] += closing if meta['account_type'] in ('asset', 'expense') else -closing
+        return {
+            'mode': 'movements',
+            'start': start.isoformat(), 'end': end.isoformat(),
+            'rows': rows,
+            'totals': totals,
+            # Signed natural-side totals cancel to zero when the books balance.
+            'balanced': totals['opening'] == 0 and totals['closing'] == 0 and totals['debit'] == totals['credit'],
+        }
+
 
 class BalanceSheetView(ReportView):
     def build(self, request):
         as_of = _parse_date(request.query_params.get('as_of_date'), timezone.localdate())
+        compare_raw = request.query_params.get('compare_date')
+        compare_date = _parse_date(compare_raw, None) if compare_raw else None
+
+        prev, prev_surplus = None, ZERO
+        if compare_date:
+            prev = {}
+            for row in _aggregate_balances_from_gl(end_date=compare_date):
+                balance = _natural_balance(row)
+                if row['account_type'] in ('revenue', 'expense'):
+                    prev_surplus += balance if row['account_type'] == 'revenue' else -balance
+                else:
+                    prev[row['account_id']] = balance
+
         groups = {}
         surplus = ZERO
         for row in _aggregate_balances_from_gl(end_date=as_of):
@@ -116,32 +176,42 @@ class BalanceSheetView(ReportView):
             if row['account_type'] in ('revenue', 'expense'):
                 surplus += balance if row['account_type'] == 'revenue' else -balance
                 continue
-            if balance == 0:
+            if balance == 0 and (prev is None or prev.get(row['account_id'], ZERO) == 0):
                 continue
-            groups.setdefault(row['report_group'], []).append({
+            entry = {
                 'account_id': row['account_id'], 'code': row['code'], 'name': row['name'],
                 'balance': balance,
-            })
+            }
+            if prev is not None:
+                entry['prev_balance'] = prev.pop(row['account_id'], ZERO)
+            groups.setdefault(row['report_group'], []).append(entry)
 
         def section(keys):
             out = []
             for key in keys:
                 rows = groups.get(key, [])
-                out.append({'group': key, 'rows': rows, 'total': sum((r['balance'] for r in rows), ZERO)})
+                item = {'group': key, 'rows': rows, 'total': sum((r['balance'] for r in rows), ZERO)}
+                if prev is not None:
+                    item['prev_total'] = sum((r.get('prev_balance', ZERO) for r in rows), ZERO)
+                out.append(item)
             return out
 
         assets = section(['current_assets', 'non_current_assets'])
         liabilities = section(['current_liabilities', 'non_current_liabilities'])
         equity = section(['equity'])
+        surplus_row = {'account_id': None, 'code': '', 'name': 'Surplus/(Deficit) to date', 'balance': surplus}
+        if prev is not None:
+            surplus_row['prev_balance'] = prev_surplus
         equity.append({
             'group': 'surplus_to_date',
-            'rows': [{'account_id': None, 'code': '', 'name': 'Surplus/(Deficit) to date', 'balance': surplus}],
+            'rows': [surplus_row],
             'total': surplus,
+            **({'prev_total': prev_surplus} if prev is not None else {}),
         })
         total_assets = sum(s['total'] for s in assets)
         total_liabilities = sum(s['total'] for s in liabilities)
         total_equity = sum(s['total'] for s in equity)
-        return {
+        payload = {
             'as_of_date': as_of.isoformat(),
             'assets': assets,
             'liabilities': liabilities,
@@ -151,6 +221,12 @@ class BalanceSheetView(ReportView):
             'total_equity': total_equity,
             'balanced': total_assets == total_liabilities + total_equity,
         }
+        if prev is not None:
+            payload['compare_date'] = compare_date.isoformat()
+            payload['prev_total_assets'] = sum(s.get('prev_total', ZERO) for s in assets)
+            payload['prev_total_liabilities'] = sum(s.get('prev_total', ZERO) for s in liabilities)
+            payload['prev_total_equity'] = sum(s.get('prev_total', ZERO) for s in equity)
+        return payload
 
 
 class IncomeStatementView(ReportView):
@@ -159,6 +235,26 @@ class IncomeStatementView(ReportView):
         start = _parse_date(request.query_params.get('start'), today.replace(month=1, day=1))
         end = _parse_date(request.query_params.get('end'), today)
         fmt = request.query_params.get('layout', 'pnl')  # pnl | ie
+        if request.query_params.get('monthly') == '1':
+            return self._monthly(start, end, fmt)
+        compare = request.query_params.get('compare')  # prior_period | prior_year
+        prev = None
+        if compare:
+            from datetime import timedelta
+
+            if compare == 'prior_year':
+                prev_start = start.replace(year=start.year - 1)
+                prev_end = end.replace(year=end.year - 1, day=min(end.day, 28) if end.month == 2 else end.day)
+            else:  # prior period of the same length, ending the day before start
+                length = (end - start).days
+                prev_end = start - timedelta(days=1)
+                prev_start = prev_end - timedelta(days=length)
+            prev = {
+                row['account_id']: _natural_balance(row)
+                for row in _aggregate_balances_from_gl(
+                    account_types=['revenue', 'expense'], start_date=prev_start, end_date=prev_end
+                )
+            }
 
         income_groups, expense_groups = {}, {}
         for row in _aggregate_balances_from_gl(
@@ -168,17 +264,23 @@ class IncomeStatementView(ReportView):
             if balance == 0:
                 continue
             bucket = income_groups if row['account_type'] == 'revenue' else expense_groups
-            bucket.setdefault(row['report_group'], []).append({
+            entry = {
                 'account_id': row['account_id'], 'code': row['code'], 'name': row['name'],
                 'amount': balance,
-            })
+            }
+            if prev is not None:
+                entry['prev_amount'] = prev.pop(row['account_id'], ZERO)
+            bucket.setdefault(row['report_group'], []).append(entry)
 
         def sections(source, keys):
             out = []
             for key in keys:
                 rows = source.get(key, [])
                 if rows:
-                    out.append({'group': key, 'rows': rows, 'total': sum((r['amount'] for r in rows), ZERO)})
+                    section = {'group': key, 'rows': rows, 'total': sum((r['amount'] for r in rows), ZERO)}
+                    if prev is not None:
+                        section['prev_total'] = sum((r.get('prev_amount', ZERO) for r in rows), ZERO)
+                    out.append(section)
             return out
 
         income = sections(income_groups, ['fee_income', 'other_income'])
@@ -190,22 +292,85 @@ class IncomeStatementView(ReportView):
             if fmt == 'ie'
             else {'income': 'Revenue', 'expenses': 'Expenses', 'result': 'Net Profit/(Loss)'}
         )
-        return {
+        payload = {
             'start': start.isoformat(), 'end': end.isoformat(), 'layout': fmt, 'labels': labels,
             'income': income, 'expenses': expenses,
             'total_income': total_income, 'total_expenses': total_expenses,
             'result': total_income - total_expenses,
         }
+        if prev is not None:
+            prev_income = sum((s.get('prev_total', ZERO) for s in income), ZERO)
+            prev_expenses = sum((s.get('prev_total', ZERO) for s in expenses), ZERO)
+            payload['compare'] = compare
+            payload['prev_total_income'] = prev_income
+            payload['prev_total_expenses'] = prev_expenses
+            payload['prev_result'] = prev_income - prev_expenses
+        return payload
+
+    def _monthly(self, start, end, fmt):
+        """Per-account monthly breakdown across the period."""
+        from django.db.models.functions import TruncMonth
+
+        qs = (
+            GeneralLedger.objects.filter(
+                account__account_type__in=['revenue', 'expense'],
+                date__gte=start, date__lte=end,
+            )
+            .annotate(month=TruncMonth('date'))
+            .values(
+                'account_id', 'month',
+                code=F('account__code'), name=F('account__name'),
+                account_type=F('account__account_type'),
+            )
+            .annotate(debit=Sum('debit_base'), credit=Sum('credit_base'))
+        )
+        months = sorted({row['month'].strftime('%Y-%m') for row in qs})
+        accounts = {}
+        for row in qs:
+            entry = accounts.setdefault(row['account_id'], {
+                'account_id': row['account_id'], 'code': row['code'], 'name': row['name'],
+                'account_type': row['account_type'], 'months': {}, 'total': ZERO,
+            })
+            amount = _natural_balance(row)
+            key = row['month'].strftime('%Y-%m')
+            entry['months'][key] = entry['months'].get(key, ZERO) + amount
+            entry['total'] += amount
+        rows = sorted(accounts.values(), key=lambda r: r['code'])
+        income_rows = [r for r in rows if r['account_type'] == 'revenue']
+        expense_rows = [r for r in rows if r['account_type'] == 'expense']
+
+        def month_totals(source):
+            return {
+                m: sum((r['months'].get(m, ZERO) for r in source), ZERO) for m in months
+            }
+
+        income_totals, expense_totals = month_totals(income_rows), month_totals(expense_rows)
+        return {
+            'mode': 'monthly', 'layout': fmt,
+            'start': start.isoformat(), 'end': end.isoformat(),
+            'months': months,
+            'income_rows': income_rows, 'expense_rows': expense_rows,
+            'income_month_totals': income_totals,
+            'expense_month_totals': expense_totals,
+            'result_by_month': {m: income_totals[m] - expense_totals[m] for m in months},
+            'total_income': sum((r['total'] for r in income_rows), ZERO),
+            'total_expenses': sum((r['total'] for r in expense_rows), ZERO),
+        }
 
 
 class AgedReceivablesView(ReportView):
     def build(self, request):
-        from apps.fees.models import FeeInvoice
+        from apps.fees.models import CreditNote, FeeInvoice, ReceiptAllocation
 
         as_of = _parse_date(request.query_params.get('as_of_date'), timezone.localdate())
         currency = request.query_params.get('currency') or None
+        # True as-at aging: rebuild each invoice's outstanding balance from
+        # settlements dated on/before as_of (posted receipts + credit notes),
+        # so a back-dated report shows what was actually owed on that date.
+        # Reversed receipts are treated as never having happened.
         qs = (
-            FeeInvoice.objects.filter(status__in=['posted', 'partial'], date__lte=as_of)
+            FeeInvoice.objects.exclude(status__in=['draft', 'cancelled'])
+            .filter(date__lte=as_of)
             .select_related('student', 'enrollment__class_room__grade')
         )
         if currency:
@@ -214,10 +379,27 @@ class AgedReceivablesView(ReportView):
         if grade:
             qs = qs.filter(enrollment__class_room__grade_id=grade)
 
+        paid_as_of = {
+            row['invoice_id']: row['total']
+            for row in ReceiptAllocation.objects.filter(
+                receipt__status='posted', receipt__date__lte=as_of, invoice__in=qs
+            ).values('invoice_id').annotate(total=Sum('amount'))
+        }
+        credited_as_of = {
+            row['invoice_id']: row['total']
+            for row in CreditNote.objects.filter(
+                status='posted', date__lte=as_of, invoice__in=qs
+            ).values('invoice_id').annotate(total=Sum('total'))
+        }
+
         students = {}
         bucket_totals = [ZERO] * len(AGING_BUCKETS)
         for invoice in qs:
-            balance = invoice.balance
+            balance = (
+                invoice.total
+                - paid_as_of.get(invoice.pk, ZERO)
+                - credited_as_of.get(invoice.pk, ZERO)
+            )
             if balance <= 0:
                 continue
             days = (as_of - invoice.due_date).days
@@ -253,14 +435,22 @@ class AgedReceivablesView(ReportView):
 
 class AgedPayablesView(ReportView):
     def build(self, request):
-        from apps.procurement.models import VendorBill
+        from apps.procurement.models import PaymentAllocation, VendorBill
 
         as_of = _parse_date(request.query_params.get('as_of_date'), timezone.localdate())
-        qs = VendorBill.objects.filter(status__in=['posted', 'partial'], date__lte=as_of).select_related('supplier')
+        qs = VendorBill.objects.exclude(status__in=['draft', 'cancelled']).filter(
+            date__lte=as_of
+        ).select_related('supplier')
+        paid_as_of = {
+            row['bill_id']: row['total']
+            for row in PaymentAllocation.objects.filter(
+                payment__status='posted', payment__date__lte=as_of, bill__in=qs
+            ).values('bill_id').annotate(total=Sum('amount'))
+        }
         suppliers = {}
         bucket_totals = [ZERO] * len(AGING_BUCKETS)
         for bill in qs:
-            balance = bill.balance
+            balance = bill.total - paid_as_of.get(bill.pk, ZERO)
             if balance <= 0:
                 continue
             days = max((as_of - bill.due_date).days, 0)
@@ -382,28 +572,127 @@ class CashbookView(ReportView):
 
 class AssetRegisterView(ReportView):
     def build(self, request):
-        from apps.assets.models import Asset
+        """Fixed-asset movement schedule for a period: opening cost, additions,
+        disposals, period depreciation charge, and closing accumulated/NBV as-at
+        the period end (rebuilt from posted depreciation entries, not the live
+        running field, so back-dated reports are correct)."""
+        from apps.assets.models import Asset, DepreciationEntry
+
+        today = timezone.localdate()
+        start = _parse_date(request.query_params.get('start'), today.replace(month=1, day=1))
+        end = _parse_date(request.query_params.get('end'), today)
+
+        accum_to_end = {
+            row['asset_id']: row['total']
+            for row in DepreciationEntry.objects.filter(
+                run__status='posted', run__run_date__lte=end
+            ).values('asset_id').annotate(total=Sum('amount'))
+        }
+        charge_in_period = {
+            row['asset_id']: row['total']
+            for row in DepreciationEntry.objects.filter(
+                run__status='posted', run__run_date__gte=start, run__run_date__lte=end
+            ).values('asset_id').annotate(total=Sum('amount'))
+        }
 
         rows = []
         by_category = {}
-        for asset in Asset.objects.select_related('category').exclude(status='draft'):
+        totals = {'opening_cost': ZERO, 'additions': ZERO, 'disposals': ZERO,
+                  'closing_cost': ZERO, 'period_charge': ZERO, 'accumulated': ZERO, 'nbv': ZERO}
+        for asset in Asset.objects.select_related('category').exclude(status='draft').filter(
+            acquisition_date__lte=end
+        ):
+            disposed_by_end = asset.status in ('disposed', 'written_off') and \
+                asset.disposal_date and asset.disposal_date <= end
+            disposed_in_period = disposed_by_end and asset.disposal_date >= start
+            is_addition = start <= asset.acquisition_date <= end
+            accum = accum_to_end.get(asset.pk, ZERO)
+            charge = charge_in_period.get(asset.pk, ZERO)
+            closing_cost = ZERO if disposed_by_end else asset.cost_base
+            closing_accum = ZERO if disposed_by_end else accum
             entry = {
                 'id': asset.pk, 'code': asset.code, 'name': asset.name,
-                'category': asset.category.name, 'acquisition_date': asset.acquisition_date.isoformat(),
-                'cost': asset.cost_base, 'accumulated_depreciation': asset.accumulated_depreciation,
-                'net_book_value': asset.net_book_value, 'status': asset.status,
+                'category': asset.category.name,
+                'acquisition_date': asset.acquisition_date.isoformat(),
+                'cost': asset.cost_base,
+                'addition_in_period': asset.cost_base if is_addition else ZERO,
+                'disposal_in_period': asset.cost_base if disposed_in_period else ZERO,
+                'period_depreciation': charge,
+                'accumulated_depreciation': closing_accum,
+                'net_book_value': closing_cost - closing_accum,
+                'status': asset.status,
             }
+            if disposed_by_end and not disposed_in_period:
+                continue  # disposed before the period — no longer on the register
             rows.append(entry)
-            totals = by_category.setdefault(asset.category.name, {'cost': ZERO, 'accum': ZERO, 'nbv': ZERO})
-            totals['cost'] += asset.cost_base
-            totals['accum'] += asset.accumulated_depreciation
-            totals['nbv'] += asset.net_book_value
+            cat = by_category.setdefault(asset.category.name, {'cost': ZERO, 'accum': ZERO, 'nbv': ZERO})
+            cat['cost'] += closing_cost
+            cat['accum'] += closing_accum
+            cat['nbv'] += closing_cost - closing_accum
+            totals['opening_cost'] += ZERO if is_addition else asset.cost_base
+            totals['additions'] += entry['addition_in_period']
+            totals['disposals'] += entry['disposal_in_period']
+            totals['closing_cost'] += closing_cost
+            totals['period_charge'] += charge
+            totals['accumulated'] += closing_accum
+            totals['nbv'] += closing_cost - closing_accum
         return {
+            'start': start.isoformat(), 'end': end.isoformat(),
             'rows': rows,
             'category_totals': by_category,
-            'total_cost': sum((r['cost'] for r in rows), ZERO),
-            'total_accumulated': sum((r['accumulated_depreciation'] for r in rows), ZERO),
-            'total_nbv': sum((r['net_book_value'] for r in rows), ZERO),
+            'movement_totals': totals,
+            # Back-compat keys used by existing screens
+            'total_cost': totals['closing_cost'],
+            'total_accumulated': totals['accumulated'],
+            'total_nbv': totals['nbv'],
+        }
+
+
+class CashFlowView(ReportView):
+    def build(self, request):
+        """Direct-method cash flow: every GL movement on cash/bank accounts in
+        the period, grouped by the journal type that produced it."""
+        today = timezone.localdate()
+        start = _parse_date(request.query_params.get('start'), today.replace(month=1, day=1))
+        end = _parse_date(request.query_params.get('end'), today)
+
+        cash_filter = {'account__account_subtype': 'cash'}
+        opening_agg = GeneralLedger.objects.filter(
+            date__lt=start, **cash_filter
+        ).aggregate(d=Sum('debit_base'), c=Sum('credit_base'))
+        opening = (opening_agg['d'] or ZERO) - (opening_agg['c'] or ZERO)
+
+        GROUP_LABELS = {
+            'receipts': 'Fees and other income received',
+            'payments': 'Payments to suppliers',
+            'general': 'Other cash movements',
+            'adjustment': 'Adjustments',
+            'reversal': 'Reversals',
+            'opening': 'Opening balances',
+        }
+        flows = (
+            GeneralLedger.objects.filter(date__gte=start, date__lte=end, **cash_filter)
+            .values(jtype=F('journal__journal_type'))
+            .annotate(inflow=Sum('debit_base'), outflow=Sum('credit_base'))
+            .order_by('jtype')
+        )
+        rows = [
+            {
+                'group': GROUP_LABELS.get(f['jtype'], f['jtype']),
+                'journal_type': f['jtype'],
+                'inflow': f['inflow'] or ZERO,
+                'outflow': f['outflow'] or ZERO,
+                'net': (f['inflow'] or ZERO) - (f['outflow'] or ZERO),
+            }
+            for f in flows
+        ]
+        net_movement = sum((r['net'] for r in rows), ZERO)
+        return {
+            'start': start.isoformat(), 'end': end.isoformat(),
+            'opening_cash': opening,
+            'rows': rows,
+            'net_movement': net_movement,
+            'closing_cash': opening + net_movement,
         }
 
 

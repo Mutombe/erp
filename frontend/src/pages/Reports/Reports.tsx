@@ -10,6 +10,7 @@ const AgedReceivables = lazy(() => import('./sections/AgedReceivables'))
 const FeeCollection = lazy(() => import('./sections/FeeCollection'))
 const AgedPayables = lazy(() => import('./sections/AgedPayables'))
 const Cashbook = lazy(() => import('./sections/Cashbook'))
+const CashFlow = lazy(() => import('./sections/CashFlow'))
 const AssetRegister = lazy(() => import('./sections/AssetRegister'))
 const StockValuation = lazy(() => import('./sections/StockValuation'))
 
@@ -17,6 +18,7 @@ const REPORTS: { key: string; label: string; group: string; component?: React.La
   { key: 'trial-balance', label: 'Trial Balance', group: 'Financial', component: TrialBalance },
   { key: 'balance-sheet', label: 'Balance Sheet', group: 'Financial', component: BalanceSheet },
   { key: 'income-statement', label: 'Income Statement / I&E', group: 'Financial', component: IncomeStatement },
+  { key: 'cash-flow', label: 'Cash Flow', group: 'Financial', component: CashFlow },
   { key: 'cashbook', label: 'Cashbook', group: 'Financial', component: Cashbook },
   { key: 'aged-receivables', label: 'Aged Debtors (Fees)', group: 'Fees', component: AgedReceivables },
   { key: 'fee-collection', label: 'Fee Collection', group: 'Fees', component: FeeCollection },
