@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { CheckCircle2, FilePlus2, PackageCheck } from 'lucide-react'
+import { CheckCircle, FilePlus, BoxArrowDown } from '@phosphor-icons/react'
 import { grnsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -49,19 +49,19 @@ export default function GRNDetail() {
       <PageHeader
         title={grn.number}
         description={`Goods received against ${grn.po_number}`}
-        icon={PackageCheck}
+        icon={BoxArrowDown}
         backLink="/app/grns"
         actions={
           <div className="flex items-center gap-3">
             <StatusBadge status={grn.status} />
             {grn.status === 'draft' && (
               <Button onClick={() => setConfirmPost(true)} loading={postMutation.isPending}>
-                <CheckCircle2 className="w-4 h-4 mr-2" /> Post
+                <CheckCircle className="w-4 h-4 mr-2" /> Post
               </Button>
             )}
             {grn.status === 'posted' && (
               <Button onClick={() => navigate(`/app/vendor-bills?grn=${grn.id}`)}>
-                <FilePlus2 className="w-4 h-4 mr-2" /> Create Vendor Bill
+                <FilePlus className="w-4 h-4 mr-2" /> Create Vendor Bill
               </Button>
             )}
           </div>

@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { Boxes, Warehouse as WarehouseIcon } from 'lucide-react'
+import { Stack, Warehouse as WarehouseIcon } from '@phosphor-icons/react'
 import { itemsApi, stockLevelsApi, warehousesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { Badge, PageHeader, SkeletonCard, StatsCard } from '@/components/ui'
@@ -61,7 +61,7 @@ export default function WarehouseDetail() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <StatsCard title="Line items in stock" value={rows.length} icon={Boxes} color="blue" />
+        <StatsCard title="Line items in stock" value={rows.length} icon={Stack} color="blue" />
         <StatsCard title="Stock value (base)" value={money(totalValue)} subtitle="qty × item avg cost" icon={WarehouseIcon} color="green" />
       </div>
 

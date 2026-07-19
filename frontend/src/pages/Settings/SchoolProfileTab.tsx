@@ -1,6 +1,6 @@
 import { useForm } from 'react-hook-form'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Save } from 'lucide-react'
+import { FloppyDisk } from '@phosphor-icons/react'
 import { settingsApi, academicYearsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -152,7 +152,7 @@ function ProfileForm({
         placeholder="Shown at the bottom of student statements…" {...register('statement_footer')} />
       <div className="pt-2">
         <Button type="submit" loading={mutation.isPending}>
-          <Save className="w-4 h-4 mr-2" /> Save settings
+          <FloppyDisk className="w-4 h-4 mr-2" /> Save settings
         </Button>
       </div>
     </form>

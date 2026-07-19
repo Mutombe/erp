@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { X } from 'lucide-react'
+import { X } from '@phosphor-icons/react'
 import { ReactNode, ComponentType, useRef, useEffect, useId } from 'react'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 

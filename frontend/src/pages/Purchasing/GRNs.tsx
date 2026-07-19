@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { PackageCheck } from 'lucide-react'
+import { BoxArrowDown } from '@phosphor-icons/react'
 import { grnsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
@@ -67,7 +67,7 @@ export default function GRNs() {
       <PageHeader
         title="Goods Received Notes"
         description="Deliveries received against approved purchase orders"
-        icon={PackageCheck}
+        icon={BoxArrowDown}
       />
 
       <div className="flex gap-2">

@@ -2,10 +2,10 @@ import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { itemCategoriesApi, itemsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { showToast, parseApiError } from '@/lib/toast'
+import { useOptimisticCreate, useOptimisticUpdate } from '@/hooks/useOptimisticMutation'
 import { Button, FormRow, Input, Modal, ModalFooter, Select } from '@/components/ui'
 import type { Item, ItemCategory } from '@/types/inventory'
 
@@ -40,8 +40,6 @@ export default function ItemFormModal({
   onClose: () => void
   item?: Item | null
 }) {
-  const queryClient = useQueryClient()
-
   const { data: categories } = useQuery({
     queryKey: qk.itemCategories.list(),
     queryFn: () => itemCategoriesApi.list().then((r) => r.data as ItemCategory[]),
@@ -71,19 +69,53 @@ export default function ItemFormModal({
     }
   }, [open, item, reset])
 
-  const mutation = useMutation({
-    mutationFn: (values: FormValues) => {
-      const payload = { ...values, reorder_level: values.reorder_level.toFixed(2) }
-      return item ? itemsApi.update(item.id, payload) : itemsApi.create(payload)
-    },
-    onSuccess: () => {
-      showToast.success(item ? 'Item updated' : 'Item created')
-      queryClient.invalidateQueries({ queryKey: qk.items.all })
-      reset(emptyValues)
-      onClose()
-    },
-    onError: (error) => showToast.error(parseApiError(error, 'Failed to save item')),
+  const closeModal = () => {
+    reset(emptyValues)
+    onClose()
+  }
+
+  const toPayload = (values: FormValues) => ({
+    ...values,
+    reorder_level: values.reorder_level.toFixed(2),
   })
+
+  const createMutation = useOptimisticCreate<Item, FormValues>({
+    mutationFn: (values) => itemsApi.create(toPayload(values)),
+    queryKeyPrefixes: [qk.items.all],
+    createPlaceholder: (values) => ({
+      id: -Date.now(),
+      code: values.code,
+      name: values.name,
+      category: values.category || null,
+      category_name: (categories ?? []).find((c) => c.id === values.category)?.name ?? null,
+      uom: values.uom,
+      item_type: values.item_type,
+      avg_cost: '0.00',
+      qty_on_hand: '0.00',
+      reorder_level: values.reorder_level.toFixed(2),
+      barcode: values.barcode,
+      is_active: true,
+    }),
+    successMessage: 'Item created',
+    errorMessage: 'Failed to save item',
+    closeModal,
+  })
+
+  const updateMutation = useOptimisticUpdate<Item, FormValues & { id: number }>({
+    mutationFn: ({ id, ...values }) => itemsApi.update(id, toPayload(values as FormValues)),
+    queryKeyPrefixes: [qk.items.all],
+    successMessage: 'Item updated',
+    errorMessage: 'Failed to save item',
+    closeModal,
+  })
+
+  const mutation = {
+    mutate: (values: FormValues) =>
+      item
+        ? updateMutation.mutate({ ...values, id: item.id, reorder_level: values.reorder_level } as FormValues & { id: number })
+        : createMutation.mutate(values),
+    isPending: createMutation.isPending || updateMutation.isPending,
+  }
 
   return (
     <Modal open={open} onClose={onClose} title={item ? `Edit ${item.code}` : 'New Item'}>

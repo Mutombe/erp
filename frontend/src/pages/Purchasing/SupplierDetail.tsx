@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { FileText, Plus, ShoppingCart, Truck, Wallet } from 'lucide-react'
+import { FileText, Plus, ShoppingCart, Truck, Wallet } from '@phosphor-icons/react'
 import { purchaseOrdersApi, suppliersApi, supplierPaymentsApi, vendorBillsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { Badge, Button, DataTable, PageHeader, SkeletonCard, StatusBadge, type Column } from '@/components/ui'
@@ -11,6 +12,9 @@ import { PoStatusBadge } from './PurchaseOrders'
 export default function SupplierDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [poPage, setPoPage] = useState(1)
+  const [billPage, setBillPage] = useState(1)
+  const [paymentPage, setPaymentPage] = useState(1)
 
   const { data: supplier, isLoading } = useQuery({
     queryKey: qk.suppliers.detail(id!),
@@ -18,23 +22,29 @@ export default function SupplierDetail() {
   })
 
   const { data: pos } = useQuery({
-    queryKey: qk.purchaseOrders.list({ supplier: id }),
+    queryKey: qk.purchaseOrders.list({ supplier: id, page: poPage }),
     queryFn: () =>
-      purchaseOrdersApi.list({ supplier: id }).then((r) => r.data as Paginated<PurchaseOrder>),
+      purchaseOrdersApi.list({ supplier: id, page: poPage }).then((r) => r.data as Paginated<PurchaseOrder>),
     enabled: !!id,
+    placeholderData: keepPreviousData,
   })
 
   const { data: bills } = useQuery({
-    queryKey: qk.vendorBills.list({ supplier: id }),
-    queryFn: () => vendorBillsApi.list({ supplier: id }).then((r) => r.data as Paginated<VendorBill>),
+    queryKey: qk.vendorBills.list({ supplier: id, page: billPage }),
+    queryFn: () =>
+      vendorBillsApi.list({ supplier: id, page: billPage }).then((r) => r.data as Paginated<VendorBill>),
     enabled: !!id,
+    placeholderData: keepPreviousData,
   })
 
   const { data: payments } = useQuery({
-    queryKey: qk.supplierPayments.list({ supplier: id }),
+    queryKey: qk.supplierPayments.list({ supplier: id, page: paymentPage }),
     queryFn: () =>
-      supplierPaymentsApi.list({ supplier: id }).then((r) => r.data as Paginated<SupplierPayment>),
+      supplierPaymentsApi
+        .list({ supplier: id, page: paymentPage })
+        .then((r) => r.data as Paginated<SupplierPayment>),
     enabled: !!id,
+    placeholderData: keepPreviousData,
   })
 
   const poColumns: Column<PurchaseOrder>[] = [
@@ -107,6 +117,7 @@ export default function SupplierDetail() {
           data={pos?.results ?? []}
           onRowClick={(po) => navigate(`/app/purchase-orders/${po.id}`)}
           emptyTitle="No purchase orders"
+          pagination={{ page: poPage, pageSize: 25, total: pos?.count ?? 0, onPageChange: setPoPage }}
         />
       </div>
 
@@ -120,6 +131,7 @@ export default function SupplierDetail() {
           data={bills?.results ?? []}
           onRowClick={(b) => navigate(`/app/vendor-bills/${b.id}`)}
           emptyTitle="No bills"
+          pagination={{ page: billPage, pageSize: 25, total: bills?.count ?? 0, onPageChange: setBillPage }}
         />
       </div>
 
@@ -133,6 +145,7 @@ export default function SupplierDetail() {
           data={payments?.results ?? []}
           onRowClick={(p) => navigate(`/app/supplier-payments/${p.id}`)}
           emptyTitle="No payments"
+          pagination={{ page: paymentPage, pageSize: 25, total: payments?.count ?? 0, onPageChange: setPaymentPage }}
         />
       </div>
 

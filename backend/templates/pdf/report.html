@@ -1,0 +1,26 @@
+{% extends 'pdf/base.html' %}
+{% block page_style %}{% if landscape %}@page { size: A4 landscape; margin: 1.6cm; }{% else %}@page { size: A4; margin: 1.6cm; }{% endif %}{% endblock %}
+{% block extra_head %}
+<style>
+  .section-row td { font-weight: bold; background: #f0f0f0; border-bottom: 1px solid #999; padding-top: 8px; }
+  .bold-row td { font-weight: bold; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="doc-title">{{ title }}</div>
+{% if subtitle %}<div class="muted">{{ subtitle }}</div>{% endif %}
+<table class="data">
+  <tr>
+    {% for col in columns %}<th{% if col.align == 'right' %} class="right"{% endif %}>{{ col.label }}</th>{% endfor %}
+  </tr>
+  {% for row in rows %}
+  {% if row.style == 'section' %}
+  <tr class="section-row"><td colspan="{{ columns|length }}">{{ row.cells.0 }}</td></tr>
+  {% else %}
+  <tr{% if row.style == 'total' %} class="total-row"{% elif row.style == 'bold' %} class="bold-row"{% endif %}>
+    {% for cell in row.cells %}<td{% if cell.align == 'right' %} class="right"{% endif %}>{{ cell.text }}</td>{% endfor %}
+  </tr>
+  {% endif %}
+  {% endfor %}
+</table>
+{% endblock %}

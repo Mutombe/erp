@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { CalendarCheck, FileUp, Landmark, Scale, Upload, Wallet } from 'lucide-react'
+import { CalendarCheck, FileArrowUp, Bank, Scales, UploadSimple, Wallet } from '@phosphor-icons/react'
 import { bankAccountsApi, bankStatementsApi, reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -108,7 +108,7 @@ function UploadStatementModal({
   })
 
   return (
-    <Modal open={open} onClose={onClose} title="Upload Bank Statement" icon={FileUp}>
+    <Modal open={open} onClose={onClose} title="Upload Bank Statement" icon={FileArrowUp}>
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -194,17 +194,17 @@ export default function BankAccountDetail() {
       <PageHeader
         title={`${account.code} · ${account.name}`}
         description={`${account.bank_name || 'No bank'}${account.branch ? ` · ${account.branch}` : ''} · ${account.currency} · GL ${account.gl_account_code}`}
-        icon={Landmark}
+        icon={Bank}
         backLink="/app/bank-accounts"
         actions={
           <div className="flex items-center gap-2">
             {account.is_default && <Badge variant="info">Default</Badge>}
             {!account.is_active && <Badge variant="default">Inactive</Badge>}
             <Button variant="secondary" onClick={() => setUploadOpen(true)}>
-              <Upload className="w-4 h-4 mr-2" /> Upload Statement
+              <UploadSimple className="w-4 h-4 mr-2" /> Upload Statement
             </Button>
             <Button onClick={() => navigate(`/app/bank-reconciliation?account=${account.id}`)}>
-              <Scale className="w-4 h-4 mr-2" /> Reconcile
+              <Scales className="w-4 h-4 mr-2" /> Reconcile
             </Button>
           </div>
         }
@@ -222,7 +222,7 @@ export default function BankAccountDetail() {
           title="Bank balance"
           value={money(account.bank_balance)}
           subtitle="Per the last reconciled statement"
-          icon={Landmark}
+          icon={Bank}
           color="purple"
         />
         <StatsCard

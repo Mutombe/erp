@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Pencil, Plus, Truck } from 'lucide-react'
+import { PencilSimple, Plus, Truck } from '@phosphor-icons/react'
 import { suppliersApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
-import { showToast, parseApiError } from '@/lib/toast'
+import { useOptimisticCreate, useOptimisticUpdate } from '@/hooks/useOptimisticMutation'
 import {
   Badge,
   Button,
@@ -60,7 +60,6 @@ function SupplierFormModal({
   onClose: () => void
   supplier?: Supplier | null
 }) {
-  const queryClient = useQueryClient()
   const {
     register,
     handleSubmit,
@@ -87,19 +86,49 @@ function SupplierFormModal({
     }
   }, [open, supplier, reset])
 
-  const mutation = useMutation({
-    mutationFn: (values: FormValues) => {
-      const payload = { ...values, code: values.code || undefined }
-      return supplier ? suppliersApi.update(supplier.id, payload) : suppliersApi.create(payload)
-    },
-    onSuccess: () => {
-      showToast.success(supplier ? 'Supplier updated' : 'Supplier created')
-      queryClient.invalidateQueries({ queryKey: qk.suppliers.all })
-      reset(emptyValues)
-      onClose()
-    },
-    onError: (error) => showToast.error(parseApiError(error, 'Failed to save supplier')),
+  const closeModal = () => {
+    reset(emptyValues)
+    onClose()
+  }
+
+  const createMutation = useOptimisticCreate<Supplier, FormValues>({
+    mutationFn: (values) => suppliersApi.create({ ...values, code: values.code || undefined }),
+    queryKeyPrefixes: [qk.suppliers.all],
+    createPlaceholder: (values) => ({
+      id: -Date.now(),
+      code: values.code || '…',
+      name: values.name,
+      contact_person: values.contact_person,
+      phone: values.phone,
+      email: values.email,
+      address: values.address,
+      tax_number: values.tax_number,
+      default_currency: values.default_currency,
+      payment_terms_days: values.payment_terms_days,
+      is_active: true,
+      custom_fields: null,
+    }),
+    successMessage: 'Supplier created',
+    errorMessage: 'Failed to save supplier',
+    closeModal,
   })
+
+  const updateMutation = useOptimisticUpdate<Supplier, FormValues & { id: number }>({
+    mutationFn: ({ id, ...values }) =>
+      suppliersApi.update(id, { ...values, code: values.code || undefined }),
+    queryKeyPrefixes: [qk.suppliers.all],
+    successMessage: 'Supplier updated',
+    errorMessage: 'Failed to save supplier',
+    closeModal,
+  })
+
+  const mutation = {
+    mutate: (values: FormValues) =>
+      supplier
+        ? updateMutation.mutate({ ...values, id: supplier.id } as FormValues & { id: number })
+        : createMutation.mutate(values),
+    isPending: createMutation.isPending || updateMutation.isPending,
+  }
 
   return (
     <Modal open={open} onClose={onClose} title={supplier ? `Edit ${supplier.code}` : 'New Supplier'} size="lg">
@@ -183,7 +212,7 @@ export default function Suppliers() {
           className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-800"
           aria-label={`Edit ${s.code}`}
         >
-          <Pencil className="w-4 h-4" />
+          <PencilSimple className="w-4 h-4" />
         </button>
       ),
     },

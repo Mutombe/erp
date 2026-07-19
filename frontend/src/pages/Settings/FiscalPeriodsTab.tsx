@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Lock, LockOpen } from 'lucide-react'
+import { Lock, LockOpen } from '@phosphor-icons/react'
 import { fiscalPeriodsApi, fiscalYearsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'

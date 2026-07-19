@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeftRight, Plus } from 'lucide-react'
+import { ArrowsLeftRight, Plus } from '@phosphor-icons/react'
 import { exchangeRatesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -59,7 +59,7 @@ function RateModal({ onClose }: { onClose: () => void }) {
   })
 
   return (
-    <Modal open onClose={onClose} title="New Exchange Rate" icon={ArrowLeftRight}
+    <Modal open onClose={onClose} title="New Exchange Rate" icon={ArrowsLeftRight}
       description="Documents pick the latest rate effective on or before their date.">
       <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
         <FormRow>

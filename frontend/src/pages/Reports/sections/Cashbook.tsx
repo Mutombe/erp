@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { bankAccountsApi, reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { SkeletonTable } from '@/components/ui'
+import PdfButton from './PdfButton'
 import type { BankAccount } from '@/types/accounting'
 
 interface CashbookRow {
@@ -88,6 +89,13 @@ export default function Cashbook() {
           <input type="date" value={end} onChange={(e) => setEnd(e.target.value)}
             className="ml-1 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800" />
         </label>
+        <div className="ml-auto">
+          <PdfButton
+            reportKey="cashbook"
+            params={{ bank_account: effectiveBank, start, end }}
+            disabled={!effectiveBank}
+          />
+        </div>
       </div>
 
       {!effectiveBank ? (

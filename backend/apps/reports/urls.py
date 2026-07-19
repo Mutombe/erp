@@ -1,9 +1,10 @@
 from django.urls import path
 
 from . import views
-from .pdf import InvoicePdfView, ReceiptPdfView, StudentStatementPdfView
+from .pdf import InvoicePdfView, ReceiptPdfView, ReportPdfView, StudentStatementPdfView
 
 urlpatterns = [
+    path('pdf/<str:report_key>/', ReportPdfView.as_view()),
     path('invoice-pdf/<int:pk>/', InvoicePdfView.as_view()),
     path('receipt-pdf/<int:pk>/', ReceiptPdfView.as_view()),
     path('student-statement/<int:student_id>/pdf/', StudentStatementPdfView.as_view()),

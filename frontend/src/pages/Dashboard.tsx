@@ -1,14 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import {
-  AlertTriangle,
-  Banknote,
-  CalendarClock,
-  LayoutDashboard,
+  Warning,
+  Money,
+  CalendarDots,
+  SquaresFour,
   Receipt,
   Users,
   Wallet,
-} from 'lucide-react'
+} from '@phosphor-icons/react'
 import {
   Bar,
   CartesianGrid,
@@ -74,7 +74,7 @@ export default function Dashboard() {
   if (isLoading || !data) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Dashboard" description="An overview of your school's finances and operations" icon={LayoutDashboard} />
+        <PageHeader title="Dashboard" description="An overview of your school's finances and operations" icon={SquaresFour} />
         <SkeletonDashboard />
       </div>
     )
@@ -98,7 +98,7 @@ export default function Dashboard() {
       <PageHeader
         title="Dashboard"
         description={data.term ? `Current term: ${data.term.name}` : 'No current term set — configure one under Settings'}
-        icon={LayoutDashboard}
+        icon={SquaresFour}
       />
 
       {/* KPI row */}
@@ -121,7 +121,7 @@ export default function Dashboard() {
             title="Outstanding fees"
             value={money(kpis.outstanding_fees)}
             subtitle="All open invoices — click to review"
-            icon={Banknote}
+            icon={Money}
             color={Number(kpis.outstanding_fees) > 0 ? 'red' : 'blue'}
           />
         </div>
@@ -136,7 +136,7 @@ export default function Dashboard() {
             title="Overdue fees"
             value={money(kpis.overdue_fees)}
             subtitle="Past due date — click to chase"
-            icon={AlertTriangle}
+            icon={Warning}
             color={Number(kpis.overdue_fees) > 0 ? 'orange' : 'blue'}
           />
         </div>
@@ -238,7 +238,7 @@ export default function Dashboard() {
                 className="w-full flex items-center justify-between px-6 py-3.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors"
               >
                 <span className="flex items-center gap-2 min-w-0">
-                  <Banknote className="w-4 h-4 text-gray-400 shrink-0" />
+                  <Money className="w-4 h-4 text-gray-400 shrink-0" />
                   <span className="truncate text-gray-900 dark:text-gray-100">{bank.name}</span>
                   <span className="text-xs text-gray-400">{bank.currency}</span>
                 </span>
@@ -261,7 +261,7 @@ export default function Dashboard() {
         </div>
         {data.recent_receipts.length === 0 ? (
           <div className="rounded-xl border border-gray-200 dark:border-gray-700 py-10 text-center text-gray-400 text-sm">
-            <CalendarClock className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <CalendarDots className="w-8 h-8 mx-auto mb-2 opacity-50" />
             No receipts posted yet.
           </div>
         ) : (

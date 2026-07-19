@@ -1,13 +1,13 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Plus, Warehouse as WarehouseIcon } from 'lucide-react'
+import { Plus, Warehouse as WarehouseIcon } from '@phosphor-icons/react'
 import { warehousesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { showToast, parseApiError } from '@/lib/toast'
+import { useOptimisticCreate } from '@/hooks/useOptimisticMutation'
 import {
   Badge,
   Button,
@@ -30,7 +30,6 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 function WarehouseFormModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const queryClient = useQueryClient()
   const {
     register,
     handleSubmit,
@@ -38,15 +37,23 @@ function WarehouseFormModal({ open, onClose }: { open: boolean; onClose: () => v
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
-  const mutation = useMutation({
-    mutationFn: (values: FormValues) => warehousesApi.create(values),
-    onSuccess: () => {
-      showToast.success('Warehouse created')
-      queryClient.invalidateQueries({ queryKey: qk.warehouses.all })
+  const mutation = useOptimisticCreate<Warehouse, FormValues>({
+    mutationFn: (values) => warehousesApi.create(values),
+    queryKeyPrefixes: [qk.warehouses.all],
+    createPlaceholder: (values) => ({
+      id: -Date.now(),
+      code: values.code,
+      name: values.name,
+      location: values.location,
+      storekeeper: null,
+      is_active: true,
+    }),
+    successMessage: 'Warehouse created',
+    errorMessage: 'Failed to create warehouse',
+    closeModal: () => {
       reset()
       onClose()
     },
-    onError: (error) => showToast.error(parseApiError(error, 'Failed to create warehouse')),
   })
 
   return (

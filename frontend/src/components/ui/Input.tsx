@@ -1,5 +1,5 @@
 import { forwardRef, useState, useRef, useEffect, useCallback, useMemo, useId, InputHTMLAttributes, TextareaHTMLAttributes, ComponentType } from 'react'
-import { ChevronDown, Check, Search, X } from 'lucide-react'
+import { CaretDown, Check, MagnifyingGlass, X } from '@phosphor-icons/react'
 import { cn } from '../../lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
 
@@ -280,7 +280,7 @@ export function Select({
         <span className={cn('truncate', !selectedOption && 'text-gray-400')}>
           {selectedOption ? selectedOption.label : (placeholder || 'Select...')}
         </span>
-        <ChevronDown className={cn(
+        <CaretDown className={cn(
           'w-4 h-4 text-gray-400 transition-transform shrink-0 ml-2',
           isOpen && 'rotate-180'
         )} />
@@ -301,7 +301,7 @@ export function Select({
             {searchable && (
               <div className="p-2 border-b border-gray-100 dark:border-slate-700">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
                     ref={searchInputRef}
                     type="text"

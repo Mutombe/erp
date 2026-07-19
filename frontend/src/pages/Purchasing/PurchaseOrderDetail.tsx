@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { CheckCircle2, PackageCheck, ShoppingCart } from 'lucide-react'
+import { CheckCircle, BoxArrowDown, ShoppingCart } from '@phosphor-icons/react'
 import { grnsApi, purchaseOrdersApi, vendorBillsApi, warehousesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -96,7 +96,7 @@ function ReceiveGoodsModal({
     warehouse > 0 && !!date && lines.some((l) => (Number(l.quantity) || 0) > 0)
 
   return (
-    <Modal open={open} onClose={onClose} title={`Receive goods — ${po.number}`} icon={PackageCheck} size="2xl">
+    <Modal open={open} onClose={onClose} title={`Receive goods — ${po.number}`} icon={BoxArrowDown} size="2xl">
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <Select label="Warehouse" value={warehouse} onChange={(e) => setWarehouse(Number(e.target.value))}>
@@ -228,12 +228,12 @@ export default function PurchaseOrderDetail() {
             <PoStatusBadge status={po.status} />
             {canApprove && (
               <Button onClick={() => setConfirmApprove(true)} loading={approveMutation.isPending}>
-                <CheckCircle2 className="w-4 h-4 mr-2" /> Approve
+                <CheckCircle className="w-4 h-4 mr-2" /> Approve
               </Button>
             )}
             {canReceive && (
               <Button onClick={() => setReceiveOpen(true)}>
-                <PackageCheck className="w-4 h-4 mr-2" /> Receive Goods
+                <BoxArrowDown className="w-4 h-4 mr-2" /> Receive Goods
               </Button>
             )}
           </div>

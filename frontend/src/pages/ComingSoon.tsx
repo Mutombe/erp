@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router-dom'
-import { Construction } from 'lucide-react'
+import { Barricade } from '@phosphor-icons/react'
 import { EmptyState } from '@/components/ui'
 
 function titleFromPath(pathname: string): string {
@@ -15,7 +15,7 @@ export default function ComingSoon() {
 
   return (
     <EmptyState
-      icon={Construction}
+      icon={Barricade}
       title={`${titleFromPath(pathname)} — coming soon`}
       description="This module is under construction. Check back shortly."
     />

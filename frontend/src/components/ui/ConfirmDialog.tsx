@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { AlertTriangle, Trash2, X, CheckCircle, AlertCircle, Info } from 'lucide-react'
+import { Warning, Trash, X, CheckCircle, WarningCircle, Info } from '@phosphor-icons/react'
 import { ReactNode, useRef, useId } from 'react'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 
@@ -21,15 +21,15 @@ interface ConfirmDialogProps {
   loading?: boolean  // Alias for isLoading
 }
 
-const typeConfig: Record<DialogType, { icon: typeof AlertTriangle; color: string; bgColor: string; buttonClass: string }> = {
+const typeConfig: Record<DialogType, { icon: typeof Warning; color: string; bgColor: string; buttonClass: string }> = {
   danger: {
-    icon: Trash2,
+    icon: Trash,
     color: 'text-red-600',
     bgColor: 'bg-red-100',
     buttonClass: 'bg-red-600 hover:bg-red-700 focus:ring-red-500',
   },
   warning: {
-    icon: AlertTriangle,
+    icon: Warning,
     color: 'text-amber-600',
     bgColor: 'bg-amber-100',
     buttonClass: 'bg-amber-600 hover:bg-amber-700 focus:ring-amber-500',

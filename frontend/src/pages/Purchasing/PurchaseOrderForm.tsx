@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ShoppingCart, Trash2 } from 'lucide-react'
+import { Plus, ShoppingCart, Trash } from '@phosphor-icons/react'
 import { accountsApi, itemsApi, purchaseOrdersApi, suppliersApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -213,7 +213,7 @@ export default function PurchaseOrderForm() {
                     <td className="px-3 py-2 text-center">
                       {fields.length > 1 && (
                         <button type="button" onClick={() => remove(index)} className="text-gray-400 hover:text-red-500">
-                          <Trash2 className="w-4 h-4" />
+                          <Trash className="w-4 h-4" />
                         </button>
                       )}
                     </td>

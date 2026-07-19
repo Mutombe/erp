@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Pencil, Plus, Users } from 'lucide-react'
+import { PencilSimple, Plus, Users } from '@phosphor-icons/react'
 import { guardiansApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
@@ -56,7 +56,7 @@ export default function Guardians() {
           className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-800"
           title="Edit guardian"
         >
-          <Pencil className="w-4 h-4" />
+          <PencilSimple className="w-4 h-4" />
         </button>
       ),
     },

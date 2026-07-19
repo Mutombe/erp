@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link2, Pencil, Plus } from 'lucide-react'
+import { Link, PencilSimple, Plus } from '@phosphor-icons/react'
 import { accountsApi, mappingsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -87,7 +87,7 @@ function MappingModal({ mapping, onClose }: { mapping: Mapping | null; onClose: 
   })
 
   return (
-    <Modal open onClose={onClose} title={mapping ? 'Edit Account Mapping' : 'New Account Mapping'} icon={Link2}
+    <Modal open onClose={onClose} title={mapping ? 'Edit Account Mapping' : 'New Account Mapping'} icon={Link}
       description="The posting engine resolves accounts by purpose — never by hard-coded code.">
       <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
         <FormRow>
@@ -154,7 +154,7 @@ export default function MappingsTab() {
       align: 'right',
       render: (m) => (
         <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setModalMapping(m) }}>
-          <Pencil className="w-3.5 h-3.5 mr-1.5" /> Edit
+          <PencilSimple className="w-3.5 h-3.5 mr-1.5" /> Edit
         </Button>
       ),
     },

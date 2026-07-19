@@ -1,6 +1,6 @@
 import { ComponentType } from 'react'
 import { motion } from 'framer-motion'
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { TrendUp, TrendDown, Minus } from '@phosphor-icons/react'
 import { cn } from '../../lib/utils'
 
 type IconComponent = ComponentType<{ className?: string }>
@@ -91,9 +91,9 @@ export function StatsCard({
           {trend && (
             <div className="flex items-center gap-1.5 mt-2">
               {trend.value > 0 ? (
-                <TrendingUp className="w-4 h-4 text-emerald-500" />
+                <TrendUp className="w-4 h-4 text-emerald-500" />
               ) : trend.value < 0 ? (
-                <TrendingDown className="w-4 h-4 text-red-500" />
+                <TrendDown className="w-4 h-4 text-red-500" />
               ) : (
                 <Minus className="w-4 h-4 text-gray-400" />
               )}

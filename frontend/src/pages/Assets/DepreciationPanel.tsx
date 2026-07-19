@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Calculator, Play, RotateCcw } from 'lucide-react'
+import { Calculator, Play, ArrowCounterClockwise } from '@phosphor-icons/react'
 import { depreciationRunsApi, fiscalYearsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -131,7 +131,7 @@ export default function DepreciationPanel() {
                   <td className="px-4 py-2.5 text-right">
                     {run.status === 'posted' && (
                       <Button size="sm" variant="secondary" onClick={() => setReverseTarget(run)}>
-                        <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Reverse
+                        <ArrowCounterClockwise className="w-3.5 h-3.5 mr-1.5" /> Reverse
                       </Button>
                     )}
                   </td>

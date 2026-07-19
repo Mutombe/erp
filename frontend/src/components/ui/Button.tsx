@@ -1,5 +1,5 @@
 import { forwardRef, ButtonHTMLAttributes, ComponentType } from 'react'
-import { Loader2 } from 'lucide-react'
+import { CircleNotch } from '@phosphor-icons/react'
 import { cn } from '../../lib/utils'
 
 type IconComponent = ComponentType<{ className?: string }>
@@ -61,7 +61,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         )}
         {...props}
       >
-        {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+        {loading && <CircleNotch className="w-4 h-4 animate-spin" />}
         {!loading && Icon && iconPosition === 'left' && <Icon className="w-4 h-4" />}
         {children}
         {!loading && Icon && iconPosition === 'right' && <Icon className="w-4 h-4" />}

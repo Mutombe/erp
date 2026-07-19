@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ChevronDown, Loader2, Search, X, Inbox } from 'lucide-react'
+import { CaretDown, CircleNotch, MagnifyingGlass, X, Tray } from '@phosphor-icons/react'
 import { cn } from '../../lib/utils'
 import { Skeleton } from './Skeleton'
 
@@ -211,7 +211,7 @@ export function AsyncSelect({
               <X className="w-3.5 h-3.5" />
             </span>
           )}
-          <ChevronDown className={cn(
+          <CaretDown className={cn(
             'w-4 h-4 text-gray-400 transition-transform',
             isOpen && 'rotate-180'
           )} />
@@ -229,7 +229,7 @@ export function AsyncSelect({
           {searchable && (
             <div className="p-2 border-b border-gray-100 dark:border-slate-700">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   ref={inputRef}
                   type="text"
@@ -267,7 +267,7 @@ export function AsyncSelect({
               </div>
             ) : displayOptions.length === 0 && !onCreateNew ? (
               <div className="px-4 py-6 text-center">
-                <Inbox className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                <Tray className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                 <p className="text-sm text-gray-500">
                   {searchTerm ? `No results for "${searchTerm}"` : emptyMessage}
                 </p>
@@ -349,7 +349,7 @@ export function SelectSkeleton({ label }: { label?: string }) {
       <div className="relative">
         <Skeleton className="h-11 w-full rounded-xl" />
         <div className="absolute right-3 top-1/2 -translate-y-1/2">
-          <Loader2 className="w-4 h-4 text-gray-300 animate-spin" />
+          <CircleNotch className="w-4 h-4 text-gray-300 animate-spin" />
         </div>
       </div>
     </div>

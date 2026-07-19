@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown } from 'lucide-react'
+import { CaretDown } from '@phosphor-icons/react'
 import { cn } from '../../lib/utils'
 
 /** Simple controlled or uncontrolled accordion section.
@@ -57,7 +57,7 @@ export function Accordion({
           headerClassName,
         )}
       >
-        <ChevronDown
+        <CaretDown
           className={cn(
             'w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200',
             open && 'rotate-180',

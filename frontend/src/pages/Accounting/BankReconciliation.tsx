@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { CheckCircle2, Landmark, ListChecks, Plus, Scale, Wallet } from 'lucide-react'
+import { CheckCircle, Bank, ListChecks, Plus, Scales, Wallet } from '@phosphor-icons/react'
 import { bankAccountsApi, bankReconciliationsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -108,7 +108,7 @@ function NewReconciliationModal({
   })
 
   return (
-    <Modal open={open} onClose={onClose} title="New Reconciliation" icon={Scale}>
+    <Modal open={open} onClose={onClose} title="New Reconciliation" icon={Scales}>
       <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-4">
         <FormRow>
           <Input type="date" label="Start date" error={errors.start_date?.message} {...register('start_date')} />
@@ -181,7 +181,7 @@ function ReconciliationWorkspace({ reconId }: { reconId: number }) {
             loading={completeMutation.isPending}
             variant={balanced ? 'primary' : 'secondary'}
           >
-            <CheckCircle2 className="w-4 h-4 mr-2" /> Complete Reconciliation
+            <CheckCircle className="w-4 h-4 mr-2" /> Complete Reconciliation
           </Button>
         )}
       </div>
@@ -191,7 +191,7 @@ function ReconciliationWorkspace({ reconId }: { reconId: number }) {
           title="Statement balance"
           value={money(recon.statement_balance)}
           subtitle="Per the bank statement"
-          icon={Landmark}
+          icon={Bank}
           color="blue"
         />
         <StatsCard
@@ -212,7 +212,7 @@ function ReconciliationWorkspace({ reconId }: { reconId: number }) {
           title="Difference"
           value={money(recon.difference)}
           subtitle={balanced ? 'Balanced — ready to complete' : 'Tick outstanding items to clear'}
-          icon={Scale}
+          icon={Scales}
           color={balanced ? 'green' : 'red'}
         />
       </div>
@@ -319,7 +319,7 @@ export default function BankReconciliation() {
       <PageHeader
         title="Bank Reconciliation"
         description="Tick off bank journal lines against the statement, Sage style"
-        icon={Scale}
+        icon={Scales}
         actions={
           accountId ? (
             <Button onClick={() => setNewOpen(true)}>

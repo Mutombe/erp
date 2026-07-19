@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pencil, Plus, UserRound } from 'lucide-react'
+import { PencilSimple, Plus, UserCircle } from '@phosphor-icons/react'
 import { usersApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -89,7 +89,7 @@ function UserFormModal({ user, onClose }: { user: UserRow | null; onClose: () =>
   })
 
   return (
-    <Modal open onClose={onClose} title={user ? `Edit ${user.email}` : 'New User'} icon={UserRound}>
+    <Modal open onClose={onClose} title={user ? `Edit ${user.email}` : 'New User'} icon={UserCircle}>
       <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
         <Input
           label="Email"
@@ -167,7 +167,7 @@ export default function UsersTab() {
       render: (u) => (
         <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
           <Button size="sm" variant="ghost" onClick={() => setModalUser(u)}>
-            <Pencil className="w-3.5 h-3.5 mr-1.5" /> Edit
+            <PencilSimple className="w-3.5 h-3.5 mr-1.5" /> Edit
           </Button>
           <Button size="sm" variant={u.is_active ? 'outline' : 'success'} onClick={() => setToggleTarget(u)}>
             {u.is_active ? 'Deactivate' : 'Activate'}

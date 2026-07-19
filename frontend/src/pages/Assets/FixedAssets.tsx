@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { FolderTree, Landmark, Plus, TrendingDown, Wallet } from 'lucide-react'
+import { TreeStructure, Bank, Plus, TrendDown, Wallet } from '@phosphor-icons/react'
 import { assetsApi, reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
@@ -57,11 +57,11 @@ export default function FixedAssets() {
       <PageHeader
         title="Fixed Assets"
         description="Asset register, capitalization and monthly depreciation"
-        icon={Landmark}
+        icon={Bank}
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={() => setShowCategoryModal(true)}>
-              <FolderTree className="w-4 h-4 mr-2" /> New Category
+              <TreeStructure className="w-4 h-4 mr-2" /> New Category
             </Button>
             <Button onClick={() => setShowAssetModal(true)}>
               <Plus className="w-4 h-4 mr-2" /> New Asset
@@ -75,7 +75,7 @@ export default function FixedAssets() {
           title="Total cost"
           value={money(register?.total_cost)}
           subtitle="Base currency, excluding drafts"
-          icon={Landmark}
+          icon={Bank}
           color="blue"
           loading={registerLoading}
         />
@@ -83,7 +83,7 @@ export default function FixedAssets() {
           title="Accumulated depreciation"
           value={money(register?.total_accumulated)}
           subtitle="Written off to date"
-          icon={TrendingDown}
+          icon={TrendDown}
           color="orange"
           loading={registerLoading}
         />

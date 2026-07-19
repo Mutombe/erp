@@ -1,30 +1,30 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeftRight,
-  BarChart3,
+  ArrowsLeftRight,
+  ChartBar,
   BookOpen,
-  Building2,
-  ChevronDown,
-  ChevronsLeft,
-  ChevronsRight,
+  Buildings,
+  CaretDown,
+  CaretDoubleLeft,
+  CaretDoubleRight,
   CreditCard,
   FileText,
-  GitCompareArrows,
+  GitDiff,
   GraduationCap,
-  Landmark,
-  LayoutDashboard,
-  LogOut,
-  Menu,
+  Bank,
+  SquaresFour,
+  SignOut,
+  List,
   Moon,
-  NotebookPen,
+  NotePencil,
   Package,
-  PackageCheck,
+  BoxArrowDown,
   PlayCircle,
   Receipt,
-  ReceiptText,
-  School,
-  Settings,
+  Invoice,
+  Student,
+  Gear,
   ShoppingCart,
   Sun,
   Truck,
@@ -32,8 +32,8 @@ import {
   Wallet,
   Warehouse,
   X,
-  type LucideIcon,
-} from 'lucide-react'
+  type Icon,
+} from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { authApi } from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
@@ -42,7 +42,7 @@ import { useUIStore } from '@/stores/uiStore'
 interface NavItem {
   label: string
   to: string
-  icon: LucideIcon
+  icon: Icon
   end?: boolean
 }
 
@@ -55,8 +55,8 @@ const navSections: NavSection[] = [
   {
     label: 'Overview',
     items: [
-      { label: 'Dashboard', to: '/app', icon: LayoutDashboard, end: true },
-      { label: 'Reports', to: '/app/reports', icon: BarChart3 },
+      { label: 'Dashboard', to: '/app', icon: SquaresFour, end: true },
+      { label: 'Reports', to: '/app/reports', icon: ChartBar },
     ],
   },
   {
@@ -64,7 +64,7 @@ const navSections: NavSection[] = [
     items: [
       { label: 'Students', to: '/app/students', icon: GraduationCap },
       { label: 'Guardians', to: '/app/guardians', icon: Users },
-      { label: 'Classes', to: '/app/classes', icon: School },
+      { label: 'Classes', to: '/app/classes', icon: Student },
       { label: 'Fee Structures', to: '/app/fee-structures', icon: Wallet },
       { label: 'Billing Runs', to: '/app/billing-runs', icon: PlayCircle },
       { label: 'Fee Invoices', to: '/app/fee-invoices', icon: FileText },
@@ -75,10 +75,10 @@ const navSections: NavSection[] = [
     label: 'Accounting',
     items: [
       { label: 'Chart of Accounts', to: '/app/chart-of-accounts', icon: BookOpen },
-      { label: 'Journals', to: '/app/journals', icon: NotebookPen },
-      { label: 'Bank Accounts', to: '/app/bank-accounts', icon: Landmark },
-      { label: 'Reconciliation', to: '/app/bank-reconciliation', icon: GitCompareArrows },
-      { label: 'Fixed Assets', to: '/app/fixed-assets', icon: Building2 },
+      { label: 'Journals', to: '/app/journals', icon: NotePencil },
+      { label: 'Bank Accounts', to: '/app/bank-accounts', icon: Bank },
+      { label: 'Reconciliation', to: '/app/bank-reconciliation', icon: GitDiff },
+      { label: 'Fixed Assets', to: '/app/fixed-assets', icon: Buildings },
     ],
   },
   {
@@ -86,7 +86,7 @@ const navSections: NavSection[] = [
     items: [
       { label: 'Items', to: '/app/items', icon: Package },
       { label: 'Warehouses', to: '/app/warehouses', icon: Warehouse },
-      { label: 'Stock Moves', to: '/app/stock-moves', icon: ArrowLeftRight },
+      { label: 'Stock Moves', to: '/app/stock-moves', icon: ArrowsLeftRight },
     ],
   },
   {
@@ -94,14 +94,14 @@ const navSections: NavSection[] = [
     items: [
       { label: 'Suppliers', to: '/app/suppliers', icon: Truck },
       { label: 'Purchase Orders', to: '/app/purchase-orders', icon: ShoppingCart },
-      { label: 'GRNs', to: '/app/grns', icon: PackageCheck },
-      { label: 'Vendor Bills', to: '/app/vendor-bills', icon: ReceiptText },
+      { label: 'GRNs', to: '/app/grns', icon: BoxArrowDown },
+      { label: 'Vendor Bills', to: '/app/vendor-bills', icon: Invoice },
       { label: 'Supplier Payments', to: '/app/supplier-payments', icon: CreditCard },
     ],
   },
   {
     label: 'Settings',
-    items: [{ label: 'Settings', to: '/app/settings', icon: Settings }],
+    items: [{ label: 'Settings', to: '/app/settings', icon: Gear }],
   },
 ]
 
@@ -209,7 +209,7 @@ function UserMenu() {
         <span className="hidden sm:block text-sm font-medium text-gray-700 dark:text-slate-300 max-w-[10rem] truncate">
           {user?.full_name || user?.email || 'Account'}
         </span>
-        <ChevronDown className="w-4 h-4 text-gray-400" />
+        <CaretDown className="w-4 h-4 text-gray-400" />
       </button>
 
       {open && (
@@ -229,7 +229,7 @@ function UserMenu() {
             onClick={handleLogout}
             className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
           >
-            <LogOut className="w-4 h-4" />
+            <SignOut className="w-4 h-4" />
             Sign out
           </button>
         </div>
@@ -266,10 +266,10 @@ export default function Layout() {
             title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {sidebarCollapsed ? (
-              <ChevronsRight className="w-4 h-4" />
+              <CaretDoubleRight className="w-4 h-4" />
             ) : (
               <>
-                <ChevronsLeft className="w-4 h-4" />
+                <CaretDoubleLeft className="w-4 h-4" />
                 <span>Collapse</span>
               </>
             )}
@@ -313,7 +313,7 @@ export default function Layout() {
               onClick={() => setMobileOpen(true)}
               className="lg:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-slate-400 dark:hover:bg-slate-800"
             >
-              <Menu className="w-5 h-5" />
+              <List className="w-5 h-5" />
             </button>
             <span className="font-semibold text-gray-900 dark:text-slate-100">School ERP</span>
           </div>

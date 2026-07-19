@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowDownRight, ArrowUpRight, BookOpen, Scale } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, BookOpen, Scales } from '@phosphor-icons/react'
 import { accountsApi, generalLedgerApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { Badge, CurrencyDisplay, PageHeader, SkeletonTable, StatsCard } from '@/components/ui'
@@ -55,7 +55,7 @@ export default function AccountLedger() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatsCard
-          icon={Scale}
+          icon={Scales}
           title="Current balance (base)"
           value={account ? parseFloat(account.current_balance).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—'}
         />

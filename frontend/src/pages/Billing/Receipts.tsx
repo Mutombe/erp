@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Banknote, Plus } from 'lucide-react'
+import { Money, Plus } from '@phosphor-icons/react'
 import { receiptsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
@@ -66,7 +66,7 @@ export default function Receipts() {
       <PageHeader
         title="Receipts"
         description="Fee payments — each receipt posts to the ledger and allocates FIFO"
-        icon={Banknote}
+        icon={Money}
         actions={
           <Button onClick={() => setShowForm(true)}>
             <Plus className="w-4 h-4 mr-2" /> New Receipt

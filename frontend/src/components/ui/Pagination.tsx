@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { CaretLeft, CaretRight, CaretDoubleLeft, CaretDoubleRight } from '@phosphor-icons/react'
 import { cn } from '../../lib/utils'
 
 interface PaginationProps {
@@ -109,7 +109,7 @@ export function Pagination({
             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="First page"
           >
-            <ChevronsLeft className="w-4 h-4" />
+            <CaretDoubleLeft className="w-4 h-4" />
           </button>
           <button
             onClick={() => handlePageChange(safePage - 1)}
@@ -117,7 +117,7 @@ export function Pagination({
             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="Previous page"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <CaretLeft className="w-4 h-4" />
           </button>
 
           <div className="flex items-center gap-1 mx-2">
@@ -149,7 +149,7 @@ export function Pagination({
             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="Next page"
           >
-            <ChevronRight className="w-4 h-4" />
+            <CaretRight className="w-4 h-4" />
           </button>
           <button
             onClick={() => handlePageChange(totalPages)}
@@ -157,7 +157,7 @@ export function Pagination({
             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="Last page"
           >
-            <ChevronsRight className="w-4 h-4" />
+            <CaretDoubleRight className="w-4 h-4" />
           </button>
         </nav>
       )}
@@ -193,7 +193,7 @@ export function PaginationCompact({
         disabled={safePage === 1}
         className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        <ChevronLeft className="w-4 h-4" />
+        <CaretLeft className="w-4 h-4" />
       </button>
       <span className="text-sm text-gray-600">
         Page <span className="font-medium">{safePage}</span> of{' '}
@@ -204,7 +204,7 @@ export function PaginationCompact({
         disabled={safePage === totalPages}
         className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        <ChevronRight className="w-4 h-4" />
+        <CaretRight className="w-4 h-4" />
       </button>
     </div>
   )

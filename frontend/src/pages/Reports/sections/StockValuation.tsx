@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Download } from 'lucide-react'
+import { DownloadSimple } from '@phosphor-icons/react'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { exportToCSV, formatExportNumber } from '@/lib/export'
 import { Button, SkeletonTable } from '@/components/ui'
+import PdfButton from './PdfButton'
 
 interface SVRow {
   item_id: number
@@ -53,10 +54,11 @@ export default function StockValuation() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-3">
         <Button variant="secondary" size="sm" disabled={data.rows.length === 0} onClick={handleExport}>
-          <Download className="w-4 h-4 mr-2" /> Export CSV
+          <DownloadSimple className="w-4 h-4 mr-2" /> Export CSV
         </Button>
+        <PdfButton reportKey="stock-valuation" />
       </div>
       <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
       <table className="w-full text-sm">

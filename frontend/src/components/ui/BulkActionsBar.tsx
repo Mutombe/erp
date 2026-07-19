@@ -1,12 +1,12 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { X } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+import { X } from '@phosphor-icons/react'
+import type { Icon } from '@phosphor-icons/react'
 
 type ActionVariant = 'primary' | 'danger' | 'outline'
 
 interface BulkAction {
   label: string
-  icon?: LucideIcon
+  icon?: Icon
   onClick: () => void
   variant?: ActionVariant
   disabled?: boolean

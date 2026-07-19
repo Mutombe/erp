@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, Plus } from 'lucide-react'
+import { BookOpen, Plus } from '@phosphor-icons/react'
 import { accountsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import {

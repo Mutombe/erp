@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { Wallet } from 'lucide-react'
+import { Wallet } from '@phosphor-icons/react'
 import { supplierPaymentsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { PageHeader, SkeletonCard, StatusBadge } from '@/components/ui'

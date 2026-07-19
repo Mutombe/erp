@@ -1,6 +1,6 @@
 import { ReactNode, ComponentType } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '../../lib/utils'
 

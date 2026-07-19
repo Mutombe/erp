@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { GraduationCap, Lock, Mail } from 'lucide-react'
+import { GraduationCap, Lock, Envelope } from '@phosphor-icons/react'
 import { Button, Input } from '@/components/ui'
 import { authApi } from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
@@ -61,7 +61,7 @@ export default function Login() {
               type="email"
               autoComplete="email"
               placeholder="you@school.edu"
-              icon={Mail}
+              icon={Envelope}
               error={errors.email?.message}
               {...register('email')}
             />

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { reportsApi, termsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { SkeletonTable } from '@/components/ui'
+import PdfButton from './PdfButton'
 
 interface Term {
   id: number
@@ -56,21 +57,27 @@ export default function FeeCollection() {
 
   return (
     <div className="space-y-4">
-      <label className="text-sm text-gray-600 dark:text-gray-300">
-        Term{' '}
-        <select
-          value={effectiveTerm}
-          onChange={(e) => setTerm(e.target.value)}
-          className="ml-1 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
-        >
-          <option value="">All terms</option>
-          {(terms ?? []).map((t) => (
-            <option key={t.id} value={String(t.id)}>
-              {t.name}{t.is_current ? ' (current)' : ''}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <label className="text-sm text-gray-600 dark:text-gray-300">
+          Term{' '}
+          <select
+            value={effectiveTerm}
+            onChange={(e) => setTerm(e.target.value)}
+            className="ml-1 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
+          >
+            <option value="">All terms</option>
+            {(terms ?? []).map((t) => (
+              <option key={t.id} value={String(t.id)}>
+                {t.name}{t.is_current ? ' (current)' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        <PdfButton
+          reportKey="fee-collection"
+          params={effectiveTerm ? { term: effectiveTerm } : undefined}
+        />
+      </div>
 
       {isLoading || !data ? (
         <SkeletonTable rows={6} />

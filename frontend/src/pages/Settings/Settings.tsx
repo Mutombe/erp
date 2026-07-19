@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import {
-  ArrowLeftRight,
-  Building2,
-  CalendarDays,
-  CalendarRange,
+  ArrowsLeftRight,
+  Buildings,
+  CalendarBlank,
+  CalendarDots,
   Hash,
-  Link2,
-  Settings as SettingsIcon,
+  Link,
+  Gear as SettingsIcon,
   Users,
-} from 'lucide-react'
+} from '@phosphor-icons/react'
 import { PageHeader } from '@/components/ui'
 import SchoolProfileTab from './SchoolProfileTab'
 import UsersTab from './UsersTab'
@@ -19,12 +19,12 @@ import MappingsTab from './MappingsTab'
 import SequencesTab from './SequencesTab'
 
 const TABS = [
-  { key: 'profile', label: 'School Profile', icon: Building2, component: SchoolProfileTab },
+  { key: 'profile', label: 'School Profile', icon: Buildings, component: SchoolProfileTab },
   { key: 'users', label: 'Users', icon: Users, component: UsersTab },
-  { key: 'academic', label: 'Academic Years & Terms', icon: CalendarDays, component: AcademicTab },
-  { key: 'rates', label: 'Currencies & Rates', icon: ArrowLeftRight, component: RatesTab },
-  { key: 'periods', label: 'Fiscal Periods', icon: CalendarRange, component: FiscalPeriodsTab },
-  { key: 'mappings', label: 'Account Mappings', icon: Link2, component: MappingsTab },
+  { key: 'academic', label: 'Academic Years & Terms', icon: CalendarBlank, component: AcademicTab },
+  { key: 'rates', label: 'Currencies & Rates', icon: ArrowsLeftRight, component: RatesTab },
+  { key: 'periods', label: 'Fiscal Periods', icon: CalendarDots, component: FiscalPeriodsTab },
+  { key: 'mappings', label: 'Account Mappings', icon: Link, component: MappingsTab },
   { key: 'sequences', label: 'Sequences', icon: Hash, component: SequencesTab },
 ] as const
 

@@ -1,13 +1,13 @@
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Landmark } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Bank } from '@phosphor-icons/react'
 import { assetsApi, assetCategoriesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { showToast, parseApiError } from '@/lib/toast'
+import { useOptimisticCreate } from '@/hooks/useOptimisticMutation'
 import { Button, FormRow, Input, Modal, ModalFooter, Select } from '@/components/ui'
-import type { AssetCategory } from '@/types/assets'
+import type { Asset, AssetCategory } from '@/types/assets'
 
 const schema = z.object({
   code: z.string().default(''),
@@ -43,8 +43,8 @@ export default function AssetFormModal({ open, onClose }: { open: boolean; onClo
     enabled: open,
   })
 
-  const mutation = useMutation({
-    mutationFn: (values: FormValues) => {
+  const mutation = useOptimisticCreate<Asset, FormValues>({
+    mutationFn: (values) => {
       const payload: Record<string, unknown> = {
         name: values.name,
         category: Number(values.category),
@@ -60,20 +60,45 @@ export default function AssetFormModal({ open, onClose }: { open: boolean; onClo
       if (values.code) payload.code = values.code
       return assetsApi.create(payload)
     },
-    onSuccess: () => {
-      showToast.success('Asset created and capitalized')
-      queryClient.invalidateQueries({ queryKey: qk.assets.all })
-      queryClient.invalidateQueries({ queryKey: qk.accounts.all })
-      queryClient.invalidateQueries({ queryKey: qk.journals.all })
-      queryClient.invalidateQueries({ queryKey: qk.reports.all })
+    queryKeyPrefixes: [qk.assets.all],
+    createPlaceholder: (values) => {
+      const category = (categories ?? []).find((c) => c.id === Number(values.category))
+      return {
+        id: -Date.now(),
+        code: values.code || '…',
+        name: values.name,
+        category: Number(values.category),
+        category_name: category ? category.name : '…',
+        serial_number: values.serial_number,
+        location: values.location,
+        custodian: values.custodian,
+        acquisition_date: values.acquisition_date,
+        in_service_date: values.in_service_date,
+        cost: values.cost,
+        currency: values.currency || 'USD',
+        cost_base: values.cost,
+        residual_value: values.residual_value || '0',
+        accumulated_depreciation: '0.00',
+        net_book_value: values.cost,
+        status: 'active' as Asset['status'],
+      }
+    },
+    successMessage: 'Asset created and capitalized',
+    errorMessage: 'Failed to create asset',
+    closeModal: () => {
       reset()
       onClose()
     },
-    onError: (error) => showToast.error(parseApiError(error, 'Failed to create asset')),
+    onSuccess: () => {
+      // Capitalization posts a journal — refresh the GL-derived caches too.
+      queryClient.invalidateQueries({ queryKey: qk.accounts.all })
+      queryClient.invalidateQueries({ queryKey: qk.journals.all })
+      queryClient.invalidateQueries({ queryKey: qk.reports.all })
+    },
   })
 
   return (
-    <Modal open={open} onClose={onClose} title="New Asset" icon={Landmark} size="2xl">
+    <Modal open={open} onClose={onClose} title="New Asset" icon={Bank} size="2xl">
       <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
         <FormRow>
           <Input

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { Eye, PlayCircle, Zap } from 'lucide-react'
+import { Eye, PlayCircle, Lightning } from '@phosphor-icons/react'
 import { billingRunsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -77,7 +77,7 @@ export default function BillingRunDetail() {
                   <Eye className="w-4 h-4 mr-2" /> Preview
                 </Button>
                 <Button onClick={() => setConfirmExecute(true)} loading={executeMutation.isPending}>
-                  <Zap className="w-4 h-4 mr-2" /> Execute
+                  <Lightning className="w-4 h-4 mr-2" /> Execute
                 </Button>
               </>
             )}

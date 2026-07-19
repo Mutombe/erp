@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Banknote, FileDown, FileText, GraduationCap, Receipt as ReceiptIcon, ScrollText, User } from 'lucide-react'
+import { Money, FileArrowDown, FileText, GraduationCap, Receipt as ReceiptIcon, Scroll, User } from '@phosphor-icons/react'
 import { feeInvoicesApi, guardiansApi, receiptsApi, reportsApi, studentsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { formatDate } from '@/lib/utils'
@@ -55,7 +55,7 @@ export default function StudentDetail() {
           <div className="flex items-center gap-3">
             <StatusBadge status={student.status} />
             <Button onClick={() => navigate(`/app/receipts?student=${student.id}`)}>
-              <Banknote className="w-4 h-4 mr-2" /> Record Payment
+              <Money className="w-4 h-4 mr-2" /> Record Payment
             </Button>
           </div>
         }
@@ -66,7 +66,7 @@ export default function StudentDetail() {
           <TabsTrigger value="overview" icon={User}>Overview</TabsTrigger>
           <TabsTrigger value="invoices" icon={FileText}>Invoices</TabsTrigger>
           <TabsTrigger value="receipts" icon={ReceiptIcon}>Receipts</TabsTrigger>
-          <TabsTrigger value="statement" icon={ScrollText}>Statement</TabsTrigger>
+          <TabsTrigger value="statement" icon={Scroll}>Statement</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
@@ -270,7 +270,7 @@ function StatementTab({
               window.open(`/api/reports/student-statement/${studentId}/pdf/?currency=${currency}`, '_blank')
             }
           >
-            <FileDown className="w-4 h-4 mr-2" /> PDF
+            <FileArrowDown className="w-4 h-4 mr-2" /> PDF
           </Button>
         </div>
       </div>

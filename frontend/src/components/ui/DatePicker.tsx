@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useId, useCallback, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, X } from 'lucide-react'
+import { CaretLeft, CaretRight, Calendar as CalendarIcon, X } from '@phosphor-icons/react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { cn } from '../../lib/utils'
 
@@ -262,7 +262,7 @@ export function DatePicker({
                   className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700 dark:hover:bg-slate-800"
                   aria-label="Previous year"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <CaretLeft className="w-4 h-4" />
                   <span className="sr-only">Previous year</span>
                 </button>
                 <button
@@ -271,7 +271,7 @@ export function DatePicker({
                   className="p-1 rounded hover:bg-gray-100 text-gray-600 hover:text-gray-900 dark:hover:bg-slate-800"
                   aria-label="Previous month"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <CaretLeft className="w-4 h-4" />
                 </button>
               </div>
               <div className="text-sm font-semibold text-gray-800 dark:text-slate-200 tabular-nums">
@@ -284,7 +284,7 @@ export function DatePicker({
                   className="p-1 rounded hover:bg-gray-100 text-gray-600 hover:text-gray-900 dark:hover:bg-slate-800"
                   aria-label="Next month"
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <CaretRight className="w-4 h-4" />
                 </button>
                 <button
                   type="button"
@@ -292,7 +292,7 @@ export function DatePicker({
                   className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700 dark:hover:bg-slate-800"
                   aria-label="Next year"
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <CaretRight className="w-4 h-4" />
                   <span className="sr-only">Next year</span>
                 </button>
               </div>

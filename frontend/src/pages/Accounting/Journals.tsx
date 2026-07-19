@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, ScrollText } from 'lucide-react'
+import { Plus, Scroll } from '@phosphor-icons/react'
 import { journalsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
@@ -40,7 +40,7 @@ export default function Journals() {
       <PageHeader
         title="Journal Entries"
         description="Every posting in the system — documents and manual journals"
-        icon={ScrollText}
+        icon={Scroll}
         actions={
           <Button onClick={() => navigate('/app/journals/new')}>
             <Plus className="w-4 h-4 mr-2" /> Manual Journal

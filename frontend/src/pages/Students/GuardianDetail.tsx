@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Pencil, Users } from 'lucide-react'
+import { PencilSimple, Users } from '@phosphor-icons/react'
 import { guardiansApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import {
@@ -48,7 +48,7 @@ export default function GuardianDetail() {
         backLink="/app/guardians"
         actions={
           <Button variant="secondary" onClick={() => setEditOpen(true)}>
-            <Pencil className="w-4 h-4 mr-2" /> Edit
+            <PencilSimple className="w-4 h-4 mr-2" /> Edit
           </Button>
         }
       />

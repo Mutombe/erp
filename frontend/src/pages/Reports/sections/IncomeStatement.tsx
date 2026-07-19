@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { SkeletonTable } from '@/components/ui'
+import PdfButton from './PdfButton'
 
 interface ISRow { account_id: number; code: string; name: string; amount: number; prev_amount?: number }
 interface ISSection { group: string; rows: ISRow[]; total: number; prev_total?: number }
@@ -218,6 +219,15 @@ export default function IncomeStatement() {
           }`}>
           Monthly
         </button>
+        <PdfButton
+          reportKey="income-statement"
+          params={{
+            start,
+            end,
+            layout,
+            ...(monthly ? { monthly: 1 } : compare ? { compare } : {}),
+          }}
+        />
       </div>
 
       {isLoading || !data ? (

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { CheckCircle2, RotateCcw, ScrollText } from 'lucide-react'
+import { CheckCircle, ArrowCounterClockwise, Scroll } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { journalsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
@@ -58,19 +58,19 @@ export default function JournalDetail() {
       <PageHeader
         title={journal.number}
         description={journal.description}
-        icon={ScrollText}
+        icon={Scroll}
         backLink="/app/journals"
         actions={
           <div className="flex items-center gap-3">
             <StatusBadge status={journal.status} />
             {journal.status === 'draft' && (
               <Button onClick={() => postMutation.mutate()} loading={postMutation.isPending}>
-                <CheckCircle2 className="w-4 h-4 mr-2" /> Post
+                <CheckCircle className="w-4 h-4 mr-2" /> Post
               </Button>
             )}
             {journal.status === 'posted' && (
               <Button variant="secondary" onClick={() => setConfirmReverse(true)}>
-                <RotateCcw className="w-4 h-4 mr-2" /> Reverse
+                <ArrowCounterClockwise className="w-4 h-4 mr-2" /> Reverse
               </Button>
             )}
           </div>

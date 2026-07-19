@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { Badge, SkeletonTable } from '@/components/ui'
+import PdfButton from './PdfButton'
 
 interface BSRow { account_id: number | null; code: string; name: string; balance: number; prev_balance?: number }
 interface BSSection { group: string; rows: BSRow[]; total: number; prev_total?: number }
@@ -110,11 +111,17 @@ export default function BalanceSheet() {
             </button>
           )}
         </div>
-        {data && (
-          <Badge variant={data.balanced ? 'success' : 'danger'}>
-            {data.balanced ? 'Balanced' : 'OUT OF BALANCE'}
-          </Badge>
-        )}
+        <div className="flex items-center gap-3">
+          {data && (
+            <Badge variant={data.balanced ? 'success' : 'danger'}>
+              {data.balanced ? 'Balanced' : 'OUT OF BALANCE'}
+            </Badge>
+          )}
+          <PdfButton
+            reportKey="balance-sheet"
+            params={compareDate ? { as_of_date: asOf, compare_date: compareDate } : { as_of_date: asOf }}
+          />
+        </div>
       </div>
       {isLoading || !data ? (
         <SkeletonTable rows={12} />

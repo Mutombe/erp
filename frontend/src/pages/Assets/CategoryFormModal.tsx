@@ -2,7 +2,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FolderTree } from 'lucide-react'
+import { TreeStructure } from '@phosphor-icons/react'
 import { assetCategoriesApi, accountsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -77,7 +77,7 @@ export default function CategoryFormModal({ open, onClose }: { open: boolean; on
   })
 
   return (
-    <Modal open={open} onClose={onClose} title="New Asset Category" icon={FolderTree} size="2xl">
+    <Modal open={open} onClose={onClose} title="New Asset Category" icon={TreeStructure} size="2xl">
       <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
         <FormRow>
           <Input label="Code" required placeholder="e.g. VEH" error={errors.code?.message} {...register('code')} />

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { CheckCircle2, FileText } from 'lucide-react'
+import { CheckCircle, FileText } from '@phosphor-icons/react'
 import { supplierPaymentsApi, vendorBillsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -67,7 +67,7 @@ export default function VendorBillDetail() {
             <StatusBadge status={bill.status} />
             {bill.status === 'draft' && (
               <Button onClick={() => setConfirmPost(true)} loading={postMutation.isPending}>
-                <CheckCircle2 className="w-4 h-4 mr-2" /> Post
+                <CheckCircle className="w-4 h-4 mr-2" /> Post
               </Button>
             )}
           </div>

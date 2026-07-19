@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { SkeletonTable } from '@/components/ui'
+import PdfButton from './PdfButton'
 
 interface AgedRow {
   supplier_id: number
@@ -35,15 +36,18 @@ export default function AgedPayables() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <label className="text-sm text-gray-600 dark:text-gray-300">
-          As at{' '}
-          <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)}
-            className="ml-1 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800" />
-        </label>
-        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-          Balances as they stood on this date (later payments excluded)
-        </p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <label className="text-sm text-gray-600 dark:text-gray-300">
+            As at{' '}
+            <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)}
+              className="ml-1 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800" />
+          </label>
+          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+            Balances as they stood on this date (later payments excluded)
+          </p>
+        </div>
+        <PdfButton reportKey="aged-payables" params={{ as_of_date: asOf }} />
       </div>
 
       {isLoading || !data ? (

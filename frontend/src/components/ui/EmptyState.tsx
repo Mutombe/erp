@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { FileX, Plus } from 'lucide-react'
+import { FileX, Plus } from '@phosphor-icons/react'
 import { ReactNode, ComponentType } from 'react'
 
 type IconComponent = ComponentType<{ className?: string }>

@@ -1,11 +1,11 @@
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { accountsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { showToast, parseApiError } from '@/lib/toast'
+import { useOptimisticCreate } from '@/hooks/useOptimisticMutation'
 import { Button, FormRow, Input, Modal, ModalFooter, Select } from '@/components/ui'
+import type { Account } from '@/types/accounting'
 
 const schema = z.object({
   code: z.string().regex(/^\d{4}$/, 'Code must be 4 digits (range determines its type)'),
@@ -30,8 +30,18 @@ const REPORT_GROUPS = [
   ['finance_costs', 'Finance Costs'],
 ]
 
+/** Mirror of the backend rule: first digit of the code determines the account type. */
+function accountTypeFromCode(code: string): Account['account_type'] {
+  switch (code.charAt(0)) {
+    case '1': return 'asset'
+    case '2': return 'liability'
+    case '3': return 'equity'
+    case '4': return 'revenue'
+    default: return 'expense'
+  }
+}
+
 export default function AccountFormModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const queryClient = useQueryClient()
   const {
     register,
     handleSubmit,
@@ -39,15 +49,30 @@ export default function AccountFormModal({ open, onClose }: { open: boolean; onC
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
-  const mutation = useMutation({
-    mutationFn: (values: FormValues) => accountsApi.create(values),
-    onSuccess: () => {
-      showToast.success('Account created')
-      queryClient.invalidateQueries({ queryKey: qk.accounts.all })
+  const mutation = useOptimisticCreate<Account, FormValues>({
+    mutationFn: (values) => accountsApi.create(values),
+    queryKeyPrefixes: [qk.accounts.all],
+    createPlaceholder: (values) => ({
+      id: -Date.now(),
+      code: values.code,
+      name: values.name,
+      account_type: accountTypeFromCode(values.code),
+      account_subtype: '',
+      report_group: values.report_group,
+      parent: null,
+      currency: values.currency,
+      description: values.description,
+      is_system: false,
+      is_active: true,
+      allow_manual_journal: true,
+      current_balance: '0.00',
+    }),
+    successMessage: 'Account created',
+    errorMessage: 'Failed to create account',
+    closeModal: () => {
       reset()
       onClose()
     },
-    onError: (error) => showToast.error(parseApiError(error, 'Failed to create account')),
   })
 
   return (

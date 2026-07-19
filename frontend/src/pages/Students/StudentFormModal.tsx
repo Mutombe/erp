@@ -1,12 +1,12 @@
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { studentsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { showToast, parseApiError } from '@/lib/toast'
+import { useOptimisticCreate } from '@/hooks/useOptimisticMutation'
 import { Button, FormRow, Input, Modal, ModalFooter, Select } from '@/components/ui'
 import { ATTENDANCE_TYPES, STUDENT_STATUSES } from '@/types/students'
+import type { Student } from '@/types/students'
 
 const schema = z.object({
   code: z.string().default(''),
@@ -22,7 +22,6 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 export default function StudentFormModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const queryClient = useQueryClient()
   const {
     register,
     handleSubmit,
@@ -33,8 +32,8 @@ export default function StudentFormModal({ open, onClose }: { open: boolean; onC
     defaultValues: { status: 'enrolled', attendance_type: 'day' },
   })
 
-  const mutation = useMutation({
-    mutationFn: (values: FormValues) =>
+  const mutation = useOptimisticCreate<Student, FormValues>({
+    mutationFn: (values) =>
       studentsApi.create({
         ...(values.code ? { code: values.code } : {}),
         first_name: values.first_name,
@@ -45,13 +44,26 @@ export default function StudentFormModal({ open, onClose }: { open: boolean; onC
         status: values.status,
         attendance_type: values.attendance_type,
       }),
-    onSuccess: (r) => {
-      showToast.success(`Student ${r.data.code} created`)
-      queryClient.invalidateQueries({ queryKey: qk.students.all })
+    queryKeyPrefixes: [qk.students.all],
+    createPlaceholder: (values) => ({
+      id: -Date.now(),
+      code: values.code || '…',
+      first_name: values.first_name,
+      last_name: values.last_name,
+      full_name: `${values.first_name} ${values.last_name}`,
+      gender: values.gender,
+      dob: values.dob || null,
+      admission_date: values.admission_date || null,
+      status: values.status as Student['status'],
+      attendance_type: values.attendance_type as Student['attendance_type'],
+      current_class: null,
+    }),
+    successMessage: 'Student created',
+    errorMessage: 'Failed to create student',
+    closeModal: () => {
       reset()
       onClose()
     },
-    onError: (error) => showToast.error(parseApiError(error, 'Failed to create student')),
   })
 
   return (

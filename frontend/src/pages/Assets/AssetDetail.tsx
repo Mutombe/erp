@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { Landmark, PackageX, TrendingDown, Wallet } from 'lucide-react'
+import { Bank, XSquare, TrendDown, Wallet } from '@phosphor-icons/react'
 import { assetsApi, bankAccountsApi, depreciationRunsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -79,7 +79,7 @@ function DisposeModal({
 
   return (
     <>
-      <Modal open={open} onClose={onClose} title={`Dispose ${asset.code}`} icon={PackageX}
+      <Modal open={open} onClose={onClose} title={`Dispose ${asset.code}`} icon={XSquare}
         description="Derecognizes cost and accumulated depreciation; the balance posts to gain/loss on disposal.">
         <div className="space-y-4">
           <Input label="Disposal date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
@@ -169,14 +169,14 @@ export default function AssetDetail() {
       <PageHeader
         title={`${asset.code} · ${asset.name}`}
         description={asset.description || asset.category_name}
-        icon={Landmark}
+        icon={Bank}
         backLink="/app/fixed-assets"
         actions={
           <div className="flex items-center gap-3">
             <StatusBadge status={asset.status} />
             {canDispose && (
               <Button variant="danger" onClick={() => setShowDispose(true)}>
-                <PackageX className="w-4 h-4 mr-2" /> Dispose
+                <XSquare className="w-4 h-4 mr-2" /> Dispose
               </Button>
             )}
           </div>
@@ -185,9 +185,9 @@ export default function AssetDetail() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatsCard title="Cost (base)" value={money(asset.cost_base)}
-          subtitle={`${asset.currency} ${money(asset.cost)} at acquisition`} icon={Landmark} color="blue" />
+          subtitle={`${asset.currency} ${money(asset.cost)} at acquisition`} icon={Bank} color="blue" />
         <StatsCard title="Accumulated depreciation" value={money(asset.accumulated_depreciation)}
-          subtitle={`Residual value ${money(asset.residual_value)}`} icon={TrendingDown} color="orange" />
+          subtitle={`Residual value ${money(asset.residual_value)}`} icon={TrendDown} color="orange" />
         <StatsCard title="Net book value" value={money(asset.net_book_value)}
           subtitle={ASSET_STATUS_LABELS[asset.status] ?? asset.status} icon={Wallet} color="green" />
       </div>

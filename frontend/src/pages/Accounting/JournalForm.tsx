@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ScrollText, Trash2 } from 'lucide-react'
+import { Plus, Scroll, Trash } from '@phosphor-icons/react'
 import { accountsApi, journalsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -96,7 +96,7 @@ export default function JournalForm() {
       <PageHeader
         title="Manual Journal"
         description="Creates a draft; post it from the detail page once balanced"
-        icon={ScrollText}
+        icon={Scroll}
         backLink="/app/journals"
       />
 
@@ -152,7 +152,7 @@ export default function JournalForm() {
                     {fields.length > 2 && (
                       <button type="button" onClick={() => remove(index)}
                         className="text-gray-400 hover:text-red-500">
-                        <Trash2 className="w-4 h-4" />
+                        <Trash className="w-4 h-4" />
                       </button>
                     )}
                   </td>

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, ReactNode, ComponentType } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { CaretDown } from '@phosphor-icons/react'
 import { cn } from '../../lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
 
@@ -60,7 +60,7 @@ export function SplitButton({ children, onClick, menuItems, className, disabled 
           'disabled:opacity-50 disabled:cursor-not-allowed'
         )}
       >
-        <ChevronDown className={cn('w-4 h-4 transition-transform', open && 'rotate-180')} />
+        <CaretDown className={cn('w-4 h-4 transition-transform', open && 'rotate-180')} />
       </button>
 
       <AnimatePresence>

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { FolderPlus, Package, Pencil, Plus } from 'lucide-react'
+import { FolderPlus, Package, PencilSimple, Plus } from '@phosphor-icons/react'
 import { accountsApi, itemCategoriesApi, itemsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
@@ -160,7 +160,7 @@ export default function Items() {
           className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-800"
           aria-label={`Edit ${i.code}`}
         >
-          <Pencil className="w-4 h-4" />
+          <PencilSimple className="w-4 h-4" />
         </button>
       ),
     },

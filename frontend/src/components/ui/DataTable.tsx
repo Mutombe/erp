@@ -1,6 +1,6 @@
 import { useState, ReactNode, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { ChevronUp, ChevronDown, ChevronsUpDown, Search, ChevronLeft, ChevronRight, AlignJustify, List, StretchHorizontal } from 'lucide-react'
+import { CaretUp, CaretDown, CaretUpDown, MagnifyingGlass, CaretLeft, CaretRight, TextAlignJustify, ListBullets, Rows } from '@phosphor-icons/react'
 import { cn } from '../../lib/utils'
 import { SkeletonTable } from './Skeleton'
 import { EmptyState } from './EmptyState'
@@ -26,10 +26,10 @@ const densityConfig: Record<Density, { cell: string; header: string; text: strin
   spacious: { cell: 'px-6 py-5', header: 'px-6 py-5', text: 'text-sm' },
 }
 
-const densityIcons: Record<Density, typeof List> = {
-  compact: AlignJustify,
-  comfortable: List,
-  spacious: StretchHorizontal,
+const densityIcons: Record<Density, typeof ListBullets> = {
+  compact: TextAlignJustify,
+  comfortable: ListBullets,
+  spacious: Rows,
 }
 
 interface DataTableProps<T> {
@@ -139,7 +139,7 @@ export function DataTable<T>({
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between gap-4">
           {searchable && (
             <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
                 placeholder={searchPlaceholder}
@@ -187,12 +187,12 @@ export function DataTable<T>({
                       <span className="text-gray-400">
                         {sortKey === col.key ? (
                           sortDir === 'asc' ? (
-                            <ChevronUp className="w-4 h-4" />
+                            <CaretUp className="w-4 h-4" />
                           ) : (
-                            <ChevronDown className="w-4 h-4" />
+                            <CaretDown className="w-4 h-4" />
                           )
                         ) : (
-                          <ChevronsUpDown className="w-4 h-4" />
+                          <CaretUpDown className="w-4 h-4" />
                         )}
                       </span>
                     )}
@@ -280,7 +280,7 @@ export function DataTable<T>({
               disabled={pagination.page <= 1}
               className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <CaretLeft className="w-4 h-4" />
             </button>
             <span className="px-4 py-2 text-sm font-medium">
               Page {pagination.page} of {totalPages}
@@ -290,7 +290,7 @@ export function DataTable<T>({
               disabled={pagination.page >= totalPages}
               className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              <ChevronRight className="w-4 h-4" />
+              <CaretRight className="w-4 h-4" />
             </button>
           </div>
         </div>

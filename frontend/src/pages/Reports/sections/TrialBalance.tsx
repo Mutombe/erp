@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Download } from 'lucide-react'
+import { DownloadSimple } from '@phosphor-icons/react'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { exportToCSV, formatExportNumber } from '@/lib/export'
 import { Badge, Button, SkeletonTable } from '@/components/ui'
+import PdfButton from './PdfButton'
 
 interface TBRow {
   account_id: number
@@ -150,8 +151,12 @@ export default function TrialBalance() {
             </Badge>
           )}
           <Button variant="secondary" size="sm" disabled={!hasRows} onClick={handleExport}>
-            <Download className="w-4 h-4 mr-2" /> Export CSV
+            <DownloadSimple className="w-4 h-4 mr-2" /> Export CSV
           </Button>
+          <PdfButton
+            reportKey="trial-balance"
+            params={mode === 'asat' ? { as_of_date: asOf } : { start, end }}
+          />
         </div>
       </div>
 

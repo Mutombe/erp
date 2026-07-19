@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import PrivateRoute from '@/components/layout/PrivateRoute'
 import Layout from '@/components/layout/Layout'
+import { PageSkeleton } from '@/components/ui'
 import { useUIStore } from '@/stores/uiStore'
 
 const Login = lazy(() => import('@/pages/Login'))
@@ -66,11 +67,7 @@ const builtRoutes: [string, React.LazyExoticComponent<() => JSX.Element>][] = [
 ]
 
 function PageFallback() {
-  return (
-    <div className="flex items-center justify-center py-24">
-      <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-    </div>
-  )
+  return <PageSkeleton />
 }
 
 // Every route that isn't built yet renders the shared ComingSoon page.

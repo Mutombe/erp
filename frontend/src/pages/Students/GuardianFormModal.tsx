@@ -2,10 +2,9 @@ import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { guardiansApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { showToast, parseApiError } from '@/lib/toast'
+import { useOptimisticCreate, useOptimisticUpdate } from '@/hooks/useOptimisticMutation'
 import { Button, FormRow, Input, Modal, ModalFooter } from '@/components/ui'
 import type { Guardian } from '@/types/students'
 
@@ -27,6 +26,19 @@ const EMPTY: FormValues = {
   address: '', national_id: '', employer: '',
 }
 
+function toPayload(values: FormValues) {
+  return {
+    ...(values.code ? { code: values.code } : {}),
+    first_name: values.first_name,
+    last_name: values.last_name,
+    phone: values.phone,
+    email: values.email,
+    address: values.address,
+    national_id: values.national_id,
+    employer: values.employer,
+  }
+}
+
 export default function GuardianFormModal({
   open,
   onClose,
@@ -36,7 +48,6 @@ export default function GuardianFormModal({
   onClose: () => void
   guardian?: Guardian | null
 }) {
-  const queryClient = useQueryClient()
   const isEdit = Boolean(guardian)
   const {
     register,
@@ -63,33 +74,57 @@ export default function GuardianFormModal({
     )
   }, [open, guardian, reset])
 
-  const mutation = useMutation({
-    mutationFn: (values: FormValues) => {
-      const payload = {
-        ...(values.code ? { code: values.code } : {}),
-        first_name: values.first_name,
-        last_name: values.last_name,
-        phone: values.phone,
-        email: values.email,
-        address: values.address,
-        national_id: values.national_id,
-        employer: values.employer,
-      }
-      return guardian ? guardiansApi.update(guardian.id, payload) : guardiansApi.create(payload)
-    },
-    onSuccess: () => {
-      showToast.success(isEdit ? 'Guardian updated' : 'Guardian created')
-      queryClient.invalidateQueries({ queryKey: qk.guardians.all })
-      reset(EMPTY)
-      onClose()
-    },
-    onError: (error) =>
-      showToast.error(parseApiError(error, isEdit ? 'Failed to update guardian' : 'Failed to create guardian')),
+  const closeModal = () => {
+    reset(EMPTY)
+    onClose()
+  }
+
+  const createMutation = useOptimisticCreate<Guardian, FormValues>({
+    mutationFn: (values) => guardiansApi.create(toPayload(values)),
+    queryKeyPrefixes: [qk.guardians.all],
+    createPlaceholder: (values) => ({
+      id: -Date.now(),
+      code: values.code || '…',
+      first_name: values.first_name,
+      last_name: values.last_name,
+      full_name: `${values.first_name} ${values.last_name}`,
+      phone: values.phone,
+      email: values.email,
+      address: values.address,
+      national_id: values.national_id,
+      employer: values.employer,
+      students: [],
+    }),
+    successMessage: 'Guardian created',
+    errorMessage: 'Failed to create guardian',
+    closeModal,
   })
+
+  const updateMutation = useOptimisticUpdate<Guardian, FormValues & { id: number }>({
+    mutationFn: ({ id, ...values }) => guardiansApi.update(id, toPayload(values as FormValues)),
+    queryKeyPrefixes: [qk.guardians.all],
+    successMessage: 'Guardian updated',
+    errorMessage: 'Failed to update guardian',
+    closeModal,
+  })
+
+  const isPending = createMutation.isPending || updateMutation.isPending
+
+  const onSubmit = (values: FormValues) => {
+    if (guardian) {
+      updateMutation.mutate({
+        ...values,
+        id: guardian.id,
+        full_name: `${values.first_name} ${values.last_name}`,
+      } as FormValues & { id: number })
+    } else {
+      createMutation.mutate(values)
+    }
+  }
 
   return (
     <Modal open={open} onClose={onClose} title={isEdit ? `Edit ${guardian?.full_name}` : 'New Guardian'} size="2xl">
-      <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <FormRow>
           <Input label="First name" error={errors.first_name?.message} {...register('first_name')} />
           <Input label="Last name" error={errors.last_name?.message} {...register('last_name')} />
@@ -113,7 +148,7 @@ export default function GuardianFormModal({
         </FormRow>
         <ModalFooter>
           <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
-          <Button type="submit" loading={isSubmitting || mutation.isPending}>
+          <Button type="submit" loading={isSubmitting || isPending}>
             {isEdit ? 'Save Changes' : 'Create Guardian'}
           </Button>
         </ModalFooter>

@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Landmark, Pencil, Plus } from 'lucide-react'
+import { Bank, PencilSimple, Plus } from '@phosphor-icons/react'
 import { accountsApi, bankAccountsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { showToast, parseApiError } from '@/lib/toast'
+import { useOptimisticCreate, useOptimisticUpdate } from '@/hooks/useOptimisticMutation'
 import {
   Badge,
   Button,
@@ -72,8 +72,6 @@ function BankAccountFormModal({
   onClose: () => void
   account?: BankAccountRow | null
 }) {
-  const queryClient = useQueryClient()
-
   const { data: accounts } = useQuery({
     queryKey: qk.accounts.list({ is_active: true }),
     queryFn: () => accountsApi.list({ is_active: true }).then((r) => r.data as Account[]),
@@ -107,20 +105,55 @@ function BankAccountFormModal({
     }
   }, [open, account, reset])
 
-  const mutation = useMutation({
-    mutationFn: (values: FormValues) =>
-      account ? bankAccountsApi.update(account.id, values) : bankAccountsApi.create(values),
-    onSuccess: () => {
-      showToast.success(account ? 'Bank account updated' : 'Bank account created')
-      queryClient.invalidateQueries({ queryKey: qk.bankAccounts.all })
-      reset(emptyValues)
-      onClose()
-    },
-    onError: (error) => showToast.error(parseApiError(error, 'Failed to save bank account')),
+  const closeModal = () => {
+    reset(emptyValues)
+    onClose()
+  }
+
+  const createMutation = useOptimisticCreate<BankAccountRow, FormValues>({
+    mutationFn: (values) => bankAccountsApi.create(values),
+    queryKeyPrefixes: [qk.bankAccounts.all],
+    createPlaceholder: (values) => ({
+      id: -Date.now(),
+      code: values.code,
+      name: values.name,
+      account_type: values.account_type,
+      bank_name: values.bank_name,
+      branch: values.branch,
+      account_number: values.account_number,
+      currency: values.currency,
+      gl_account: values.gl_account,
+      gl_account_code: '',
+      book_balance: '0.00',
+      bank_balance: '0.00',
+      is_default: values.is_default,
+      is_active: true,
+      last_reconciled_date: null,
+      last_reconciled_balance: null,
+    }),
+    successMessage: 'Bank account created',
+    errorMessage: 'Failed to save bank account',
+    closeModal,
   })
 
+  const updateMutation = useOptimisticUpdate<BankAccountRow, FormValues & { id: number }>({
+    mutationFn: ({ id, ...values }) => bankAccountsApi.update(id, values),
+    queryKeyPrefixes: [qk.bankAccounts.all],
+    successMessage: 'Bank account updated',
+    errorMessage: 'Failed to save bank account',
+    closeModal,
+  })
+
+  const mutation = {
+    mutate: (values: FormValues) =>
+      account
+        ? updateMutation.mutate({ ...values, id: account.id } as FormValues & { id: number })
+        : createMutation.mutate(values),
+    isPending: createMutation.isPending || updateMutation.isPending,
+  }
+
   return (
-    <Modal open={open} onClose={onClose} title={account ? `Edit ${account.code}` : 'New Bank Account'} icon={Landmark}>
+    <Modal open={open} onClose={onClose} title={account ? `Edit ${account.code}` : 'New Bank Account'} icon={Bank}>
       <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
         <FormRow>
           <Input label="Code" placeholder="e.g. FNB-USD" error={errors.code?.message} {...register('code')} />
@@ -219,7 +252,7 @@ export default function BankAccounts() {
           className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-800"
           aria-label={`Edit ${b.code}`}
         >
-          <Pencil className="w-4 h-4" />
+          <PencilSimple className="w-4 h-4" />
         </button>
       ),
     },
@@ -230,7 +263,7 @@ export default function BankAccounts() {
       <PageHeader
         title="Bank Accounts"
         description="Bank, mobile money and cash accounts with book vs bank balances"
-        icon={Landmark}
+        icon={Bank}
         actions={
           <Button onClick={() => { setEditAccount(null); setModalOpen(true) }}>
             <Plus className="w-4 h-4 mr-2" /> New Bank Account

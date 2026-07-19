@@ -1,4 +1,4 @@
-import { Search, X, Calendar } from 'lucide-react'
+import { MagnifyingGlass, X, Calendar } from '@phosphor-icons/react'
 import { DatePicker } from './DatePicker'
 
 interface TableFilterProps {
@@ -36,7 +36,7 @@ export function TableFilter({
     <div className="flex flex-wrap items-center gap-3 px-6 py-3 bg-gray-50 border-b border-gray-100">
       {/* Search */}
       <div className="relative flex-1 min-w-[200px]">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
           type="text"
           placeholder={searchPlaceholder || 'Search...'}

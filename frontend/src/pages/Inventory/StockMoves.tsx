@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowLeftRight } from 'lucide-react'
+import { ArrowsLeftRight } from '@phosphor-icons/react'
 import { stockMovesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
@@ -83,7 +83,7 @@ export default function StockMoves() {
       <PageHeader
         title="Stock Moves"
         description="Every receipt, issue, transfer and adjustment — each with its GL posting"
-        icon={ArrowLeftRight}
+        icon={ArrowsLeftRight}
       />
 
       <div className="flex gap-2 flex-wrap">

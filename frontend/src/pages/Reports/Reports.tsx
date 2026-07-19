@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { BarChart3 } from 'lucide-react'
+import { ChartBar } from '@phosphor-icons/react'
 import { PageHeader, SkeletonTable } from '@/components/ui'
 
 const TrialBalance = lazy(() => import('./sections/TrialBalance'))
@@ -37,7 +37,7 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Reports" description="Period-strict, computed from the general ledger" icon={BarChart3} />
+      <PageHeader title="Reports" description="Period-strict, computed from the general ledger" icon={ChartBar} />
       <div className="flex flex-col lg:flex-row gap-6">
         <aside className="lg:w-56 shrink-0 space-y-4">
           {groups.map((group) => (

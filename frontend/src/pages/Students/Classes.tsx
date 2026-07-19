@@ -1,14 +1,14 @@
 import { useState } from 'react'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, School } from 'lucide-react'
+import { Plus, Student } from '@phosphor-icons/react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { academicYearsApi, classesApi, gradesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
-import { showToast, parseApiError } from '@/lib/toast'
+import { useOptimisticCreate } from '@/hooks/useOptimisticMutation'
 import {
   Button,
   DataTable,
@@ -67,7 +67,7 @@ export default function Classes() {
       <PageHeader
         title="Classes"
         description="Classrooms per grade and academic year"
-        icon={School}
+        icon={Student}
         actions={
           <Button onClick={() => setShowCreate(true)}>
             <Plus className="w-4 h-4 mr-2" /> New Class
@@ -105,8 +105,6 @@ const classSchema = z.object({
 type ClassFormValues = z.infer<typeof classSchema>
 
 function ClassFormModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const queryClient = useQueryClient()
-
   const { data: grades } = useQuery({
     queryKey: qk.grades.list(),
     queryFn: () => gradesApi.list().then((r) => r.data as Grade[]),
@@ -123,8 +121,8 @@ function ClassFormModal({ open, onClose }: { open: boolean; onClose: () => void 
     formState: { errors, isSubmitting },
   } = useForm<ClassFormValues>({ resolver: zodResolver(classSchema) })
 
-  const mutation = useMutation({
-    mutationFn: (values: ClassFormValues) =>
+  const mutation = useOptimisticCreate<ClassRoom, ClassFormValues>({
+    mutationFn: (values) =>
       classesApi.create({
         name: values.name,
         grade: values.grade,
@@ -132,13 +130,23 @@ function ClassFormModal({ open, onClose }: { open: boolean; onClose: () => void 
         teacher_name: values.teacher_name,
         ...(values.capacity ? { capacity: Number(values.capacity) } : {}),
       }),
-    onSuccess: () => {
-      showToast.success('Class created')
-      queryClient.invalidateQueries({ queryKey: qk.classes.all })
+    queryKeyPrefixes: [qk.classes.all],
+    createPlaceholder: (values) => ({
+      id: -Date.now(),
+      name: values.name,
+      grade: values.grade,
+      grade_name: (grades ?? []).find((g) => g.id === values.grade)?.name ?? '…',
+      academic_year: values.academic_year,
+      teacher_name: values.teacher_name,
+      capacity: values.capacity ? Number(values.capacity) : null,
+      student_count: 0,
+    }),
+    successMessage: 'Class created',
+    errorMessage: 'Failed to create class',
+    closeModal: () => {
       reset()
       onClose()
     },
-    onError: (error) => showToast.error(parseApiError(error, 'Failed to create class')),
   })
 
   return (

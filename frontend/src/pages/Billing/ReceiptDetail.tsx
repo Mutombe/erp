@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { Banknote, FileDown, RotateCcw } from 'lucide-react'
+import { Money, FileArrowDown, ArrowCounterClockwise } from '@phosphor-icons/react'
 import { bankAccountsApi, receiptsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -53,17 +53,17 @@ export default function ReceiptDetail() {
       <PageHeader
         title={receipt.number}
         description={`${receipt.student_name} · ${receipt.currency} ${fmtMoney(receipt.amount)}`}
-        icon={Banknote}
+        icon={Money}
         backLink="/app/receipts"
         actions={
           <div className="flex items-center gap-3">
             <StatusBadge status={receipt.status} />
             <Button variant="secondary" onClick={() => window.open(`/api/reports/receipt-pdf/${receipt.id}/`, '_blank')}>
-              <FileDown className="w-4 h-4 mr-2" /> PDF
+              <FileArrowDown className="w-4 h-4 mr-2" /> PDF
             </Button>
             {receipt.status === 'posted' && (
               <Button variant="secondary" onClick={() => setConfirmReverse(true)}>
-                <RotateCcw className="w-4 h-4 mr-2" /> Reverse
+                <ArrowCounterClockwise className="w-4 h-4 mr-2" /> Reverse
               </Button>
             )}
           </div>

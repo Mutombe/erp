@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Download } from 'lucide-react'
+import { DownloadSimple } from '@phosphor-icons/react'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { exportToCSV, formatExportNumber } from '@/lib/export'
 import { Button, SkeletonTable } from '@/components/ui'
+import PdfButton from './PdfButton'
 
 type Num = number | string
 
@@ -76,9 +77,12 @@ export default function CashFlow() {
               className="ml-1 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800" />
           </label>
         </div>
-        <Button variant="secondary" size="sm" disabled={!data} onClick={handleExport}>
-          <Download className="w-4 h-4 mr-2" /> Export CSV
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button variant="secondary" size="sm" disabled={!data} onClick={handleExport}>
+            <DownloadSimple className="w-4 h-4 mr-2" /> Export CSV
+          </Button>
+          <PdfButton reportKey="cash-flow" params={{ start, end }} />
+        </div>
       </div>
 
       {isLoading || !data ? (

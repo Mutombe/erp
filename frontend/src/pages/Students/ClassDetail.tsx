@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { School } from 'lucide-react'
+import { Student } from '@phosphor-icons/react'
 import { academicYearsApi, classesApi, enrollmentsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { formatDate } from '@/lib/utils'
@@ -68,7 +68,7 @@ export default function ClassDetail() {
       <PageHeader
         title={classRoom.name}
         description={`${classRoom.grade_name} · ${yearName}`}
-        icon={School}
+        icon={Student}
         backLink="/app/classes"
       />
 

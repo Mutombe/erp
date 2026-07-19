@@ -5,13 +5,13 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
-  ArrowLeftRight,
-  ArrowUpFromLine,
-  DollarSign,
+  ArrowsLeftRight,
+  ArrowLineUp,
+  CurrencyDollar,
   Package,
-  PackagePlus,
+  BoxArrowDown,
   Wallet,
-} from 'lucide-react'
+} from '@phosphor-icons/react'
 import { itemsApi, stockLevelsApi, stockMovesApi, warehousesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -90,7 +90,7 @@ function ReceiveStockModal({
   })
 
   return (
-    <Modal open={open} onClose={onClose} title="Receive Stock" icon={PackagePlus}>
+    <Modal open={open} onClose={onClose} title="Receive Stock" icon={BoxArrowDown}>
       <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-4">
         <Select label="Warehouse" error={errors.warehouse?.message} {...register('warehouse')}>
           <option value={0}>Select warehouse…</option>
@@ -159,7 +159,7 @@ function IssueStockModal({
   })
 
   return (
-    <Modal open={open} onClose={onClose} title="Issue Stock" icon={ArrowUpFromLine}>
+    <Modal open={open} onClose={onClose} title="Issue Stock" icon={ArrowLineUp}>
       <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-4">
         <Select label="Warehouse" error={errors.warehouse?.message} {...register('warehouse')}>
           <option value={0}>Select warehouse…</option>
@@ -237,7 +237,7 @@ function TransferStockModal({
   })
 
   return (
-    <Modal open={open} onClose={onClose} title="Transfer Stock" icon={ArrowLeftRight}>
+    <Modal open={open} onClose={onClose} title="Transfer Stock" icon={ArrowsLeftRight}>
       <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-4">
         <FormRow>
           <Select label="From warehouse" error={errors.warehouse_from?.message} {...register('warehouse_from')}>
@@ -327,13 +327,13 @@ export default function ItemDetail() {
             {isLowStock(item) && <Badge variant="danger">Low stock</Badge>}
             {!item.is_active && <Badge variant="default">Inactive</Badge>}
             <Button variant="secondary" onClick={() => setIssueOpen(true)}>
-              <ArrowUpFromLine className="w-4 h-4 mr-2" /> Issue
+              <ArrowLineUp className="w-4 h-4 mr-2" /> Issue
             </Button>
             <Button variant="secondary" onClick={() => setTransferOpen(true)}>
-              <ArrowLeftRight className="w-4 h-4 mr-2" /> Transfer
+              <ArrowsLeftRight className="w-4 h-4 mr-2" /> Transfer
             </Button>
             <Button onClick={() => setReceiveOpen(true)}>
-              <PackagePlus className="w-4 h-4 mr-2" /> Receive Stock
+              <BoxArrowDown className="w-4 h-4 mr-2" /> Receive Stock
             </Button>
           </div>
         }
@@ -347,7 +347,7 @@ export default function ItemDetail() {
           icon={Package}
           color="blue"
         />
-        <StatsCard title="Average cost" value={money(avgCost)} subtitle="Moving average, base currency" icon={DollarSign} color="purple" />
+        <StatsCard title="Average cost" value={money(avgCost)} subtitle="Moving average, base currency" icon={CurrencyDollar} color="purple" />
         <StatsCard title="Total stock value" value={money(qty * avgCost)} subtitle="qty × avg cost" icon={Wallet} color="green" />
       </div>
 

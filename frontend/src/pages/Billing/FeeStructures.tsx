@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { LayoutGrid, Plus, Trash2 } from 'lucide-react'
+import { GridFour, Plus, Trash } from '@phosphor-icons/react'
 import { feeCategoriesApi, feeStructuresApi, gradesApi, termsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { showToast, parseApiError } from '@/lib/toast'
+import { useOptimisticCreate, useOptimisticDelete } from '@/hooks/useOptimisticMutation'
 import {
   Button,
   ConfirmDialog,
@@ -26,7 +26,6 @@ import { APPLIES_TO_OPTIONS, fmtMoney, type FeeCategory, type FeeStructure } fro
 const APPLIES_LABEL: Record<string, string> = Object.fromEntries(APPLIES_TO_OPTIONS.map(([v, l]) => [v, l]))
 
 export default function FeeStructures() {
-  const queryClient = useQueryClient()
   const [term, setTerm] = useState('')
   const [grade, setGrade] = useState('')
   const [page, setPage] = useState(1)
@@ -51,15 +50,18 @@ export default function FeeStructures() {
     placeholderData: keepPreviousData,
   })
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => feeStructuresApi.delete(id),
-    onSuccess: () => {
-      showToast.success('Fee structure deleted')
-      queryClient.invalidateQueries({ queryKey: qk.feeStructures.all })
-      setToDelete(null)
-    },
-    onError: (error) => showToast.error(parseApiError(error, 'Failed to delete fee structure')),
+  const deleteMutation = useOptimisticDelete<FeeStructure>({
+    mutationFn: (id) => feeStructuresApi.delete(id),
+    queryKeyPrefixes: [qk.feeStructures.all],
+    successMessage: 'Fee structure deleted',
+    errorMessage: 'Failed to delete fee structure',
   })
+
+  const handleDelete = (id: number) => {
+    // Optimistic: close the dialog immediately, row disappears, rollback on error.
+    setToDelete(null)
+    deleteMutation.mutate(id)
+  }
 
   const columns: Column<FeeStructure>[] = [
     { key: 'grade_name', header: 'Grade', render: (f) => <span className="font-medium">{f.grade_name}</span> },
@@ -78,7 +80,7 @@ export default function FeeStructures() {
           className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-800"
           title="Delete fee structure"
         >
-          <Trash2 className="w-4 h-4" />
+          <Trash className="w-4 h-4" />
         </button>
       ),
     },
@@ -89,7 +91,7 @@ export default function FeeStructures() {
       <PageHeader
         title="Fee Structures"
         description="What each grade is charged per term, category and currency"
-        icon={LayoutGrid}
+        icon={GridFour}
         actions={
           <Button onClick={() => setShowCreate(true)}>
             <Plus className="w-4 h-4 mr-2" /> New Fee Structure
@@ -127,7 +129,7 @@ export default function FeeStructures() {
       <ConfirmDialog
         open={Boolean(toDelete)}
         onClose={() => setToDelete(null)}
-        onConfirm={() => toDelete && deleteMutation.mutate(toDelete.id)}
+        onConfirm={() => toDelete && handleDelete(toDelete.id)}
         title="Delete fee structure?"
         message={
           toDelete
@@ -164,8 +166,6 @@ function FeeStructureFormModal({
   terms: Term[]
   grades: Grade[]
 }) {
-  const queryClient = useQueryClient()
-
   const { data: categories } = useQuery({
     queryKey: qk.feeCategories.list({ active: true }),
     queryFn: () => feeCategoriesApi.list({ is_active: true }).then((r) => r.data as FeeCategory[]),
@@ -181,8 +181,8 @@ function FeeStructureFormModal({
     defaultValues: { currency: 'USD', applies_to: 'all' },
   })
 
-  const mutation = useMutation({
-    mutationFn: (values: StructureFormValues) => {
+  const mutation = useOptimisticCreate<FeeStructure, StructureFormValues>({
+    mutationFn: (values) => {
       const term = terms.find((t) => t.id === values.term)
       return feeStructuresApi.create({
         academic_year: term?.academic_year,
@@ -194,13 +194,31 @@ function FeeStructureFormModal({
         applies_to: values.applies_to,
       })
     },
-    onSuccess: () => {
-      showToast.success('Fee structure created')
-      queryClient.invalidateQueries({ queryKey: qk.feeStructures.all })
+    queryKeyPrefixes: [qk.feeStructures.all],
+    createPlaceholder: (values) => {
+      const term = terms.find((t) => t.id === values.term)
+      const category = (categories ?? []).find((c) => c.id === values.fee_category)
+      return {
+        id: -Date.now(),
+        academic_year: term?.academic_year ?? 0,
+        term: values.term,
+        term_name: term?.name ?? '…',
+        grade: values.grade,
+        grade_name: grades.find((g) => g.id === values.grade)?.name ?? '…',
+        fee_category: values.fee_category,
+        fee_category_code: category?.code ?? '…',
+        amount: values.amount.toFixed(2),
+        currency: values.currency,
+        applies_to: values.applies_to,
+        is_mandatory: true,
+      }
+    },
+    successMessage: 'Fee structure created',
+    errorMessage: 'Failed to create fee structure',
+    closeModal: () => {
       reset()
       onClose()
     },
-    onError: (error) => showToast.error(parseApiError(error, 'Failed to create fee structure')),
   })
 
   return (

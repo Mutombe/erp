@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, Plus, Star } from 'lucide-react'
+import { CalendarBlank, Plus, Star } from '@phosphor-icons/react'
 import { academicYearsApi, termsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -55,7 +55,7 @@ function YearModal({ onClose }: { onClose: () => void }) {
   })
 
   return (
-    <Modal open onClose={onClose} title="New Academic Year" icon={CalendarDays}>
+    <Modal open onClose={onClose} title="New Academic Year" icon={CalendarBlank}>
       <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
         <Input label="Name" required placeholder="e.g. 2026" error={errors.name?.message}
           {...register('name', { required: 'Name is required' })} />
@@ -99,7 +99,7 @@ function TermModal({ years, defaultYear, onClose }: { years: AcademicYear[]; def
   })
 
   return (
-    <Modal open onClose={onClose} title="New Term" icon={CalendarDays}>
+    <Modal open onClose={onClose} title="New Term" icon={CalendarBlank}>
       <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
         <FormRow>
           <Select label="Academic year" required error={errors.academic_year?.message}

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { Ban, CheckCircle2, FileDown, FileText } from 'lucide-react'
+import { Prohibit, CheckCircle, FileArrowDown, FileText } from '@phosphor-icons/react'
 import { feeInvoicesApi, receiptsApi, termsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -89,16 +89,16 @@ export default function FeeInvoiceDetail() {
           <div className="flex items-center gap-3">
             <StatusBadge status={invoice.status} />
             <Button variant="secondary" onClick={() => window.open(`/api/reports/invoice-pdf/${invoice.id}/`, '_blank')}>
-              <FileDown className="w-4 h-4 mr-2" /> PDF
+              <FileArrowDown className="w-4 h-4 mr-2" /> PDF
             </Button>
             {invoice.status === 'draft' && (
               <Button onClick={() => postMutation.mutate()} loading={postMutation.isPending}>
-                <CheckCircle2 className="w-4 h-4 mr-2" /> Post
+                <CheckCircle className="w-4 h-4 mr-2" /> Post
               </Button>
             )}
             {canCancel && (
               <Button variant="secondary" onClick={() => setConfirmCancel(true)}>
-                <Ban className="w-4 h-4 mr-2" /> Cancel Invoice
+                <Prohibit className="w-4 h-4 mr-2" /> Cancel Invoice
               </Button>
             )}
           </div>
