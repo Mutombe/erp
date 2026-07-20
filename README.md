@@ -74,6 +74,33 @@ cd backend
 
 The test suite covers the posting invariants: journals balance in both currencies, atomic rollback, reversal correctness, period locking, GL/audit immutability, FIFO payment allocation with prepayment residue and realized FX, billing-run idempotency, bursary math, moving-average inventory valuation, and the sub-ledger ↔ control account reconciliation invariant.
 
+## Deployment
+
+Live: **https://oceanwaves-erp.onrender.com** (Render web service `oceanwaves-erp`,
+Docker runtime, Neon PostgreSQL).
+
+The `Dockerfile` is a two-stage build — Node compiles the SPA, then the Python
+image serves it together with the API under gunicorn, so one container is the
+whole system. `docker-entrypoint.sh` runs migrations, the idempotent
+`seed_school`, and provisions the admin user on every deploy. Pushing to `main`
+auto-deploys.
+
+Required environment variables:
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `SECRET_KEY` | Django secret (generate a fresh 50+ char value) |
+| `ALLOWED_HOSTS` | e.g. `.onrender.com` |
+| `CSRF_TRUSTED_ORIGINS` | e.g. `https://*.onrender.com` |
+| `DJANGO_SETTINGS_MODULE` | `config.settings.prod` |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Bootstraps the first admin (optional) |
+| `TIME_ZONE`, `BASE_CURRENCY`, `SECONDARY_CURRENCY` | Locale/currency defaults |
+
+Production seeds the chart of accounts, calendar and sequences but **no demo
+data** — add real students and balances through the UI, or import opening
+balances via Accounting → Opening Balances.
+
 ## Module map
 
 | Module | Backend app | Key documents |

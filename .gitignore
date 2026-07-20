@@ -16,3 +16,6 @@ frontend/dist/
 *.local
 .vscode/
 .idea/
+
+# Deployment secrets — never commit
+.deploy-credentials.txt
