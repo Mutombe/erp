@@ -115,7 +115,7 @@ class SchoolSettings(models.Model):
 
     REVENUE_MODES = [('immediate', 'Recognize at invoice'), ('deferred', 'Defer until term recognition')]
 
-    school_name = models.CharField(max_length=200, default='My School')
+    school_name = models.CharField(max_length=200, default='Oceanwaves Schools')
     address = models.TextField(blank=True)
     phone = models.CharField(max_length=50, blank=True)
     email = models.EmailField(blank=True)

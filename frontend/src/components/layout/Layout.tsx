@@ -34,6 +34,7 @@ import {
   X,
   type Icon,
 } from '@phosphor-icons/react'
+import logoUrl from '@/assets/logo.png'
 import { cn } from '@/lib/utils'
 import { authApi } from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
@@ -152,11 +153,16 @@ function SidebarBrand({ collapsed }: { collapsed: boolean }) {
         collapsed ? 'justify-center px-2' : 'px-5'
       )}
     >
-      <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center shrink-0">
-        <GraduationCap className="w-5 h-5 text-white" />
-      </div>
+      <img src={logoUrl} alt="" className="w-9 h-9 object-contain shrink-0" />
       {!collapsed && (
-        <span className="font-bold text-gray-900 dark:text-slate-100 truncate">School ERP</span>
+        <span className="min-w-0">
+          <span className="block font-bold text-gray-900 dark:text-slate-100 truncate leading-tight">
+            Oceanwaves Schools
+          </span>
+          <span className="block text-[10px] uppercase tracking-wider text-ocean-600 dark:text-ocean-400">
+            Sailing To Success
+          </span>
+        </span>
       )}
     </div>
   )
@@ -315,7 +321,8 @@ export default function Layout() {
             >
               <List className="w-5 h-5" />
             </button>
-            <span className="font-semibold text-gray-900 dark:text-slate-100">School ERP</span>
+            <img src={logoUrl} alt="" className="lg:hidden w-7 h-7 object-contain" />
+            <span className="font-semibold text-gray-900 dark:text-slate-100">Oceanwaves Schools</span>
           </div>
 
           <div className="flex items-center gap-1.5">

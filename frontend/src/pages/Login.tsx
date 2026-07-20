@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { GraduationCap, Lock, Envelope } from '@phosphor-icons/react'
+import { Lock, Envelope } from '@phosphor-icons/react'
+import logoUrl from '@/assets/logo.png'
 import { Button, Input } from '@/components/ui'
 import { authApi } from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
@@ -44,14 +45,13 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center px-4 bg-gradient-to-b from-ocean-50 via-gray-50 to-white">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-primary-600 flex items-center justify-center mb-4 shadow-lg shadow-primary-500/25">
-            <GraduationCap className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">School ERP</h1>
-          <p className="text-sm text-gray-500 mt-1">Sign in to your account</p>
+          <img src={logoUrl} alt="Oceanwaves Schools" className="w-28 h-28 object-contain mb-4" />
+          <h1 className="text-2xl font-bold text-primary-700">Oceanwaves Schools</h1>
+          <p className="text-xs uppercase tracking-[0.2em] text-crest mt-1">Sailing To Success</p>
+          <p className="text-sm text-gray-500 mt-3">Sign in to your account</p>
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8">

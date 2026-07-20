@@ -221,7 +221,9 @@ class Command(BaseCommand):
         settings_obj = SchoolSettings.get()
         if settings_obj.current_academic_year_id is None:
             settings_obj.current_academic_year = year
-            settings_obj.save()
+        if not settings_obj.statement_footer:
+            settings_obj.statement_footer = 'Oceanwaves Schools · Sailing To Success'
+        settings_obj.save()
 
         self.stdout.write(self.style.SUCCESS('Seed complete.'))
 

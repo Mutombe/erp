@@ -103,7 +103,7 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 # Vite emits hashed asset filenames into frontend/dist/assets; serving that
 # directory as static means the built SPA needs no separate web server.
-STATICFILES_DIRS = [FRONTEND_DIST] if FRONTEND_DIST.exists() else []
+STATICFILES_DIRS = [BASE_DIR / 'static'] + ([FRONTEND_DIST] if FRONTEND_DIST.exists() else [])
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 STORAGES = {

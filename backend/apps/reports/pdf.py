@@ -1,6 +1,7 @@
 """PDF documents: fee invoice, receipt, student statement, and generic
 financial-report exports (xhtml2pdf)."""
 import io
+import os
 from decimal import Decimal
 
 from django.http import HttpResponse, JsonResponse
@@ -13,11 +14,31 @@ from xhtml2pdf import pisa
 from apps.core.models import SchoolSettings
 
 
+def _resolve_static(uri, rel):
+    """Map /static/ and /media/ URLs in PDF templates to real file paths so
+    xhtml2pdf can embed images (it has no HTTP fetcher)."""
+    from django.conf import settings
+    from django.contrib.staticfiles import finders
+
+    if uri.startswith(settings.MEDIA_URL):
+        path = os.path.join(settings.MEDIA_ROOT, uri.replace(settings.MEDIA_URL, '', 1))
+        return path if os.path.exists(path) else uri
+    static_url = settings.STATIC_URL if settings.STATIC_URL.startswith('/') else f'/{settings.STATIC_URL}'
+    if uri.startswith(static_url):
+        found = finders.find(uri.replace(static_url, '', 1))
+        if found:
+            return found
+    return uri
+
+
 def render_pdf(template, context, filename):
     context['school'] = SchoolSettings.get()
+    context.setdefault('logo_url', '/static/brand/logo.png')
     html = render_to_string(template, context)
     buffer = io.BytesIO()
-    result = pisa.CreatePDF(io.StringIO(html), dest=buffer, encoding='utf-8')
+    result = pisa.CreatePDF(
+        io.StringIO(html), dest=buffer, encoding='utf-8', link_callback=_resolve_static
+    )
     if result.err:
         return HttpResponse('PDF generation failed', status=500)
     response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
