@@ -17,9 +17,22 @@ frontend/   React 18 + TypeScript + Vite + Tailwind + TanStack Query v5
 - **Multi-currency**: journals carry a transaction currency + exchange rate; the GL stores both transaction and base (USD) amounts; realized FX gains/losses post automatically on cross-rate settlements.
 - **Reports are period-strict**: trial balance, balance sheet, income statement (P&L or Income & Expenditure layout), aged debtors/creditors, student statements, cashbook, asset register, stock valuation, fee collection — all aggregated from the GL as-of date.
 
+## How the two halves connect
+
+The frontend and backend run as **one application on a single origin**: Django
+serves the built React app (`frontend/dist`) and the API together, so there is no
+proxy, no CORS, and no second web server in production. Client-side deep links
+(`/app/students/3`) are handled by a catch-all route that returns `index.html`;
+anything under `/api/`, `/admin/`, `/static/`, `/media/` and `/health/` is
+excluded from it.
+
+For day-to-day UI work you can still run the Vite dev server for hot reload — it
+proxies `/api` to Django on port 8001. The frontend's axios client always calls
+relative `/api/...` URLs, so the same code works in both modes.
+
 ## Getting started
 
-### Backend
+### First-time setup
 
 ```bash
 cd backend
@@ -27,19 +40,30 @@ python -m venv .venv
 .venv/Scripts/pip install -r requirements.txt      # Windows
 .venv/Scripts/python manage.py migrate
 .venv/Scripts/python manage.py seed_school --demo  # COA, calendar, sequences + demo data
-.venv/Scripts/python manage.py createsuperuser
-.venv/Scripts/python manage.py runserver 8001
+.venv/Scripts/python manage.py createsuperuser     # optional; demo login below
+
+cd ../frontend
+npm install
 ```
 
-API docs: http://127.0.0.1:8001/api/docs/ (port 8001 — the Vite dev proxy targets it, and 8000 is commonly taken by other local Django projects)
+### Run it
 
-### Frontend
+```powershell
+.\start.ps1          # one server: http://127.0.0.1:8001 (builds the SPA if needed)
+.\start.ps1 -Dev     # API on :8001 + Vite hot reload on :5173
+```
+
+Or manually:
 
 ```bash
-cd frontend
-npm install
-npm run dev          # http://localhost:5173 (proxies /api to :8000)
+cd frontend && npm run build          # once, for single-origin mode
+cd backend  && .venv/Scripts/python manage.py runserver 8001
 ```
+
+Demo login: **admin@school.local / admin123** · API docs: http://127.0.0.1:8001/api/docs/
+
+> Port 8001 is used because 8000/5173 are often taken by other local projects.
+> Override the dev proxy target with `VITE_API_TARGET` if you move the API.
 
 ### Tests
 

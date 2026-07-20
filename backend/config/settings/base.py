@@ -6,6 +6,10 @@ from decouple import config
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+# Built React app (frontend/dist). Django serves it so the whole system runs
+# on a single origin in production — no proxy, no CORS.
+FRONTEND_DIST = BASE_DIR.parent / 'frontend' / 'dist'
+
 SECRET_KEY = config('SECRET_KEY', default='dev-insecure-key-change-me')
 DEBUG = False
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: [s.strip() for s in v.split(',')])
@@ -58,7 +62,8 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
+        # FRONTEND_DIST lets Django serve the built SPA's index.html.
+        'DIRS': [BASE_DIR / 'templates', FRONTEND_DIST],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -96,11 +101,16 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+# Vite emits hashed asset filenames into frontend/dist/assets; serving that
+# directory as static means the built SPA needs no separate web server.
+STATICFILES_DIRS = [FRONTEND_DIST] if FRONTEND_DIST.exists() else []
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 STORAGES = {
     'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
-    'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
+    # Plain compressed storage (not Manifest): Vite already content-hashes its
+    # assets, and manifest post-processing chokes on their internal references.
+    'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage'},
 }
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
