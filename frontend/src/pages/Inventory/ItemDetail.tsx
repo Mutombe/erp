@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
@@ -12,7 +12,7 @@ import {
   BoxArrowDown,
   Wallet,
 } from '@phosphor-icons/react'
-import { itemsApi, stockLevelsApi, stockMovesApi, warehousesApi } from '@/services/api'
+import { departmentsApi, itemsApi, stockLevelsApi, stockMovesApi, warehousesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
 import {
@@ -23,15 +23,19 @@ import {
   Modal,
   ModalFooter,
   PageHeader,
+  RefreshingOverlay,
   Select,
   SkeletonCard,
+  SkeletonTable,
   StatsCard,
+  refreshingContentClass,
 } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import {
   MOVE_TYPE_LABELS,
   MOVE_TYPE_VARIANTS,
   isLowStock,
+  type Department,
   type Item,
   type StockLevel,
   type StockMove,
@@ -116,6 +120,7 @@ const issueSchema = z.object({
   warehouse: z.coerce.number().min(1, 'Warehouse is required'),
   quantity: z.coerce.number().positive('Quantity must be positive'),
   date: z.string().min(1, 'Date is required'),
+  /** Department PK as a string; '' means "no department". */
   department: z.string().default(''),
   reason: z.string().default(''),
 })
@@ -134,9 +139,14 @@ function IssueStockModal({
   onDone: () => void
 }) {
   type Values = z.infer<typeof issueSchema>
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<Values>({
+  const { register, control, handleSubmit, reset, formState: { errors } } = useForm<Values>({
     resolver: zodResolver(issueSchema),
     defaultValues: { warehouse: 0, quantity: 0, date: today(), department: '', reason: '' },
+  })
+
+  const { data: departments } = useQuery({
+    queryKey: qk.departments.list({ is_active: true }),
+    queryFn: () => departmentsApi.list({ is_active: true }).then((r) => r.data as Department[]),
   })
 
   const mutation = useMutation({
@@ -146,7 +156,7 @@ function IssueStockModal({
         warehouse: values.warehouse,
         quantity: values.quantity.toFixed(2),
         date: values.date,
-        department: values.department,
+        department: values.department ? Number(values.department) : null,
         reason: values.reason,
       }),
     onSuccess: (r) => {
@@ -172,11 +182,29 @@ function IssueStockModal({
           <Input type="date" label="Date" error={errors.date?.message} {...register('date')} />
         </FormRow>
         <FormRow>
-          <Input label="Department" placeholder="e.g. Science Dept" error={errors.department?.message} {...register('department')} />
+          <Controller
+            control={control}
+            name="department"
+            render={({ field }) => (
+              <Select
+                label="Department"
+                value={field.value ?? ''}
+                onChange={(e) => field.onChange(e.target.value)}
+                error={errors.department?.message}
+                searchable
+              >
+                <option value="">No department</option>
+                {(departments ?? []).map((d) => (
+                  <option key={d.id} value={String(d.id)}>{`${d.code} · ${d.name}`}</option>
+                ))}
+              </Select>
+            )}
+          />
           <Input label="Reason" placeholder="e.g. classroom supplies" error={errors.reason?.message} {...register('reason')} />
         </FormRow>
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Issuing posts a consumption journal at the item's moving-average cost.
+          Issuing posts a consumption journal at the item's moving-average cost — to the department's
+          own expense account when it has one, otherwise the item category default.
         </p>
         <ModalFooter>
           <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
@@ -277,19 +305,19 @@ export default function ItemDetail() {
   const [issueOpen, setIssueOpen] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
 
-  const { data: item, isLoading } = useQuery({
+  const { data: item } = useQuery({
     queryKey: qk.items.detail(id!),
     queryFn: () => itemsApi.get(id!).then((r) => r.data as Item),
   })
 
-  const { data: levels } = useQuery({
+  const { data: levels, isFetching: levelsFetching } = useQuery({
     queryKey: qk.stockLevels.list({ item: id }),
     queryFn: () =>
       stockLevelsApi.list({ item: id, page_size: 100 }).then((r) => r.data as Paginated<StockLevel>),
     enabled: !!id,
   })
 
-  const { data: moves } = useQuery({
+  const { data: moves, isFetching: movesFetching } = useQuery({
     queryKey: qk.stockMoves.list({ item: id }),
     queryFn: () => stockMovesApi.list({ item: id }).then((r) => r.data as Paginated<StockMove>),
     enabled: !!id,
@@ -310,10 +338,14 @@ export default function ItemDetail() {
     queryClient.invalidateQueries({ queryKey: qk.reports.all })
   }
 
-  if (isLoading || !item) return <SkeletonCard />
+  // First paint only — once the record is cached the header and stat cards stay put
+  // while the stock sections below refetch independently.
+  if (!item) return <SkeletonCard />
 
   const qty = parseFloat(item.qty_on_hand)
   const avgCost = parseFloat(item.avg_cost)
+  const levelsRefreshing = levelsFetching && !!levels
+  const movesRefreshing = movesFetching && !!moves
 
   return (
     <div className="space-y-6">
@@ -353,7 +385,12 @@ export default function ItemDetail() {
 
       <div>
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">Stock by warehouse</h3>
-        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+        {!levels ? (
+          <SkeletonTable rows={3} />
+        ) : (
+        <div className="relative">
+        <RefreshingOverlay active={levelsRefreshing} />
+        <div className={refreshingContentClass(levelsRefreshing, 'overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700')}>
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
               <tr>
@@ -382,11 +419,18 @@ export default function ItemDetail() {
             </tbody>
           </table>
         </div>
+        </div>
+        )}
       </div>
 
       <div>
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">Recent stock moves</h3>
-        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+        {!moves ? (
+          <SkeletonTable rows={5} />
+        ) : (
+        <div className="relative">
+        <RefreshingOverlay active={movesRefreshing} />
+        <div className={refreshingContentClass(movesRefreshing, 'overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700')}>
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
               <tr>
@@ -431,6 +475,8 @@ export default function ItemDetail() {
             </tbody>
           </table>
         </div>
+        </div>
+        )}
       </div>
 
       <ReceiveStockModal

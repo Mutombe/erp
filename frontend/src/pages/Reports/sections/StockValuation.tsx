@@ -4,7 +4,7 @@ import { DownloadSimple } from '@phosphor-icons/react'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { exportToCSV, formatExportNumber } from '@/lib/export'
-import { Button, SkeletonTable } from '@/components/ui'
+import { Button, RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
 
 interface SVRow {
@@ -30,12 +30,15 @@ const qty = (v: number | string) =>
   Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 })
 
 export default function StockValuation() {
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.reports.stockValuation(),
     queryFn: () => reportsApi.stockValuation().then((r) => r.data as SVData),
   })
 
-  if (isLoading || !data) return <SkeletonTable rows={10} />
+  // A background refetch keeps the valuation on screen; only first paint skeletons.
+  const isRefreshing = isFetching && !!data
+
+  if (!data) return <SkeletonTable rows={10} />
 
   const handleExport = () =>
     exportToCSV(
@@ -60,8 +63,9 @@ export default function StockValuation() {
         </Button>
         <PdfButton reportKey="stock-valuation" />
       </div>
-      <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-      <table className="w-full text-sm">
+      <div className="relative overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+      <RefreshingOverlay active={isRefreshing} />
+      <table className={refreshingContentClass(isRefreshing, 'w-full text-sm')}>
         <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
           <tr>
             <th className="px-4 py-3">Item</th>

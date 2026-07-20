@@ -5,7 +5,7 @@ import { Plus, ShoppingCart } from '@phosphor-icons/react'
 import { purchaseOrdersApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
-import { Badge, Button, DataTable, PageHeader, StatusBadge, type Column } from '@/components/ui'
+import { Badge, Button, DataTable, PageHeader, RefreshingOverlay, StatusBadge, refreshingContentClass, type Column } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import { PO_STATUSES, money, type PurchaseOrder } from '@/types/procurement'
 
@@ -38,7 +38,7 @@ export default function PurchaseOrders() {
   const [page, setPage] = useState(1)
   const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.purchaseOrders.list({ page, search: debouncedSearch, status: statusFilter }),
     queryFn: () =>
       purchaseOrdersApi
@@ -46,6 +46,7 @@ export default function PurchaseOrders() {
         .then((r) => r.data as Paginated<PurchaseOrder>),
     placeholderData: keepPreviousData,
   })
+  const isRefreshing = isFetching && !!data
 
   const columns: Column<PurchaseOrder>[] = [
     { key: 'number', header: 'Number', render: (po) => <span className="font-mono text-primary-600 dark:text-primary-400">{po.number}</span> },
@@ -103,25 +104,30 @@ export default function PurchaseOrders() {
         ))}
       </div>
 
-      <DataTable<PurchaseOrder>
-        rowKey={(po) => po.id}
-        columns={columns}
-        data={data?.results ?? []}
-        loading={isLoading}
-        searchable
-        searchValue={search}
-        onSearch={(q) => { setSearch(q); setPage(1) }}
-        searchPlaceholder="Search number, supplier…"
-        onRowClick={(po) => navigate(`/app/purchase-orders/${po.id}`)}
-        emptyTitle="No purchase orders"
-        emptyAction={{ label: 'Create your first PO', onClick: () => navigate('/app/purchase-orders/new') }}
-        pagination={{
-          page,
-          pageSize: 25,
-          total: data?.count ?? 0,
-          onPageChange: setPage,
-        }}
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<PurchaseOrder>
+            rowKey={(po) => po.id}
+            columns={columns}
+            data={data?.results ?? []}
+            loading={!data}
+            searchable
+            searchValue={search}
+            onSearch={(q) => { setSearch(q); setPage(1) }}
+            searchPlaceholder="Search number, supplier…"
+            onRowClick={(po) => navigate(`/app/purchase-orders/${po.id}`)}
+            emptyTitle="No purchase orders"
+            emptyAction={{ label: 'Create your first PO', onClick: () => navigate('/app/purchase-orders/new') }}
+            pagination={{
+              page,
+              pageSize: 25,
+              total: data?.count ?? 0,
+              onPageChange: setPage,
+            }}
+          />
+        </div>
+      </div>
     </div>
   )
 }

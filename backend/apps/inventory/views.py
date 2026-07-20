@@ -1,3 +1,4 @@
+from django.db.models import Count
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -5,6 +6,7 @@ from rest_framework.response import Response
 from apps.core.permissions import RoleWritePermission
 
 from .models import (
+    Department,
     Item,
     ItemCategory,
     StockLevel,
@@ -15,6 +17,7 @@ from .models import (
     transfer_stock,
 )
 from .serializers import (
+    DepartmentSerializer,
     IssueStockSerializer,
     ItemCategorySerializer,
     ItemSerializer,
@@ -36,6 +39,17 @@ class ItemCategoryViewSet(InventoryViewSet):
     serializer_class = ItemCategorySerializer
     filterset_fields = ['is_active']
     search_fields = ['name']
+    pagination_class = None
+
+
+class DepartmentViewSet(InventoryViewSet):
+    queryset = Department.objects.select_related('expense_account').annotate(
+        stock_move_count_annotated=Count('stock_moves')
+    )
+    serializer_class = DepartmentSerializer
+    filterset_fields = ['is_active']
+    search_fields = ['code', 'name']
+    ordering_fields = ['code', 'name']
     pagination_class = None
 
 
@@ -64,11 +78,11 @@ class StockLevelViewSet(viewsets.ReadOnlyModelViewSet):
 
 class StockMoveViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = StockMove.objects.select_related(
-        'item', 'warehouse_from', 'warehouse_to', 'journal'
+        'item', 'warehouse_from', 'warehouse_to', 'journal', 'department'
     ).all()
     serializer_class = StockMoveSerializer
-    filterset_fields = ['item', 'move_type', 'warehouse_from', 'warehouse_to']
-    search_fields = ['number', 'item__code', 'item__name', 'department']
+    filterset_fields = ['item', 'move_type', 'warehouse_from', 'warehouse_to', 'department']
+    search_fields = ['number', 'item__code', 'item__name', 'department__name', 'department__code']
     ordering_fields = ['date', 'id']
 
     def get_queryset(self):

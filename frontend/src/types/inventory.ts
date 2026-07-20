@@ -45,6 +45,25 @@ export interface StockLevel {
   quantity: string
 }
 
+/**
+ * Consumption dimension for stock issues. When a department carries its own
+ * expense account, issues to it debit that account instead of the item
+ * category's default consumption expense.
+ */
+export interface Department {
+  id: number
+  code: string
+  name: string
+  description: string
+  expense_account: number | null
+  expense_account_code: string | null
+  expense_account_name: string | null
+  head_name: string
+  is_active: boolean
+  stock_move_count: number
+  created_at: string
+}
+
 export type MoveType = 'receipt' | 'issue' | 'transfer' | 'adjustment_in' | 'adjustment_out'
 
 export interface StockMove {
@@ -62,7 +81,9 @@ export interface StockMove {
   unit_cost: string
   total_cost_base: string
   date: string
-  department: string
+  department: number | null
+  department_name: string | null
+  department_code: string | null
   reason: string
   source_type: string
   source_id: number | null

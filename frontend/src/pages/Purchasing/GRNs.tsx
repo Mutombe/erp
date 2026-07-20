@@ -5,7 +5,7 @@ import { BoxArrowDown } from '@phosphor-icons/react'
 import { grnsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
-import { DataTable, PageHeader, StatusBadge, type Column } from '@/components/ui'
+import { DataTable, PageHeader, RefreshingOverlay, StatusBadge, refreshingContentClass, type Column } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import type { GRN } from '@/types/procurement'
 
@@ -17,7 +17,7 @@ export default function GRNs() {
   const [page, setPage] = useState(1)
   const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.grns.list({ page, search: debouncedSearch, status: statusFilter }),
     queryFn: () =>
       grnsApi
@@ -25,6 +25,7 @@ export default function GRNs() {
         .then((r) => r.data as Paginated<GRN>),
     placeholderData: keepPreviousData,
   })
+  const isRefreshing = isFetching && !!data
 
   const columns: Column<GRN>[] = [
     { key: 'number', header: 'Number', render: (g) => <span className="font-mono text-primary-600 dark:text-primary-400">{g.number}</span> },
@@ -92,24 +93,29 @@ export default function GRNs() {
         ))}
       </div>
 
-      <DataTable<GRN>
-        rowKey={(g) => g.id}
-        columns={columns}
-        data={data?.results ?? []}
-        loading={isLoading}
-        searchable
-        searchValue={search}
-        onSearch={(q) => { setSearch(q); setPage(1) }}
-        searchPlaceholder="Search GRN or PO number…"
-        onRowClick={(g) => navigate(`/app/grns/${g.id}`)}
-        emptyTitle="No goods received notes"
-        pagination={{
-          page,
-          pageSize: 25,
-          total: data?.count ?? 0,
-          onPageChange: setPage,
-        }}
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<GRN>
+            rowKey={(g) => g.id}
+            columns={columns}
+            data={data?.results ?? []}
+            loading={!data}
+            searchable
+            searchValue={search}
+            onSearch={(q) => { setSearch(q); setPage(1) }}
+            searchPlaceholder="Search GRN or PO number…"
+            onRowClick={(g) => navigate(`/app/grns/${g.id}`)}
+            emptyTitle="No goods received notes"
+            pagination={{
+              page,
+              pageSize: 25,
+              total: data?.count ?? 0,
+              onPageChange: setPage,
+            }}
+          />
+        </div>
+      </div>
     </div>
   )
 }

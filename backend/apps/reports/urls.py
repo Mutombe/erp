@@ -18,6 +18,7 @@ urlpatterns = [
     path('cashbook/', views.CashbookView.as_view()),
     path('asset-register/', views.AssetRegisterView.as_view()),
     path('stock-valuation/', views.StockValuationView.as_view()),
+    path('department-consumption/', views.DepartmentConsumptionView.as_view()),
     path('fee-collection/', views.FeeCollectionView.as_view()),
     path('dashboard/', views.DashboardView.as_view()),
 ]

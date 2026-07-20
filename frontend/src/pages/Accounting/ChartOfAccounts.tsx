@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { BookOpen, Plus } from '@phosphor-icons/react'
 import { accountsApi } from '@/services/api'
@@ -10,6 +10,8 @@ import {
   Button,
   CurrencyDisplay,
   PageHeader,
+  RefreshingOverlay,
+  refreshingContentClass,
   SkeletonTable,
 } from '@/components/ui'
 import AccountFormModal from './AccountFormModal'
@@ -29,10 +31,12 @@ export default function ChartOfAccounts() {
   const [search, setSearch] = useState('')
   const [showCreate, setShowCreate] = useState(false)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.accounts.list(),
     queryFn: () => accountsApi.list().then((r) => r.data as Account[]),
+    placeholderData: keepPreviousData,
   })
+  const isRefreshing = isFetching && !!data
 
   const grouped = useMemo(() => {
     const accounts = (data ?? []).filter(
@@ -68,42 +72,45 @@ export default function ChartOfAccounts() {
         className="w-full max-w-sm px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
       />
 
-      {isLoading ? (
+      {!data ? (
         <SkeletonTable rows={10} />
       ) : (
-        <div className="space-y-4">
-          {grouped.map(({ type, accounts }) => (
-            <Accordion key={type} title={`${TYPE_LABELS[type]} (${accounts.length})`} defaultOpen>
-              <table className="w-full text-sm">
-                <tbody>
-                  {accounts.map((account) => (
-                    <tr
-                      key={account.id}
-                      onClick={() => navigate(`/app/accounts/${account.id}`)}
-                      className="border-b border-gray-100 dark:border-gray-700/50 last:border-0 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/60"
-                    >
-                      <td className="py-2.5 pr-4 w-24 font-mono text-primary-600 dark:text-primary-400">
-                        {account.code}
-                      </td>
-                      <td className="py-2.5 pr-4 text-gray-900 dark:text-gray-100">
-                        {account.name}
-                        {account.is_system && (
-                          <Badge variant="secondary" className="ml-2">system</Badge>
-                        )}
-                        {!account.is_active && (
-                          <Badge variant="danger" className="ml-2">inactive</Badge>
-                        )}
-                      </td>
-                      <td className="py-2.5 pr-4 w-20 text-gray-500">{account.currency || '—'}</td>
-                      <td className="py-2.5 text-right w-36 tabular-nums">
-                        <CurrencyDisplay amount={parseFloat(account.current_balance)} currency="USD" />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Accordion>
-          ))}
+        <div className="relative">
+          <RefreshingOverlay active={isRefreshing} />
+          <div className={refreshingContentClass(isRefreshing, 'space-y-4')}>
+            {grouped.map(({ type, accounts }) => (
+              <Accordion key={type} title={`${TYPE_LABELS[type]} (${accounts.length})`} defaultOpen>
+                <table className="w-full text-sm">
+                  <tbody>
+                    {accounts.map((account) => (
+                      <tr
+                        key={account.id}
+                        onClick={() => navigate(`/app/accounts/${account.id}`)}
+                        className="border-b border-gray-100 dark:border-gray-700/50 last:border-0 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/60"
+                      >
+                        <td className="py-2.5 pr-4 w-24 font-mono text-primary-600 dark:text-primary-400">
+                          {account.code}
+                        </td>
+                        <td className="py-2.5 pr-4 text-gray-900 dark:text-gray-100">
+                          {account.name}
+                          {account.is_system && (
+                            <Badge variant="secondary" className="ml-2">system</Badge>
+                          )}
+                          {!account.is_active && (
+                            <Badge variant="danger" className="ml-2">inactive</Badge>
+                          )}
+                        </td>
+                        <td className="py-2.5 pr-4 w-20 text-gray-500">{account.currency || '—'}</td>
+                        <td className="py-2.5 text-right w-36 tabular-nums">
+                          <CurrencyDisplay amount={parseFloat(account.current_balance)} currency="USD" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Accordion>
+            ))}
+          </div>
         </div>
       )}
 

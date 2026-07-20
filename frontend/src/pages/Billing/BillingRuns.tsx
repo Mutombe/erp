@@ -5,7 +5,7 @@ import { PlayCircle, Plus } from '@phosphor-icons/react'
 import { billingRunsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
-import { Button, DataTable, PageHeader, StatusBadge, type Column } from '@/components/ui'
+import { Button, DataTable, PageHeader, RefreshingOverlay, StatusBadge, refreshingContentClass, type Column } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import { fmtMoney, type BillingRun } from '@/types/fees'
 
@@ -19,7 +19,7 @@ export default function BillingRuns() {
   const [page, setPage] = useState(1)
   const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.billingRuns.list({ page, search: debouncedSearch, status: statusFilter }),
     queryFn: () =>
       billingRunsApi
@@ -27,6 +27,7 @@ export default function BillingRuns() {
         .then((r) => r.data as Paginated<BillingRun>),
     placeholderData: keepPreviousData,
   })
+  const isRefreshing = isFetching && !!data
 
   const columns: Column<BillingRun>[] = [
     { key: 'number', header: 'Number', render: (b) => <span className="font-mono text-primary-600 dark:text-primary-400">{b.number}</span> },
@@ -73,19 +74,24 @@ export default function BillingRuns() {
         ))}
       </div>
 
-      <DataTable<BillingRun>
-        rowKey={(b) => b.id}
-        columns={columns}
-        data={data?.results ?? []}
-        loading={isLoading}
-        searchable
-        searchValue={search}
-        onSearch={(q) => { setSearch(q); setPage(1) }}
-        searchPlaceholder="Search run number…"
-        onRowClick={(b) => navigate(`/app/billing-runs/${b.id}`)}
-        emptyTitle="No billing runs"
-        pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<BillingRun>
+            rowKey={(b) => b.id}
+            columns={columns}
+            data={data?.results ?? []}
+            loading={!data}
+            searchable
+            searchValue={search}
+            onSearch={(q) => { setSearch(q); setPage(1) }}
+            searchPlaceholder="Search run number…"
+            onRowClick={(b) => navigate(`/app/billing-runs/${b.id}`)}
+            emptyTitle="No billing runs"
+            pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
+          />
+        </div>
+      </div>
     </div>
   )
 }

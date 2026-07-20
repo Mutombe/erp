@@ -1,12 +1,32 @@
 from rest_framework import serializers
 
-from .models import Item, ItemCategory, StockLevel, StockMove, Warehouse
+from .models import Department, Item, ItemCategory, StockLevel, StockMove, Warehouse
 
 
 class ItemCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = ItemCategory
         fields = ['id', 'name', 'inventory_account', 'consumption_expense_account', 'is_active']
+
+
+class DepartmentSerializer(serializers.ModelSerializer):
+    expense_account_code = serializers.CharField(source='expense_account.code', read_only=True)
+    expense_account_name = serializers.CharField(source='expense_account.name', read_only=True)
+    stock_move_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Department
+        fields = [
+            'id', 'code', 'name', 'description', 'expense_account',
+            'expense_account_code', 'expense_account_name', 'head_name',
+            'is_active', 'stock_move_count', 'created_at',
+        ]
+        read_only_fields = ['created_at']
+
+    def get_stock_move_count(self, obj):
+        # Annotated by the viewset; fall back to a query for ad-hoc use.
+        count = getattr(obj, 'stock_move_count_annotated', None)
+        return count if count is not None else obj.stock_moves.count()
 
 
 class ItemSerializer(serializers.ModelSerializer):
@@ -44,13 +64,16 @@ class StockMoveSerializer(serializers.ModelSerializer):
     warehouse_from_code = serializers.CharField(source='warehouse_from.code', read_only=True)
     warehouse_to_code = serializers.CharField(source='warehouse_to.code', read_only=True)
     journal_number = serializers.CharField(source='journal.number', read_only=True)
+    department_name = serializers.CharField(source='department.name', read_only=True)
+    department_code = serializers.CharField(source='department.code', read_only=True)
 
     class Meta:
         model = StockMove
         fields = [
             'id', 'number', 'move_type', 'item', 'item_code', 'item_name',
             'warehouse_from', 'warehouse_from_code', 'warehouse_to', 'warehouse_to_code',
-            'quantity', 'unit_cost', 'total_cost_base', 'date', 'department', 'reason',
+            'quantity', 'unit_cost', 'total_cost_base', 'date',
+            'department', 'department_name', 'department_code', 'reason',
             'source_type', 'source_id', 'journal', 'journal_number', 'status',
             'created_by', 'created_at',
         ]
@@ -69,7 +92,9 @@ class IssueStockSerializer(serializers.Serializer):
     warehouse = serializers.PrimaryKeyRelatedField(queryset=Warehouse.objects.filter(is_active=True))
     quantity = serializers.DecimalField(max_digits=18, decimal_places=2)
     date = serializers.DateField()
-    department = serializers.CharField(max_length=100, required=False, allow_blank=True, default='')
+    department = serializers.PrimaryKeyRelatedField(
+        queryset=Department.objects.filter(is_active=True), required=False, allow_null=True, default=None
+    )
     reason = serializers.CharField(max_length=300, required=False, allow_blank=True, default='')
 
 

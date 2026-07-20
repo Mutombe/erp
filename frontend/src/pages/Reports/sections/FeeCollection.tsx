@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { reportsApi, termsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { SkeletonTable } from '@/components/ui'
+import { RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
 
 interface Term {
@@ -45,13 +45,17 @@ export default function FeeCollection() {
   // Default to the current term once terms load; '' with no current term = all terms.
   const effectiveTerm = term || String((terms ?? []).find((t) => t.is_current)?.id ?? '')
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.reports.feeCollection({ term: effectiveTerm }),
     queryFn: () =>
       reportsApi
         .feeCollection(effectiveTerm ? { term: effectiveTerm } : undefined)
         .then((r) => r.data as FCData),
+    placeholderData: keepPreviousData,
   })
+
+  // Switching term keeps the previous collection figures on screen.
+  const isRefreshing = isFetching && !!data
 
   const totalOutstanding = (data?.rows ?? []).reduce((sum, r) => sum + Number(r.outstanding), 0)
 
@@ -79,11 +83,12 @@ export default function FeeCollection() {
         />
       </div>
 
-      {isLoading || !data ? (
+      {!data ? (
         <SkeletonTable rows={6} />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-          <table className="w-full text-sm">
+        <div className="relative overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+          <RefreshingOverlay active={isRefreshing} />
+          <table className={refreshingContentClass(isRefreshing, 'w-full text-sm')}>
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-3">Fee category</th>

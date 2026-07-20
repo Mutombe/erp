@@ -12,10 +12,13 @@ import {
   Modal,
   ModalFooter,
   PageHeader,
+  RefreshingOverlay,
   Select,
   SkeletonCard,
+  SkeletonTable,
   StatsCard,
   StatusBadge,
+  refreshingContentClass,
 } from '@/components/ui'
 import type { BankAccount, Paginated } from '@/types/accounting'
 import { ASSET_STATUS_LABELS, type Asset, type DepreciationRun } from '@/types/assets'
@@ -138,19 +141,22 @@ export default function AssetDetail() {
   const { id } = useParams()
   const [showDispose, setShowDispose] = useState(false)
 
-  const { data: asset, isLoading } = useQuery({
+  const { data: asset } = useQuery({
     queryKey: qk.assets.detail(id!),
     queryFn: () => assetsApi.get(id!).then((r) => r.data as Asset),
   })
 
   // Depreciation history: pull entries for this asset out of the run list.
-  const { data: runsData } = useQuery({
+  const { data: runsData, isFetching: runsFetching } = useQuery({
     queryKey: qk.depreciationRuns.list({ forAsset: id }),
     queryFn: () => depreciationRunsApi.list().then((r) => r.data as Paginated<DepreciationRun>),
   })
 
-  if (isLoading || !asset) return <SkeletonCard />
+  // First paint only — the header, stat cards and detail grid stay put while the
+  // depreciation history below refetches on its own.
+  if (!asset) return <SkeletonCard />
 
+  const historyRefreshing = runsFetching && !!runsData
   const assetId = Number(id)
   const history = (runsData?.results ?? [])
     .filter((run) => run.status !== 'reversed')
@@ -232,12 +238,16 @@ export default function AssetDetail() {
 
       <div>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">Depreciation history</h2>
-        {history.length === 0 ? (
+        {!runsData ? (
+          <SkeletonTable rows={4} />
+        ) : history.length === 0 ? (
           <div className="rounded-xl border border-gray-200 dark:border-gray-700 py-8 text-center text-gray-400 text-sm">
             No depreciation has been posted for this asset yet.
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+          <div className="relative">
+            <RefreshingOverlay active={historyRefreshing} />
+            <div className={refreshingContentClass(historyRefreshing, 'overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700')}>
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
                 <tr>
@@ -269,6 +279,7 @@ export default function AssetDetail() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>

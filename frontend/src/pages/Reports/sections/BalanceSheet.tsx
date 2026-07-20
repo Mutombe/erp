@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { Badge, SkeletonTable } from '@/components/ui'
+import { Badge, RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
 
 interface BSRow { account_id: number | null; code: string; name: string; balance: number; prev_balance?: number }
@@ -79,15 +79,18 @@ export default function BalanceSheet() {
   const [asOf, setAsOf] = useState(new Date().toISOString().slice(0, 10))
   const [compareDate, setCompareDate] = useState('')
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.reports.balanceSheet({ asOf, compareDate }),
     queryFn: () => {
       const params: Record<string, string> = { as_of_date: asOf }
       if (compareDate) params.compare_date = compareDate
       return reportsApi.balanceSheet(params).then((r) => r.data as BSData)
     },
+    placeholderData: keepPreviousData,
   })
 
+  // Adjusting the dates keeps the previous statement rendered while the new one loads.
+  const isRefreshing = isFetching && !!data
   const showPrev = Boolean(compareDate)
 
   return (
@@ -123,10 +126,12 @@ export default function BalanceSheet() {
           />
         </div>
       </div>
-      {isLoading || !data ? (
+      {!data ? (
         <SkeletonTable rows={12} />
       ) : (
-        <div className="space-y-6 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <div className="relative rounded-xl border border-gray-200 dark:border-gray-700">
+          <RefreshingOverlay active={isRefreshing} />
+          <div className={refreshingContentClass(isRefreshing, 'space-y-6 p-6')}>
           {showPrev && (
             <div className="flex justify-between gap-4 text-xs uppercase text-gray-400 font-semibold">
               <span />
@@ -158,6 +163,7 @@ export default function BalanceSheet() {
               }
               showPrev={showPrev}
             />
+          </div>
           </div>
         </div>
       )}

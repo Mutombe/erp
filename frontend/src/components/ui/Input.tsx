@@ -155,6 +155,16 @@ export function Select({
     if (options) return options
     if (!children) return []
     const items: SelectOption[] = []
+    // Options are often written as `<option>{code} · {name}</option>`, whose
+    // children arrive as an array. String() on an array inserts commas
+    // ("1200, · ,Inventory"), so flatten to text by concatenation instead.
+    const nodeToText = (node: React.ReactNode): string => {
+      if (node === null || node === undefined || typeof node === 'boolean') return ''
+      if (typeof node === 'string' || typeof node === 'number') return String(node)
+      if (Array.isArray(node)) return node.map(nodeToText).join('')
+      const element = node as any
+      return element?.props ? nodeToText(element.props.children) : ''
+    }
     const extractFromChildren = (nodes: React.ReactNode) => {
       const arr = Array.isArray(nodes) ? nodes : [nodes]
       arr.forEach((child: any) => {
@@ -164,7 +174,7 @@ export function Select({
           return
         }
         if (child.type === 'option' && child.props) {
-          items.push({ value: String(child.props.value ?? ''), label: String(child.props.children ?? '') })
+          items.push({ value: String(child.props.value ?? ''), label: nodeToText(child.props.children) })
         }
         if (child.props?.children && child.type !== 'option') {
           extractFromChildren(child.props.children)

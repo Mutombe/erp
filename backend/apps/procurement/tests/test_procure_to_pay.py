@@ -6,7 +6,15 @@ from django.core.exceptions import ValidationError
 
 from apps.accounting.models import BankAccount, ChartOfAccount, SubAccount
 from apps.core.models import DocumentSequence
-from apps.inventory.models import Item, ItemCategory, StockLevel, Warehouse, issue_stock, transfer_stock
+from apps.inventory.models import (
+    Department,
+    Item,
+    ItemCategory,
+    StockLevel,
+    Warehouse,
+    issue_stock,
+    transfer_stock,
+)
 from apps.procurement.models import (
     GoodsReceivedNote,
     GRNLine,
@@ -128,7 +136,7 @@ class TestStockOps:
     def test_issue_at_average_cost_hits_expense(self, supplier, stationery, store):
         make_po_grn(supplier, stationery, store, qty='10', price='5.00')
         move = issue_stock(item=stationery, warehouse=store, quantity=D('4'), date=date(2026, 2, 20),
-                           department='Admin Office')
+                           department=Department.objects.get(code='ACAD'))
         stationery.refresh_from_db()
         assert stationery.qty_on_hand == D('6')
         assert move.total_cost_base == D('20.00')

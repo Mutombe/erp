@@ -10,6 +10,8 @@ import {
   ConfirmDialog,
   CurrencyDisplay,
   PageHeader,
+  RefreshingOverlay,
+  refreshingContentClass,
   SkeletonCard,
   StatusBadge,
 } from '@/components/ui'
@@ -21,10 +23,11 @@ export default function JournalDetail() {
   const queryClient = useQueryClient()
   const [confirmReverse, setConfirmReverse] = useState(false)
 
-  const { data: journal, isLoading } = useQuery({
+  const { data: journal, isFetching } = useQuery({
     queryKey: qk.journals.detail(id!),
     queryFn: () => journalsApi.get(id!).then((r) => r.data as Journal),
   })
+  const isRefreshing = isFetching && !!journal
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: qk.journals.all })
@@ -49,7 +52,7 @@ export default function JournalDetail() {
     onError: (error) => showToast.error(parseApiError(error, 'Failed to reverse journal')),
   })
 
-  if (isLoading || !journal) return <SkeletonCard />
+  if (!journal) return <SkeletonCard />
 
   const docPath = sourceDocPath(journal.source_type, journal.source_id)
 
@@ -103,8 +106,9 @@ export default function JournalDetail() {
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-        <table className="w-full text-sm">
+      <div className="relative overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+        <RefreshingOverlay active={isRefreshing} />
+        <table className={refreshingContentClass(isRefreshing, 'w-full text-sm')}>
           <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
             <tr>
               <th className="px-4 py-3">Account</th>

@@ -1,11 +1,20 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Calculator, Play, ArrowCounterClockwise } from '@phosphor-icons/react'
 import { depreciationRunsApi, fiscalYearsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
-import { Button, ConfirmDialog, SectionHeader, Select, SkeletonTable, StatusBadge } from '@/components/ui'
+import {
+  Button,
+  ConfirmDialog,
+  RefreshingOverlay,
+  SectionHeader,
+  Select,
+  SkeletonTable,
+  StatusBadge,
+  refreshingContentClass,
+} from '@/components/ui'
 import type { DepreciationRun, FiscalYear } from '@/types/assets'
 import type { Paginated } from '@/types/accounting'
 
@@ -18,10 +27,14 @@ export default function DepreciationPanel() {
   const [confirmRun, setConfirmRun] = useState(false)
   const [reverseTarget, setReverseTarget] = useState<DepreciationRun | null>(null)
 
-  const { data: runsData, isLoading } = useQuery({
+  const { data: runsData, isFetching } = useQuery({
     queryKey: qk.depreciationRuns.list(),
     queryFn: () => depreciationRunsApi.list().then((r) => r.data as Paginated<DepreciationRun>),
+    placeholderData: keepPreviousData,
   })
+
+  // Refetching after a run/reversal keeps the current rows on screen — no skeleton flash.
+  const isRefreshing = isFetching && !!runsData
 
   const { data: years } = useQuery({
     queryKey: qk.fiscalYears.list(),
@@ -93,54 +106,59 @@ export default function DepreciationPanel() {
         }
       />
 
-      {isLoading ? (
-        <SkeletonTable rows={4} />
-      ) : runs.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 dark:border-gray-700 py-10 text-center text-gray-400">
-          <Calculator className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          No depreciation runs yet. Pick an open fiscal period and run depreciation.
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          {!runsData ? (
+            <SkeletonTable rows={4} />
+          ) : runs.length === 0 ? (
+            <div className="rounded-xl border border-gray-200 dark:border-gray-700 py-10 text-center text-gray-400">
+              <Calculator className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              No depreciation runs yet. Pick an open fiscal period and run depreciation.
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
+                  <tr>
+                    <th className="px-4 py-3">Period</th>
+                    <th className="px-4 py-3">Run date</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Total amount</th>
+                    <th className="px-4 py-3">Journal</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runs.map((run) => (
+                    <tr key={run.id} className="border-t border-gray-100 dark:border-gray-700/50">
+                      <td className="px-4 py-2.5 font-medium">{run.period_label}</td>
+                      <td className="px-4 py-2.5">{run.run_date}</td>
+                      <td className="px-4 py-2.5"><StatusBadge status={run.status} /></td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{money(run.total_amount)}</td>
+                      <td className="px-4 py-2.5">
+                        {run.journal ? (
+                          <Link to={`/app/journals/${run.journal}`}
+                            className="font-mono text-primary-600 dark:text-primary-400 hover:underline">
+                            {run.journal_number}
+                          </Link>
+                        ) : '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        {run.status === 'posted' && (
+                          <Button size="sm" variant="secondary" onClick={() => setReverseTarget(run)}>
+                            <ArrowCounterClockwise className="w-3.5 h-3.5 mr-1.5" /> Reverse
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
-              <tr>
-                <th className="px-4 py-3">Period</th>
-                <th className="px-4 py-3">Run date</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Total amount</th>
-                <th className="px-4 py-3">Journal</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {runs.map((run) => (
-                <tr key={run.id} className="border-t border-gray-100 dark:border-gray-700/50">
-                  <td className="px-4 py-2.5 font-medium">{run.period_label}</td>
-                  <td className="px-4 py-2.5">{run.run_date}</td>
-                  <td className="px-4 py-2.5"><StatusBadge status={run.status} /></td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">{money(run.total_amount)}</td>
-                  <td className="px-4 py-2.5">
-                    {run.journal ? (
-                      <Link to={`/app/journals/${run.journal}`}
-                        className="font-mono text-primary-600 dark:text-primary-400 hover:underline">
-                        {run.journal_number}
-                      </Link>
-                    ) : '—'}
-                  </td>
-                  <td className="px-4 py-2.5 text-right">
-                    {run.status === 'posted' && (
-                      <Button size="sm" variant="secondary" onClick={() => setReverseTarget(run)}>
-                        <ArrowCounterClockwise className="w-3.5 h-3.5 mr-1.5" /> Reverse
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      </div>
 
       <ConfirmDialog
         open={confirmRun}

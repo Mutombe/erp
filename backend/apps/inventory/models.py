@@ -27,6 +27,29 @@ class ItemCategory(models.Model):
         return self.name
 
 
+class Department(models.Model):
+    """Consumption dimension for stock issues (Agriculture, Kitchen, Sports…).
+
+    When ``expense_account`` is set, stock issued to the department debits that
+    account instead of the item category's consumption expense account."""
+
+    code = models.CharField(max_length=10, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    expense_account = models.ForeignKey(
+        'accounting.ChartOfAccount', null=True, blank=True, on_delete=models.PROTECT, related_name='+'
+    )
+    head_name = models.CharField(max_length=150, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return f'{self.code} · {self.name}'
+
+
 class Item(models.Model):
     ITEM_TYPES = [('stockable', 'Stockable'), ('consumable', 'Consumable'), ('service', 'Service')]
 
@@ -96,7 +119,9 @@ class StockMove(models.Model):
     unit_cost = models.DecimalField(max_digits=18, decimal_places=4, default=ZERO)  # base currency
     total_cost_base = models.DecimalField(max_digits=18, decimal_places=2, default=ZERO)
     date = models.DateField()
-    department = models.CharField(max_length=100, blank=True)  # consumption dimension
+    department = models.ForeignKey(  # consumption dimension
+        Department, null=True, blank=True, on_delete=models.PROTECT, related_name='stock_moves'
+    )
     reason = models.CharField(max_length=300, blank=True)
     source_type = models.CharField(max_length=50, blank=True)
     source_id = models.PositiveBigIntegerField(null=True, blank=True)
@@ -177,8 +202,21 @@ def receive_stock(*, item, warehouse, quantity, unit_cost_base, date, source=Non
         return move
 
 
-def issue_stock(*, item, warehouse, quantity, date, department='', reason='', user=None, expense_account=None):
-    """Issue at moving-average cost: Dr consumption expense / Cr inventory."""
+def _issue_debit_account(item, department, expense_account):
+    """Debit side for a stock issue, most specific source first:
+    explicit override → department's own account → item category consumption."""
+    if expense_account is not None:
+        return expense_account
+    if department is not None and department.expense_account_id:
+        return department.expense_account
+    return item.category.consumption_expense_account
+
+
+def issue_stock(*, item, warehouse, quantity, date, department=None, reason='', user=None, expense_account=None):
+    """Issue at moving-average cost: Dr consumption expense / Cr inventory.
+
+    ``department`` is a Department instance (or None); when it carries its own
+    expense_account the issue is charged there instead of the category default."""
     from django.conf import settings
 
     quantity = Decimal(quantity)
@@ -210,9 +248,12 @@ def issue_stock(*, item, warehouse, quantity, date, department='', reason='', us
                 journal_type='inventory',
                 date=date,
                 currency=settings.BASE_CURRENCY,
-                description=f'Stock issue {item.code} x{quantity}' + (f' to {department}' if department else ''),
+                description=(
+                    f'Stock issue {item.code} x{quantity}'
+                    + (f' to {department.name}' if department else '')
+                ),
                 lines=[
-                    LineSpec(account=expense_account or item.category.consumption_expense_account, debit=cost),
+                    LineSpec(account=_issue_debit_account(item, department, expense_account), debit=cost),
                     LineSpec(account=item.category.inventory_account, credit=cost),
                 ],
                 reference=move.number,

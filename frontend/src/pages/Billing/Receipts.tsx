@@ -5,7 +5,7 @@ import { Money, Plus } from '@phosphor-icons/react'
 import { receiptsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
-import { Button, DataTable, PageHeader, StatusBadge, type Column } from '@/components/ui'
+import { Button, DataTable, PageHeader, RefreshingOverlay, StatusBadge, refreshingContentClass, type Column } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import { fmtMoney, type Receipt } from '@/types/fees'
 import ReceiptFormModal from './ReceiptFormModal'
@@ -21,7 +21,7 @@ export default function Receipts() {
   const [showForm, setShowForm] = useState(Boolean(studentParam))
   const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.receipts.list({ page, search: debouncedSearch }),
     queryFn: () =>
       receiptsApi
@@ -29,6 +29,7 @@ export default function Receipts() {
         .then((r) => r.data as Paginated<Receipt>),
     placeholderData: keepPreviousData,
   })
+  const isRefreshing = isFetching && !!data
 
   const closeForm = () => {
     setShowForm(false)
@@ -74,19 +75,24 @@ export default function Receipts() {
         }
       />
 
-      <DataTable<Receipt>
-        rowKey={(r) => r.id}
-        columns={columns}
-        data={data?.results ?? []}
-        loading={isLoading}
-        searchable
-        searchValue={search}
-        onSearch={(q) => { setSearch(q); setPage(1) }}
-        searchPlaceholder="Search number, reference or student…"
-        onRowClick={(r) => navigate(`/app/receipts/${r.id}`)}
-        emptyTitle="No receipts found"
-        pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<Receipt>
+            rowKey={(r) => r.id}
+            columns={columns}
+            data={data?.results ?? []}
+            loading={!data}
+            searchable
+            searchValue={search}
+            onSearch={(q) => { setSearch(q); setPage(1) }}
+            searchPlaceholder="Search number, reference or student…"
+            onRowClick={(r) => navigate(`/app/receipts/${r.id}`)}
+            emptyTitle="No receipts found"
+            pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
+          />
+        </div>
+      </div>
 
       {showForm && (
         <ReceiptFormModal open={showForm} onClose={closeForm} initialStudent={studentParam} />

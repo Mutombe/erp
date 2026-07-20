@@ -47,6 +47,7 @@ const builtRoutes: [string, React.LazyExoticComponent<() => JSX.Element>][] = [
   ['warehouses', lazy(() => import('@/pages/Inventory/Warehouses'))],
   ['warehouses/:id', lazy(() => import('@/pages/Inventory/WarehouseDetail'))],
   ['stock-moves', lazy(() => import('@/pages/Inventory/StockMoves'))],
+  ['departments', lazy(() => import('@/pages/Inventory/Departments'))],
   // Purchasing
   ['suppliers', lazy(() => import('@/pages/Purchasing/Suppliers'))],
   ['suppliers/:id', lazy(() => import('@/pages/Purchasing/SupplierDetail'))],
@@ -84,29 +85,38 @@ export default function App() {
   }, [theme])
 
   return (
-    <Suspense fallback={<PageFallback />}>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/" element={<Navigate to="/app" replace />} />
-        <Route
-          path="/app"
-          element={
-            <PrivateRoute>
-              <Layout />
-            </PrivateRoute>
-          }
-        >
-          <Route index element={<Dashboard />} />
-          {builtRoutes.map(([path, Component]) => (
-            <Route key={path} path={path} element={<Component />} />
-          ))}
-          {comingSoonPaths.map((path) => (
-            <Route key={path} path={path} element={<ComingSoon />} />
-          ))}
-          <Route path="*" element={<ComingSoon />} />
-        </Route>
-        <Route path="*" element={<Navigate to="/app" replace />} />
-      </Routes>
-    </Suspense>
+    <Routes>
+      <Route
+        path="/login"
+        element={
+          <Suspense fallback={<PageFallback />}>
+            <Login />
+          </Suspense>
+        }
+      />
+      <Route path="/" element={<Navigate to="/app" replace />} />
+      {/*
+        No Suspense here: Layout renders its own boundary around <Outlet /> so the
+        sidebar + header never unmount while a lazy route chunk loads.
+      */}
+      <Route
+        path="/app"
+        element={
+          <PrivateRoute>
+            <Layout />
+          </PrivateRoute>
+        }
+      >
+        <Route index element={<Dashboard />} />
+        {builtRoutes.map(([path, Component]) => (
+          <Route key={path} path={path} element={<Component />} />
+        ))}
+        {comingSoonPaths.map((path) => (
+          <Route key={path} path={path} element={<ComingSoon />} />
+        ))}
+        <Route path="*" element={<ComingSoon />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/app" replace />} />
+    </Routes>
   )
 }

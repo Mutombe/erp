@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Money, FileArrowDown, FileText, GraduationCap, Receipt as ReceiptIcon, Scroll, User } from '@phosphor-icons/react'
 import { feeInvoicesApi, guardiansApi, receiptsApi, reportsApi, studentsApi } from '@/services/api'
@@ -10,7 +10,9 @@ import {
   DataTable,
   SkeletonCard,
   PageHeader,
+  RefreshingOverlay,
   StatusBadge,
+  refreshingContentClass,
   Tabs,
   TabsContent,
   TabsList,
@@ -31,12 +33,15 @@ export default function StudentDetail() {
   const initialTab = (TABS as readonly string[]).includes(tabParam) ? tabParam : 'overview'
   const [statementCurrency, setStatementCurrency] = useState('USD')
 
-  const { data: student, isLoading } = useQuery({
+  const { data: student } = useQuery({
     queryKey: qk.students.detail(id!),
     queryFn: () => studentsApi.get(id!).then((r) => r.data as Student),
   })
 
-  if (isLoading || !student) return <SkeletonCard />
+  // Skeleton only until the record first resolves. Once it has, the header and
+  // tab chrome below stay mounted — a background refetch (e.g. after a mutation)
+  // updates them in place rather than blanking the page.
+  if (!student) return <SkeletonCard />
 
   const setTab = (tab: string) => {
     const next = new URLSearchParams(searchParams)
@@ -167,11 +172,13 @@ function OverviewTab({ student }: { student: Student }) {
 function InvoicesTab({ studentId }: { studentId: number }) {
   const navigate = useNavigate()
   const [page, setPage] = useState(1)
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.feeInvoices.list({ student: studentId, page }),
     queryFn: () =>
       feeInvoicesApi.list({ student: studentId, page }).then((r) => r.data as Paginated<FeeInvoice>),
+    placeholderData: keepPreviousData,
   })
+  const isRefreshing = isFetching && !!data
 
   const columns: Column<FeeInvoice>[] = [
     { key: 'number', header: 'Number', render: (i) => <span className="font-mono text-primary-600 dark:text-primary-400">{i.number}</span> },
@@ -184,26 +191,33 @@ function InvoicesTab({ studentId }: { studentId: number }) {
   ]
 
   return (
-    <DataTable<FeeInvoice>
-      rowKey={(i) => i.id}
-      columns={columns}
-      data={data?.results ?? []}
-      loading={isLoading}
-      onRowClick={(i) => navigate(`/app/fee-invoices/${i.id}`)}
-      emptyTitle="No invoices for this student"
-      pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
-    />
+    <div className="relative">
+      <RefreshingOverlay active={isRefreshing} />
+      <div className={refreshingContentClass(isRefreshing)}>
+        <DataTable<FeeInvoice>
+          rowKey={(i) => i.id}
+          columns={columns}
+          data={data?.results ?? []}
+          loading={!data}
+          onRowClick={(i) => navigate(`/app/fee-invoices/${i.id}`)}
+          emptyTitle="No invoices for this student"
+          pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
+        />
+      </div>
+    </div>
   )
 }
 
 function ReceiptsTab({ studentId }: { studentId: number }) {
   const navigate = useNavigate()
   const [page, setPage] = useState(1)
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.receipts.list({ student: studentId, page }),
     queryFn: () =>
       receiptsApi.list({ student: studentId, page }).then((r) => r.data as Paginated<Receipt>),
+    placeholderData: keepPreviousData,
   })
+  const isRefreshing = isFetching && !!data
 
   const columns: Column<Receipt>[] = [
     { key: 'number', header: 'Number', render: (r) => <span className="font-mono text-primary-600 dark:text-primary-400">{r.number}</span> },
@@ -215,15 +229,20 @@ function ReceiptsTab({ studentId }: { studentId: number }) {
   ]
 
   return (
-    <DataTable<Receipt>
-      rowKey={(r) => r.id}
-      columns={columns}
-      data={data?.results ?? []}
-      loading={isLoading}
-      onRowClick={(r) => navigate(`/app/receipts/${r.id}`)}
-      emptyTitle="No receipts for this student"
-      pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
-    />
+    <div className="relative">
+      <RefreshingOverlay active={isRefreshing} />
+      <div className={refreshingContentClass(isRefreshing)}>
+        <DataTable<Receipt>
+          rowKey={(r) => r.id}
+          columns={columns}
+          data={data?.results ?? []}
+          loading={!data}
+          onRowClick={(r) => navigate(`/app/receipts/${r.id}`)}
+          emptyTitle="No receipts for this student"
+          pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
+        />
+      </div>
+    </div>
   )
 }
 
@@ -236,11 +255,14 @@ function StatementTab({
   currency: string
   onCurrencyChange: (c: string) => void
 }) {
-  const { data: statement, isLoading } = useQuery({
+  const { data: statement, isFetching } = useQuery({
     queryKey: qk.reports.studentStatement(studentId, { currency }),
     queryFn: () =>
       reportsApi.studentStatement(studentId, { currency }).then((r) => r.data as StudentStatement),
+    placeholderData: keepPreviousData,
   })
+  // Switching currency keeps the previous statement on screen while the new one loads.
+  const isRefreshing = isFetching && !!statement
 
   return (
     <div className="space-y-4">
@@ -275,11 +297,12 @@ function StatementTab({
         </div>
       </div>
 
-      {isLoading || !statement ? (
+      {!statement ? (
         <SkeletonCard />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-          <table className="w-full text-sm">
+        <div className="relative overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+          <RefreshingOverlay active={isRefreshing} />
+          <table className={refreshingContentClass(isRefreshing, 'w-full text-sm')}>
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-3">Date</th>

@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { DownloadSimple } from '@phosphor-icons/react'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { exportToCSV, formatExportNumber } from '@/lib/export'
-import { Button, SkeletonTable, StatusBadge } from '@/components/ui'
+import { Button, RefreshingOverlay, SkeletonTable, StatusBadge, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
 import type { AssetRegisterData } from '@/types/assets'
 
@@ -40,10 +40,14 @@ export default function AssetRegister() {
   const [start, setStart] = useState(`${new Date().getFullYear()}-01-01`)
   const [end, setEnd] = useState(today)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.reports.assetRegister({ start, end }),
     queryFn: () => reportsApi.assetRegister({ start, end }).then((r) => r.data as RegisterData),
+    placeholderData: keepPreviousData,
   })
+
+  // Changing the date range refreshes in place — the filter bar stays usable.
+  const isRefreshing = isFetching && !!data
 
   const handleExport = () =>
     data &&
@@ -65,23 +69,15 @@ export default function AssetRegister() {
       `asset-register-${start}-to-${end}`
     )
 
-  if (isLoading || !data) {
-    return (
-      <div className="space-y-4">
-        <SkeletonTable rows={10} />
-      </div>
-    )
-  }
-
   // Group rows by category, preserving backend (code) order.
   const categories: { name: string; rows: RegisterRow[] }[] = []
-  for (const row of data.rows) {
+  for (const row of data?.rows ?? []) {
     const existing = categories.find((c) => c.name === row.category)
     if (existing) existing.rows.push(row)
     else categories.push({ name: row.category, rows: [row] })
   }
 
-  const mv = data.movement_totals
+  const mv = data?.movement_totals
 
   return (
     <div className="space-y-4">
@@ -99,13 +95,19 @@ export default function AssetRegister() {
           </label>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="secondary" size="sm" disabled={data.rows.length === 0} onClick={handleExport}>
+          <Button variant="secondary" size="sm" disabled={!data || data.rows.length === 0} onClick={handleExport}>
             <DownloadSimple className="w-4 h-4 mr-2" /> Export CSV
           </Button>
           <PdfButton reportKey="asset-register" params={{ start, end }} />
         </div>
       </div>
 
+      {!data ? (
+        <SkeletonTable rows={10} />
+      ) : (
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing, 'space-y-4')}>
       {mv && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600 dark:text-gray-300 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 px-4 py-2.5">
           <span>Opening cost <span className="font-semibold tabular-nums">{money(mv.opening_cost)}</span></span>
@@ -196,6 +198,9 @@ export default function AssetRegister() {
         </tfoot>
       </table>
       </div>
+        </div>
+      </div>
+      )}
     </div>
   )
 }

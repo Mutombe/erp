@@ -1,10 +1,18 @@
 import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowDownRight, ArrowUpRight, BookOpen, Scales } from '@phosphor-icons/react'
 import { accountsApi, generalLedgerApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { Badge, CurrencyDisplay, PageHeader, SkeletonTable, StatsCard } from '@/components/ui'
+import {
+  Badge,
+  CurrencyDisplay,
+  PageHeader,
+  RefreshingOverlay,
+  refreshingContentClass,
+  SkeletonTable,
+  StatsCard,
+} from '@/components/ui'
 import { sourceDocPath, type Account, type GLEntry, type Paginated } from '@/types/accounting'
 
 export default function AccountLedger() {
@@ -18,14 +26,16 @@ export default function AccountLedger() {
     queryFn: () => accountsApi.get(id!).then((r) => r.data as Account),
   })
 
-  const { data: ledger, isLoading } = useQuery({
+  const { data: ledger, isFetching: ledgerFetching } = useQuery({
     queryKey: qk.generalLedger.list({ account: id, from, to }),
     queryFn: () =>
       generalLedgerApi
         .list({ account: id, from: from || undefined, to: to || undefined, page_size: 500 })
         .then((r) => r.data as Paginated<GLEntry>),
     enabled: !!id,
+    placeholderData: keepPreviousData,
   })
+  const isRefreshing = ledgerFetching && !!ledger
 
   const rows = ledger?.results ?? []
   const totals = useMemo(
@@ -76,11 +86,12 @@ export default function AccountLedger() {
         </label>
       </div>
 
-      {isLoading ? (
+      {!ledger ? (
         <SkeletonTable rows={8} />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-          <table className="w-full text-sm">
+        <div className="relative overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+          <RefreshingOverlay active={isRefreshing} />
+          <table className={refreshingContentClass(isRefreshing, 'w-full text-sm')}>
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-3">Date</th>

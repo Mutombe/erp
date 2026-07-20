@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { sequencesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { DataTable, type Column } from '@/components/ui'
+import { DataTable, RefreshingOverlay, refreshingContentClass, type Column } from '@/components/ui'
 
 interface DocumentSequence {
   id: number
@@ -12,10 +12,12 @@ interface DocumentSequence {
 }
 
 export default function SequencesTab() {
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.sequences.list(),
     queryFn: () => sequencesApi.list().then((r) => r.data as DocumentSequence[]),
   })
+
+  const isRefreshing = isFetching && !!data
 
   const columns: Column<DocumentSequence>[] = [
     { key: 'doc_type', header: 'Document type', render: (s) => <span className="font-mono font-medium">{s.doc_type}</span> },
@@ -38,13 +40,18 @@ export default function SequencesTab() {
       <p className="text-sm text-gray-500 dark:text-gray-400">
         Document numbering is race-safe and managed by the system — shown here for reference only.
       </p>
-      <DataTable<DocumentSequence>
-        rowKey={(s) => s.id}
-        columns={columns}
-        data={data ?? []}
-        loading={isLoading}
-        emptyTitle="No sequences configured"
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<DocumentSequence>
+            rowKey={(s) => s.id}
+            columns={columns}
+            data={data ?? []}
+            loading={!data}
+            emptyTitle="No sequences configured"
+          />
+        </div>
+      </div>
     </div>
   )
 }

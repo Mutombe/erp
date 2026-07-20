@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -17,6 +17,8 @@ import {
   Modal,
   ModalFooter,
   PageHeader,
+  RefreshingOverlay,
+  refreshingContentClass,
   type Column,
 } from '@/components/ui'
 import type { Warehouse } from '@/types/inventory'
@@ -77,10 +79,13 @@ export default function Warehouses() {
   const navigate = useNavigate()
   const [modalOpen, setModalOpen] = useState(false)
 
-  const { data: warehouses, isLoading } = useQuery({
+  const { data: warehouses, isFetching } = useQuery({
     queryKey: qk.warehouses.list(),
     queryFn: () => warehousesApi.list().then((r) => r.data as Warehouse[]),
+    placeholderData: keepPreviousData,
   })
+
+  const isRefreshing = isFetching && !!warehouses
 
   const columns: Column<Warehouse>[] = [
     { key: 'code', header: 'Code', render: (w) => <span className="font-mono text-primary-600 dark:text-primary-400">{w.code}</span> },
@@ -106,15 +111,20 @@ export default function Warehouses() {
         }
       />
 
-      <DataTable<Warehouse>
-        rowKey={(w) => w.id}
-        columns={columns}
-        data={warehouses ?? []}
-        loading={isLoading}
-        onRowClick={(w) => navigate(`/app/warehouses/${w.id}`)}
-        emptyTitle="No warehouses"
-        emptyDescription="Create a warehouse to start receiving stock."
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<Warehouse>
+            rowKey={(w) => w.id}
+            columns={columns}
+            data={warehouses ?? []}
+            loading={!warehouses}
+            onRowClick={(w) => navigate(`/app/warehouses/${w.id}`)}
+            emptyTitle="No warehouses"
+            emptyDescription="Create a warehouse to start receiving stock."
+          />
+        </div>
+      </div>
 
       <WarehouseFormModal open={modalOpen} onClose={() => setModalOpen(false)} />
     </div>

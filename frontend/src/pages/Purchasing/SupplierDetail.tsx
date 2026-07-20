@@ -4,7 +4,17 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { FileText, Plus, ShoppingCart, Truck, Wallet } from '@phosphor-icons/react'
 import { purchaseOrdersApi, suppliersApi, supplierPaymentsApi, vendorBillsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { Badge, Button, DataTable, PageHeader, SkeletonCard, StatusBadge, type Column } from '@/components/ui'
+import {
+  Badge,
+  Button,
+  DataTable,
+  PageHeader,
+  RefreshingOverlay,
+  SkeletonCard,
+  StatusBadge,
+  refreshingContentClass,
+  type Column,
+} from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import { money, type PurchaseOrder, type Supplier, type SupplierPayment, type VendorBill } from '@/types/procurement'
 import { PoStatusBadge } from './PurchaseOrders'
@@ -16,28 +26,30 @@ export default function SupplierDetail() {
   const [billPage, setBillPage] = useState(1)
   const [paymentPage, setPaymentPage] = useState(1)
 
-  const { data: supplier, isLoading } = useQuery({
+  const { data: supplier } = useQuery({
     queryKey: qk.suppliers.detail(id!),
     queryFn: () => suppliersApi.get(id!).then((r) => r.data as Supplier),
   })
 
-  const { data: pos } = useQuery({
+  const { data: pos, isFetching: posFetching } = useQuery({
     queryKey: qk.purchaseOrders.list({ supplier: id, page: poPage }),
     queryFn: () =>
       purchaseOrdersApi.list({ supplier: id, page: poPage }).then((r) => r.data as Paginated<PurchaseOrder>),
     enabled: !!id,
     placeholderData: keepPreviousData,
   })
+  const posRefreshing = posFetching && !!pos
 
-  const { data: bills } = useQuery({
+  const { data: bills, isFetching: billsFetching } = useQuery({
     queryKey: qk.vendorBills.list({ supplier: id, page: billPage }),
     queryFn: () =>
       vendorBillsApi.list({ supplier: id, page: billPage }).then((r) => r.data as Paginated<VendorBill>),
     enabled: !!id,
     placeholderData: keepPreviousData,
   })
+  const billsRefreshing = billsFetching && !!bills
 
-  const { data: payments } = useQuery({
+  const { data: payments, isFetching: paymentsFetching } = useQuery({
     queryKey: qk.supplierPayments.list({ supplier: id, page: paymentPage }),
     queryFn: () =>
       supplierPaymentsApi
@@ -46,6 +58,7 @@ export default function SupplierDetail() {
     enabled: !!id,
     placeholderData: keepPreviousData,
   })
+  const paymentsRefreshing = paymentsFetching && !!payments
 
   const poColumns: Column<PurchaseOrder>[] = [
     { key: 'number', header: 'Number', render: (po) => <span className="font-mono text-primary-600 dark:text-primary-400">{po.number}</span> },
@@ -74,7 +87,7 @@ export default function SupplierDetail() {
     { key: 'status', header: 'Status', render: (p) => <StatusBadge status={p.status} /> },
   ]
 
-  if (isLoading || !supplier) return <SkeletonCard />
+  if (!supplier) return <SkeletonCard />
 
   return (
     <div className="space-y-6">
@@ -111,42 +124,60 @@ export default function SupplierDetail() {
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-2">
           <ShoppingCart className="w-4 h-4" /> Purchase Orders
         </h3>
-        <DataTable<PurchaseOrder>
-          rowKey={(po) => po.id}
-          columns={poColumns}
-          data={pos?.results ?? []}
-          onRowClick={(po) => navigate(`/app/purchase-orders/${po.id}`)}
-          emptyTitle="No purchase orders"
-          pagination={{ page: poPage, pageSize: 25, total: pos?.count ?? 0, onPageChange: setPoPage }}
-        />
+        <div className="relative">
+          <RefreshingOverlay active={posRefreshing} />
+          <div className={refreshingContentClass(posRefreshing)}>
+            <DataTable<PurchaseOrder>
+              rowKey={(po) => po.id}
+              columns={poColumns}
+              data={pos?.results ?? []}
+              loading={!pos}
+              onRowClick={(po) => navigate(`/app/purchase-orders/${po.id}`)}
+              emptyTitle="No purchase orders"
+              pagination={{ page: poPage, pageSize: 25, total: pos?.count ?? 0, onPageChange: setPoPage }}
+            />
+          </div>
+        </div>
       </div>
 
       <div className="space-y-2">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-2">
           <FileText className="w-4 h-4" /> Vendor Bills
         </h3>
-        <DataTable<VendorBill>
-          rowKey={(b) => b.id}
-          columns={billColumns}
-          data={bills?.results ?? []}
-          onRowClick={(b) => navigate(`/app/vendor-bills/${b.id}`)}
-          emptyTitle="No bills"
-          pagination={{ page: billPage, pageSize: 25, total: bills?.count ?? 0, onPageChange: setBillPage }}
-        />
+        <div className="relative">
+          <RefreshingOverlay active={billsRefreshing} />
+          <div className={refreshingContentClass(billsRefreshing)}>
+            <DataTable<VendorBill>
+              rowKey={(b) => b.id}
+              columns={billColumns}
+              data={bills?.results ?? []}
+              loading={!bills}
+              onRowClick={(b) => navigate(`/app/vendor-bills/${b.id}`)}
+              emptyTitle="No bills"
+              pagination={{ page: billPage, pageSize: 25, total: bills?.count ?? 0, onPageChange: setBillPage }}
+            />
+          </div>
+        </div>
       </div>
 
       <div className="space-y-2">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-2">
           <Wallet className="w-4 h-4" /> Payments
         </h3>
-        <DataTable<SupplierPayment>
-          rowKey={(p) => p.id}
-          columns={paymentColumns}
-          data={payments?.results ?? []}
-          onRowClick={(p) => navigate(`/app/supplier-payments/${p.id}`)}
-          emptyTitle="No payments"
-          pagination={{ page: paymentPage, pageSize: 25, total: payments?.count ?? 0, onPageChange: setPaymentPage }}
-        />
+        <div className="relative">
+          <RefreshingOverlay active={paymentsRefreshing} />
+          <div className={refreshingContentClass(paymentsRefreshing)}>
+            <DataTable<SupplierPayment>
+              rowKey={(p) => p.id}
+              columns={paymentColumns}
+              data={payments?.results ?? []}
+              loading={!payments}
+              onRowClick={(p) => navigate(`/app/supplier-payments/${p.id}`)}
+              emptyTitle="No payments"
+              pagination={{ page: paymentPage, pageSize: 25, total: payments?.count ?? 0, onPageChange: setPaymentPage }}
+            />
+          </div>
+        </div>
       </div>
 
       <p className="text-xs text-gray-500 dark:text-gray-400">

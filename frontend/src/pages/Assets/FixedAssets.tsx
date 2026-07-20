@@ -5,7 +5,16 @@ import { TreeStructure, Bank, Plus, TrendDown, Wallet } from '@phosphor-icons/re
 import { assetsApi, reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
-import { Button, DataTable, PageHeader, StatsCard, StatusBadge, type Column } from '@/components/ui'
+import {
+  Button,
+  DataTable,
+  PageHeader,
+  RefreshingOverlay,
+  StatsCard,
+  StatusBadge,
+  refreshingContentClass,
+  type Column,
+} from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import { ASSET_STATUS_LABELS, type Asset, type AssetRegisterData } from '@/types/assets'
 import AssetFormModal from './AssetFormModal'
@@ -27,7 +36,7 @@ export default function FixedAssets() {
   const [showCategoryModal, setShowCategoryModal] = useState(false)
   const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.assets.list({ page, search: debouncedSearch, status: statusFilter }),
     queryFn: () =>
       assetsApi
@@ -36,10 +45,15 @@ export default function FixedAssets() {
     placeholderData: keepPreviousData,
   })
 
-  const { data: register, isLoading: registerLoading } = useQuery({
+  const isRefreshing = isFetching && !!data
+
+  const { data: register } = useQuery({
     queryKey: qk.reports.assetRegister(),
     queryFn: () => reportsApi.assetRegister().then((r) => r.data as AssetRegisterData),
   })
+
+  // Stat cards skeleton on first paint only — a depreciation run refetches them in place.
+  const registerLoading = !register
 
   const columns: Column<Asset>[] = [
     { key: 'code', header: 'Code', render: (a) => <span className="font-mono text-primary-600 dark:text-primary-400">{a.code}</span> },
@@ -119,25 +133,30 @@ export default function FixedAssets() {
         ))}
       </div>
 
-      <DataTable<Asset>
-        rowKey={(a) => a.id}
-        columns={columns}
-        data={data?.results ?? []}
-        loading={isLoading}
-        searchable
-        searchValue={search}
-        onSearch={(q) => { setSearch(q); setPage(1) }}
-        searchPlaceholder="Search code, name, serial, location, custodian…"
-        onRowClick={(a) => navigate(`/app/fixed-assets/${a.id}`)}
-        emptyTitle="No assets found"
-        emptyDescription="Register your first asset — it will be capitalized automatically."
-        pagination={{
-          page,
-          pageSize: 25,
-          total: data?.count ?? 0,
-          onPageChange: setPage,
-        }}
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<Asset>
+            rowKey={(a) => a.id}
+            columns={columns}
+            data={data?.results ?? []}
+            loading={!data}
+            searchable
+            searchValue={search}
+            onSearch={(q) => { setSearch(q); setPage(1) }}
+            searchPlaceholder="Search code, name, serial, location, custodian…"
+            onRowClick={(a) => navigate(`/app/fixed-assets/${a.id}`)}
+            emptyTitle="No assets found"
+            emptyDescription="Register your first asset — it will be capitalized automatically."
+            pagination={{
+              page,
+              pageSize: 25,
+              total: data?.count ?? 0,
+              onPageChange: setPage,
+            }}
+          />
+        </div>
+      </div>
 
       <DepreciationPanel />
 

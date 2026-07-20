@@ -14,8 +14,10 @@ import {
   Input,
   Modal,
   ModalFooter,
+  RefreshingOverlay,
   Select,
   SkeletonTable,
+  refreshingContentClass,
 } from '@/components/ui'
 
 interface Term {
@@ -132,10 +134,13 @@ export default function AcademicTab() {
   const [termModalYear, setTermModalYear] = useState<number | 'closed'>('closed')
   const [currentTarget, setCurrentTarget] = useState<{ kind: 'year' | 'term'; id: number; name: string } | null>(null)
 
-  const { data: years, isLoading } = useQuery({
+  const { data: years, isFetching } = useQuery({
     queryKey: qk.academicYears.list(),
     queryFn: () => academicYearsApi.list().then((r) => r.data as AcademicYear[]),
   })
+
+  // Refetches after "set current" refresh the cards in place instead of blanking them.
+  const isRefreshing = isFetching && !!years
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: qk.academicYears.all })
@@ -156,7 +161,7 @@ export default function AcademicTab() {
     onError: (error) => showToast.error(parseApiError(error, 'Failed to update')),
   })
 
-  if (isLoading || !years) return <SkeletonTable rows={6} />
+  if (!years) return <SkeletonTable rows={6} />
 
   return (
     <div className="space-y-4">
@@ -169,6 +174,9 @@ export default function AcademicTab() {
         </Button>
       </div>
 
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing, 'space-y-4')}>
       {years.length === 0 && (
         <div className="rounded-xl border border-gray-200 dark:border-gray-700 py-12 text-center text-gray-400">
           No academic years yet. Create one to start enrolling and billing.
@@ -237,6 +245,8 @@ export default function AcademicTab() {
           )}
         </Card>
       ))}
+        </div>
+      </div>
 
       {showYearModal && <YearModal onClose={() => setShowYearModal(false)} />}
       {termModalYear !== 'closed' && (

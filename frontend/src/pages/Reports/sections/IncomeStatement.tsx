@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { SkeletonTable } from '@/components/ui'
+import { RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
 
 interface ISRow { account_id: number; code: string; name: string; amount: number; prev_amount?: number }
@@ -75,7 +75,7 @@ export default function IncomeStatement() {
   const [compare, setCompare] = useState<CompareMode>('')
   const [monthly, setMonthly] = useState(false)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.reports.incomeStatement({ start, end, layout, compare, monthly }),
     queryFn: () => {
       const params: Record<string, string | number> = { start, end, layout }
@@ -83,8 +83,12 @@ export default function IncomeStatement() {
       else if (compare) params.compare = compare
       return reportsApi.incomeStatement(params).then((r) => r.data as ISData | MonthlyData)
     },
+    placeholderData: keepPreviousData,
   })
 
+  // Date range / layout / compare / monthly changes refresh in place — the
+  // previous statement stays readable and the filter bar stays usable.
+  const isRefreshing = isFetching && !!data
   const monthlyData = data && 'mode' in data && data.mode === 'monthly' ? (data as MonthlyData) : undefined
   const periodData = data && !(data && 'mode' in data) ? (data as ISData) : undefined
   const showPrev = !monthly && compare !== ''
@@ -230,11 +234,12 @@ export default function IncomeStatement() {
         />
       </div>
 
-      {isLoading || !data ? (
+      {!data ? (
         <SkeletonTable rows={12} />
       ) : monthlyData ? (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-          <table className="w-full text-sm">
+        <div className="relative overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+          <RefreshingOverlay active={isRefreshing} />
+          <table className={refreshingContentClass(isRefreshing, 'w-full text-sm')}>
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-3 sticky left-0 bg-gray-50 dark:bg-gray-800 min-w-[14rem]">Account</th>
@@ -286,7 +291,9 @@ export default function IncomeStatement() {
           </table>
         </div>
       ) : periodData ? (
-        <div className="space-y-6 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <div className="relative rounded-xl border border-gray-200 dark:border-gray-700">
+          <RefreshingOverlay active={isRefreshing} />
+          <div className={refreshingContentClass(isRefreshing, 'space-y-6 p-6')}>
           {showPrev && (
             <div className="flex justify-between gap-4 text-xs uppercase text-gray-400 font-semibold">
               <span />
@@ -309,6 +316,7 @@ export default function IncomeStatement() {
             {totalLine(`Total ${periodData.labels.expenses}`, periodData.total_expenses, periodData.prev_total_expenses)}
           </div>
           {totalLine(periodData.labels.result, periodData.result, periodData.prev_result, { result: true })}
+          </div>
         </div>
       ) : null}
     </div>

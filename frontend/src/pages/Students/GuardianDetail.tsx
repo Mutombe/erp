@@ -22,12 +22,14 @@ export default function GuardianDetail() {
   const navigate = useNavigate()
   const [editOpen, setEditOpen] = useState(false)
 
-  const { data: guardian, isLoading } = useQuery({
+  const { data: guardian } = useQuery({
     queryKey: qk.guardians.detail(id!),
     queryFn: () => guardiansApi.get(id!).then((r) => r.data as Guardian),
   })
 
-  if (isLoading || !guardian) return <SkeletonCard />
+  // Skeleton only until the record first resolves — a refetch after an edit
+  // updates the header and cards in place rather than blanking the page.
+  if (!guardian) return <SkeletonCard />
 
   const columns: Column<StudentBrief>[] = [
     {

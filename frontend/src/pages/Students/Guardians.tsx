@@ -5,7 +5,14 @@ import { PencilSimple, Plus, Users } from '@phosphor-icons/react'
 import { guardiansApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
-import { Button, DataTable, PageHeader, type Column } from '@/components/ui'
+import {
+  Button,
+  DataTable,
+  PageHeader,
+  RefreshingOverlay,
+  refreshingContentClass,
+  type Column,
+} from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import type { Guardian } from '@/types/students'
 import GuardianFormModal from './GuardianFormModal'
@@ -18,7 +25,7 @@ export default function Guardians() {
   const [editing, setEditing] = useState<Guardian | null>(null)
   const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.guardians.list({ page, search: debouncedSearch }),
     queryFn: () =>
       guardiansApi
@@ -26,6 +33,9 @@ export default function Guardians() {
         .then((r) => r.data as Paginated<Guardian>),
     placeholderData: keepPreviousData,
   })
+
+  // Search / paging keeps the current rows on screen; only first load skeletons.
+  const isRefreshing = isFetching && !!data
 
   const columns: Column<Guardian>[] = [
     {
@@ -75,19 +85,24 @@ export default function Guardians() {
         }
       />
 
-      <DataTable<Guardian>
-        rowKey={(g) => g.id}
-        columns={columns}
-        data={data?.results ?? []}
-        loading={isLoading}
-        searchable
-        searchValue={search}
-        onSearch={(q) => { setSearch(q); setPage(1) }}
-        searchPlaceholder="Search code, name, phone…"
-        onRowClick={(g) => navigate(`/app/guardians/${g.id}`)}
-        emptyTitle="No guardians found"
-        pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<Guardian>
+            rowKey={(g) => g.id}
+            columns={columns}
+            data={data?.results ?? []}
+            loading={!data}
+            searchable
+            searchValue={search}
+            onSearch={(q) => { setSearch(q); setPage(1) }}
+            searchPlaceholder="Search code, name, phone…"
+            onRowClick={(g) => navigate(`/app/guardians/${g.id}`)}
+            emptyTitle="No guardians found"
+            pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
+          />
+        </div>
+      </div>
 
       <GuardianFormModal
         open={modalOpen}

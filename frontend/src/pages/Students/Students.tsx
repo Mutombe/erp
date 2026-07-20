@@ -5,7 +5,15 @@ import { GraduationCap, Plus } from '@phosphor-icons/react'
 import { studentsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
-import { Button, DataTable, PageHeader, StatusBadge, type Column } from '@/components/ui'
+import {
+  Button,
+  DataTable,
+  PageHeader,
+  RefreshingOverlay,
+  StatusBadge,
+  refreshingContentClass,
+  type Column,
+} from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import { STUDENT_STATUSES, type Student } from '@/types/students'
 import { fmtMoney } from '@/types/fees'
@@ -20,7 +28,7 @@ export default function Students() {
   const [showCreate, setShowCreate] = useState(false)
   const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.students.list({ page, search: debouncedSearch, status: statusFilter }),
     queryFn: () =>
       studentsApi
@@ -28,6 +36,10 @@ export default function Students() {
         .then((r) => r.data as Paginated<Student>),
     placeholderData: keepPreviousData,
   })
+
+  // Only a *background* refresh (we already have rows on screen) gets the subtle
+  // bar. First load has no data and falls through to the table skeleton instead.
+  const isRefreshing = isFetching && !!data
 
   const columns: Column<Student>[] = [
     {
@@ -93,24 +105,29 @@ export default function Students() {
         ))}
       </div>
 
-      <DataTable<Student>
-        rowKey={(s) => s.id}
-        columns={columns}
-        data={data?.results ?? []}
-        loading={isLoading}
-        searchable
-        searchValue={search}
-        onSearch={(q) => { setSearch(q); setPage(1) }}
-        searchPlaceholder="Search admission code or name…"
-        onRowClick={(s) => navigate(`/app/students/${s.id}`)}
-        emptyTitle="No students found"
-        pagination={{
-          page,
-          pageSize: 25,
-          total: data?.count ?? 0,
-          onPageChange: setPage,
-        }}
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<Student>
+            rowKey={(s) => s.id}
+            columns={columns}
+            data={data?.results ?? []}
+            loading={!data}
+            searchable
+            searchValue={search}
+            onSearch={(q) => { setSearch(q); setPage(1) }}
+            searchPlaceholder="Search admission code or name…"
+            onRowClick={(s) => navigate(`/app/students/${s.id}`)}
+            emptyTitle="No students found"
+            pagination={{
+              page,
+              pageSize: 25,
+              total: data?.count ?? 0,
+              onPageChange: setPage,
+            }}
+          />
+        </div>
+      </div>
 
       <StudentFormModal open={showCreate} onClose={() => setShowCreate(false)} />
     </div>

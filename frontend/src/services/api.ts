@@ -204,6 +204,7 @@ export const bursariesApi = crud('fees/bursaries')
 export const itemCategoriesApi = crud('inventory/categories')
 export const itemsApi = crud('inventory/items')
 export const warehousesApi = crud('inventory/warehouses')
+export const departmentsApi = crud('inventory/departments')
 
 export const stockMovesApi = {
   ...crud('inventory/stock-moves'),
@@ -271,6 +272,8 @@ export const reportsApi = {
   assetRegister: (params?: ListParams) => api.get('/reports/asset-register/', { params }),
   stockValuation: (params?: ListParams) => api.get('/reports/stock-valuation/', { params }),
   feeCollection: (params?: ListParams) => api.get('/reports/fee-collection/', { params }),
+  departmentConsumption: (params?: ListParams) =>
+    api.get('/reports/department-consumption/', { params }),
   dashboard: () => api.get('/reports/dashboard/'),
 }
 

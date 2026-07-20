@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { bankAccountsApi, reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { SkeletonTable } from '@/components/ui'
+import { RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
 import type { BankAccount } from '@/types/accounting'
 
@@ -55,14 +55,18 @@ export default function Cashbook() {
   const effectiveBank =
     bank || String(activeBanks.find((b) => b.is_default)?.id ?? activeBanks[0]?.id ?? '')
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.reports.cashbook({ bank: effectiveBank, start, end }),
     queryFn: () =>
       reportsApi
         .cashbook({ bank_account: effectiveBank, start, end })
         .then((r) => r.data as CashbookData),
     enabled: !!effectiveBank,
+    placeholderData: keepPreviousData,
   })
+
+  // Switching bank account or date range refreshes in place.
+  const isRefreshing = isFetching && !!data
 
   return (
     <div className="space-y-4">
@@ -100,11 +104,12 @@ export default function Cashbook() {
 
       {!effectiveBank ? (
         <div className="py-16 text-center text-gray-400">No active bank accounts to report on.</div>
-      ) : isLoading || !data ? (
+      ) : !data ? (
         <SkeletonTable rows={10} />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-          <table className="w-full text-sm">
+        <div className="relative overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+          <RefreshingOverlay active={isRefreshing} />
+          <table className={refreshingContentClass(isRefreshing, 'w-full text-sm')}>
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-3 w-28">Date</th>

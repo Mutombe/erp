@@ -11,7 +11,9 @@ import {
   FormRow,
   Modal,
   ModalFooter,
+  RefreshingOverlay,
   Select,
+  refreshingContentClass,
   type Column,
 } from '@/components/ui'
 import type { Account } from '@/types/accounting'
@@ -130,10 +132,13 @@ export default function MappingsTab() {
   // undefined = closed, null = create, Mapping = edit
   const [modalMapping, setModalMapping] = useState<Mapping | null | undefined>(undefined)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.mappings.list(),
     queryFn: () => mappingsApi.list().then((r) => r.data as Mapping[]),
   })
+
+  // Refetches after a save refresh the rows in place instead of blanking the table.
+  const isRefreshing = isFetching && !!data
 
   const columns: Column<Mapping>[] = [
     { key: 'purpose', header: 'Purpose', render: (m) => <span className="font-medium">{purposeLabel(m.purpose)}</span> },
@@ -162,19 +167,24 @@ export default function MappingsTab() {
 
   return (
     <div className="space-y-4">
-      <DataTable<Mapping>
-        rowKey={(m) => m.id}
-        columns={columns}
-        data={data ?? []}
-        loading={isLoading}
-        emptyTitle="No account mappings"
-        emptyDescription="Posting will fail for purposes without a mapping — configure them here."
-        actions={
-          <Button onClick={() => setModalMapping(null)}>
-            <Plus className="w-4 h-4 mr-2" /> New Mapping
-          </Button>
-        }
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<Mapping>
+            rowKey={(m) => m.id}
+            columns={columns}
+            data={data ?? []}
+            loading={!data}
+            emptyTitle="No account mappings"
+            emptyDescription="Posting will fail for purposes without a mapping — configure them here."
+            actions={
+              <Button onClick={() => setModalMapping(null)}>
+                <Plus className="w-4 h-4 mr-2" /> New Mapping
+              </Button>
+            }
+          />
+        </div>
+      </div>
 
       {modalMapping !== undefined && (
         <MappingModal mapping={modalMapping} onClose={() => setModalMapping(undefined)} />

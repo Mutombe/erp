@@ -12,9 +12,12 @@ import {
   Modal,
   ModalFooter,
   PageHeader,
+  RefreshingOverlay,
   Select,
+  Skeleton,
   SkeletonCard,
   StatusBadge,
+  refreshingContentClass,
 } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import type { Warehouse } from '@/types/inventory'
@@ -174,22 +177,24 @@ export default function PurchaseOrderDetail() {
   const [confirmApprove, setConfirmApprove] = useState(false)
   const [receiveOpen, setReceiveOpen] = useState(false)
 
-  const { data: po, isLoading } = useQuery({
+  const { data: po } = useQuery({
     queryKey: qk.purchaseOrders.detail(id!),
     queryFn: () => purchaseOrdersApi.get(id!).then((r) => r.data as PurchaseOrder),
   })
 
-  const { data: grns } = useQuery({
+  const { data: grns, isFetching: grnsFetching } = useQuery({
     queryKey: qk.grns.list({ po: id }),
     queryFn: () => grnsApi.list({ po: id }).then((r) => r.data as Paginated<GRN>),
     enabled: !!id,
   })
+  const grnsRefreshing = grnsFetching && !!grns
 
-  const { data: bills } = useQuery({
+  const { data: bills, isFetching: billsFetching } = useQuery({
     queryKey: qk.vendorBills.list({ po: id }),
     queryFn: () => vendorBillsApi.list({ po: id }).then((r) => r.data as Paginated<VendorBill>),
     enabled: !!id,
   })
+  const billsRefreshing = billsFetching && !!bills
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: qk.purchaseOrders.all })
@@ -211,7 +216,7 @@ export default function PurchaseOrderDetail() {
     onError: (error) => showToast.error(parseApiError(error, 'Failed to approve PO')),
   })
 
-  if (isLoading || !po) return <SkeletonCard />
+  if (!po) return <SkeletonCard />
 
   const canApprove = po.status === 'draft' || po.status === 'submitted'
   const canReceive = po.status === 'approved' || po.status === 'partially_received'
@@ -306,41 +311,69 @@ export default function PurchaseOrderDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Goods received notes</h3>
-          <div className="rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700/50">
-            {(grns?.results ?? []).length === 0 && (
-              <p className="px-4 py-5 text-sm text-gray-500 text-center">No GRNs yet</p>
-            )}
-            {(grns?.results ?? []).map((grn) => (
-              <Link
-                key={grn.id}
-                to={`/app/grns/${grn.id}`}
-                className="flex items-center justify-between px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
-              >
-                <span className="font-mono text-primary-600 dark:text-primary-400">{grn.number}</span>
-                <span className="text-gray-500">{grn.date} · {grn.warehouse_code}</span>
-                <StatusBadge status={grn.status} />
-              </Link>
-            ))}
+          <div className="relative">
+            <RefreshingOverlay active={grnsRefreshing} />
+            <div
+              className={refreshingContentClass(
+                grnsRefreshing,
+                'rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700/50'
+              )}
+            >
+              {!grns && (
+                <div className="px-4 py-3 space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-2/3" />
+                </div>
+              )}
+              {grns && grns.results.length === 0 && (
+                <p className="px-4 py-5 text-sm text-gray-500 text-center">No GRNs yet</p>
+              )}
+              {(grns?.results ?? []).map((grn) => (
+                <Link
+                  key={grn.id}
+                  to={`/app/grns/${grn.id}`}
+                  className="flex items-center justify-between px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
+                  <span className="font-mono text-primary-600 dark:text-primary-400">{grn.number}</span>
+                  <span className="text-gray-500">{grn.date} · {grn.warehouse_code}</span>
+                  <StatusBadge status={grn.status} />
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
 
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Vendor bills</h3>
-          <div className="rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700/50">
-            {(bills?.results ?? []).length === 0 && (
-              <p className="px-4 py-5 text-sm text-gray-500 text-center">No bills yet</p>
-            )}
-            {(bills?.results ?? []).map((bill) => (
-              <Link
-                key={bill.id}
-                to={`/app/vendor-bills/${bill.id}`}
-                className="flex items-center justify-between px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
-              >
-                <span className="font-mono text-primary-600 dark:text-primary-400">{bill.number}</span>
-                <span className="tabular-nums">{money(bill.total)} {bill.currency}</span>
-                <StatusBadge status={bill.status} />
-              </Link>
-            ))}
+          <div className="relative">
+            <RefreshingOverlay active={billsRefreshing} />
+            <div
+              className={refreshingContentClass(
+                billsRefreshing,
+                'rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700/50'
+              )}
+            >
+              {!bills && (
+                <div className="px-4 py-3 space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-2/3" />
+                </div>
+              )}
+              {bills && bills.results.length === 0 && (
+                <p className="px-4 py-5 text-sm text-gray-500 text-center">No bills yet</p>
+              )}
+              {(bills?.results ?? []).map((bill) => (
+                <Link
+                  key={bill.id}
+                  to={`/app/vendor-bills/${bill.id}`}
+                  className="flex items-center justify-between px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
+                  <span className="font-mono text-primary-600 dark:text-primary-400">{bill.number}</span>
+                  <span className="tabular-nums">{money(bill.total)} {bill.currency}</span>
+                  <StatusBadge status={bill.status} />
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
       </div>

@@ -10,8 +10,11 @@ import {
   ConfirmDialog,
   CurrencyDisplay,
   PageHeader,
+  RefreshingOverlay,
   SkeletonCard,
+  SkeletonTable,
   StatusBadge,
+  refreshingContentClass,
 } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import type { Term } from '@/types/students'
@@ -22,7 +25,7 @@ export default function FeeInvoiceDetail() {
   const queryClient = useQueryClient()
   const [confirmCancel, setConfirmCancel] = useState(false)
 
-  const { data: invoice, isLoading } = useQuery({
+  const { data: invoice, isFetching: invoiceFetching } = useQuery({
     queryKey: qk.feeInvoices.detail(id!),
     queryFn: () => feeInvoicesApi.get(id!).then((r) => r.data as FeeInvoice),
   })
@@ -34,7 +37,7 @@ export default function FeeInvoiceDetail() {
 
   // Payments applied: the invoice serializer has no allocations, so pull the
   // student's receipts and keep those allocated against this invoice.
-  const { data: receipts } = useQuery({
+  const { data: receipts, isFetching: receiptsFetching } = useQuery({
     queryKey: qk.receipts.list({ student: invoice?.student, forInvoice: id }),
     queryFn: () =>
       receiptsApi
@@ -63,8 +66,12 @@ export default function FeeInvoiceDetail() {
     onError: (error) => showToast.error(parseApiError(error, 'Failed to cancel invoice')),
   })
 
-  if (isLoading || !invoice) return <SkeletonCard />
+  // First paint only — after post/cancel the record refetches in place rather
+  // than blanking the header and lines.
+  if (!invoice) return <SkeletonCard />
 
+  const invoiceRefreshing = invoiceFetching && !!invoice
+  const receiptsRefreshing = receiptsFetching && !!receipts
   const termName = (terms ?? []).find((t) => t.id === invoice.term)?.name ?? `#${invoice.term}`
   const canCancel =
     invoice.status === 'draft' || (invoice.status === 'posted' && Number(invoice.amount_paid) === 0)
@@ -105,7 +112,9 @@ export default function FeeInvoiceDetail() {
         }
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+      <div className="relative">
+        <RefreshingOverlay active={invoiceRefreshing} />
+        <div className={refreshingContentClass(invoiceRefreshing, 'grid grid-cols-2 md:grid-cols-4 gap-4 text-sm')}>
         <div>
           <span className="text-gray-500 block">Student</span>
           <Link to={`/app/students/${invoice.student}`} className="text-primary-600 dark:text-primary-400 hover:underline">
@@ -135,9 +144,12 @@ export default function FeeInvoiceDetail() {
         {invoice.notes && (
           <div className="col-span-2"><span className="text-gray-500 block">Notes</span>{invoice.notes}</div>
         )}
+        </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+      <div className="relative">
+        <RefreshingOverlay active={invoiceRefreshing} />
+        <div className={refreshingContentClass(invoiceRefreshing, 'overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700')}>
         <table className="w-full text-sm">
           <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
             <tr>
@@ -180,11 +192,16 @@ export default function FeeInvoiceDetail() {
             </tr>
           </tfoot>
         </table>
+        </div>
       </div>
 
-      <div>
+      <div className="relative">
+        <RefreshingOverlay active={receiptsRefreshing} />
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Payments applied</h3>
-        {appliedReceipts.length === 0 ? (
+        <div className={refreshingContentClass(receiptsRefreshing)}>
+        {!receipts ? (
+          <SkeletonTable rows={2} cols={5} />
+        ) : appliedReceipts.length === 0 ? (
           <p className="text-sm text-gray-500">No receipts have been allocated to this invoice.</p>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
@@ -216,6 +233,7 @@ export default function FeeInvoiceDetail() {
             </table>
           </div>
         )}
+        </div>
       </div>
 
       <ConfirmDialog

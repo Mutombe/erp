@@ -713,6 +713,66 @@ class StockValuationView(ReportView):
         return {'rows': rows, 'total_value': total}
 
 
+class DepartmentConsumptionView(ReportView):
+    def build(self, request):
+        """Stock consumption (issues) per department for a period, at the
+        moving-average cost captured on each move."""
+        from apps.inventory.models import StockMove
+
+        today = timezone.localdate()
+        start = _parse_date(request.query_params.get('start'), today.replace(month=1, day=1))
+        end = _parse_date(request.query_params.get('end'), today)
+        department = request.query_params.get('department')
+
+        qs = StockMove.objects.filter(
+            move_type='issue', status='posted', date__gte=start, date__lte=end
+        )
+        if department:
+            qs = qs.filter(department_id=department)
+
+        rows = [
+            {
+                'department_id': r['department_id'],
+                'department_code': r['department_code'] or '',
+                'department_name': r['department_name'] or 'Unassigned',
+                'issue_count': r['issue_count'],
+                'total_cost': r['total_cost'] or ZERO,
+            }
+            for r in qs.values(
+                'department_id',
+                department_code=F('department__code'),
+                department_name=F('department__name'),
+            )
+            .annotate(issue_count=Count('id'), total_cost=Sum('total_cost_base'))
+            .order_by('-total_cost')
+        ]
+
+        by_item = [
+            {
+                'department_name': r['department_name'] or 'Unassigned',
+                'item_code': r['item_code'],
+                'item_name': r['item_name'],
+                'quantity': r['quantity'] or ZERO,
+                'total_cost': r['total_cost'] or ZERO,
+            }
+            for r in qs.values(
+                'department_id', 'item_id',
+                department_name=F('department__name'),
+                item_code=F('item__code'),
+                item_name=F('item__name'),
+            )
+            .annotate(quantity=Sum('quantity'), total_cost=Sum('total_cost_base'))
+            .order_by('-total_cost')[:50]
+        ]
+
+        return {
+            'start': start.isoformat(), 'end': end.isoformat(),
+            'rows': rows,
+            'total_cost': sum((r['total_cost'] for r in rows), ZERO),
+            'by_item': by_item,
+        }
+
+
 class FeeCollectionView(ReportView):
     def build(self, request):
         from apps.fees.models import FeeInvoiceLine, ReceiptAllocation

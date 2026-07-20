@@ -10,8 +10,10 @@ import {
   Button,
   ConfirmDialog,
   PageHeader,
+  RefreshingOverlay,
   SkeletonCard,
   StatusBadge,
+  refreshingContentClass,
 } from '@/components/ui'
 import { fmtMoney, type BillingPreview, type BillingRun } from '@/types/fees'
 
@@ -21,7 +23,7 @@ export default function BillingRunDetail() {
   const [preview, setPreview] = useState<BillingPreview | null>(null)
   const [confirmExecute, setConfirmExecute] = useState(false)
 
-  const { data: run, isLoading, refetch } = useQuery({
+  const { data: run, isFetching, refetch } = useQuery({
     queryKey: qk.billingRuns.detail(id!),
     queryFn: () => billingRunsApi.get(id!).then((r) => r.data as BillingRun),
   })
@@ -53,8 +55,11 @@ export default function BillingRunDetail() {
     onError: () => refetch(),
   })
 
-  if (isLoading || !run) return <SkeletonCard />
+  // First paint only — once the run is cached the header/stats stay rendered
+  // while a refetch (e.g. after execute) lands in place.
+  if (!run) return <SkeletonCard />
 
+  const isRefreshing = isFetching && !!run
   const canAct = ['draft', 'previewed', 'failed'].includes(run.status)
 
   return (
@@ -85,24 +90,27 @@ export default function BillingRunDetail() {
         }
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-        <div><span className="text-gray-500 block">Term</span>{run.term_name}</div>
-        <div><span className="text-gray-500 block">Currency</span>{run.currency}</div>
-        <div><span className="text-gray-500 block">Invoice date</span>{run.date}</div>
-        <div><span className="text-gray-500 block">Due date</span>{run.due_date || '—'}</div>
-        <div><span className="text-gray-500 block">Invoices created</span><span className="tabular-nums">{run.invoices_created}</span></div>
-        <div><span className="text-gray-500 block">Total billed</span><span className="tabular-nums">{run.currency} {fmtMoney(run.total_billed)}</span></div>
-        {run.status === 'completed' && (
-          <div className="col-span-2">
-            <span className="text-gray-500 block">Generated invoices</span>
-            <Link
-              to={`/app/fee-invoices?billing_run=${run.id}`}
-              className="text-primary-600 dark:text-primary-400 hover:underline"
-            >
-              View generated invoices →
-            </Link>
-          </div>
-        )}
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing, 'grid grid-cols-2 md:grid-cols-4 gap-4 text-sm')}>
+          <div><span className="text-gray-500 block">Term</span>{run.term_name}</div>
+          <div><span className="text-gray-500 block">Currency</span>{run.currency}</div>
+          <div><span className="text-gray-500 block">Invoice date</span>{run.date}</div>
+          <div><span className="text-gray-500 block">Due date</span>{run.due_date || '—'}</div>
+          <div><span className="text-gray-500 block">Invoices created</span><span className="tabular-nums">{run.invoices_created}</span></div>
+          <div><span className="text-gray-500 block">Total billed</span><span className="tabular-nums">{run.currency} {fmtMoney(run.total_billed)}</span></div>
+          {run.status === 'completed' && (
+            <div className="col-span-2">
+              <span className="text-gray-500 block">Generated invoices</span>
+              <Link
+                to={`/app/fee-invoices?billing_run=${run.id}`}
+                className="text-primary-600 dark:text-primary-400 hover:underline"
+              >
+                View generated invoices →
+              </Link>
+            </div>
+          )}
+        </div>
       </div>
 
       {run.status === 'failed' && run.error_message && (

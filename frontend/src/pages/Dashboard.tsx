@@ -23,7 +23,15 @@ import {
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useUIStore } from '@/stores/uiStore'
-import { Card, CardHeader, PageHeader, SkeletonDashboard, StatsCard } from '@/components/ui'
+import {
+  Card,
+  CardHeader,
+  PageHeader,
+  RefreshingOverlay,
+  SkeletonDashboard,
+  StatsCard,
+  refreshingContentClass,
+} from '@/components/ui'
 
 interface DashboardData {
   term: { id: number; name: string } | null
@@ -66,12 +74,14 @@ export default function Dashboard() {
   const theme = useUIStore((s) => s.theme)
   const dark = theme === 'dark'
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.reports.dashboard,
     queryFn: () => reportsApi.dashboard().then((r) => r.data as DashboardData),
   })
 
-  if (isLoading || !data) {
+  // First paint only — on refetch (e.g. after a receipt or billing run posts)
+  // every widget keeps its previous values while the new figures land.
+  if (!data) {
     return (
       <div className="space-y-6">
         <PageHeader title="Dashboard" description="An overview of your school's finances and operations" icon={SquaresFour} />
@@ -80,6 +90,7 @@ export default function Dashboard() {
     )
   }
 
+  const isRefreshing = isFetching && !!data
   const { kpis } = data
   const chartData = data.monthly_billed_vs_collected.map((row) => ({
     month: monthLabel(row.month),
@@ -102,7 +113,9 @@ export default function Dashboard() {
       />
 
       {/* KPI row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing, 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4')}>
         <StatsCard
           title="Collected this term"
           value={money(kpis.collected_this_term)}
@@ -155,15 +168,18 @@ export default function Dashboard() {
             color="purple"
           />
         </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Billed vs collected chart */}
-        <Card className="xl:col-span-2">
+        <Card className="xl:col-span-2 relative">
+          <RefreshingOverlay active={isRefreshing} />
           <CardHeader
             title="Billed vs collected by month"
             description="Invoices billed against receipts collected across the academic year"
           />
+          <div className={refreshingContentClass(isRefreshing)}>
           {chartData.length === 0 ? (
             <div className="h-72 flex items-center justify-center text-gray-400 text-sm">
               No billing activity yet this academic year.
@@ -216,10 +232,12 @@ export default function Dashboard() {
               </ResponsiveContainer>
             </div>
           )}
+          </div>
         </Card>
 
         {/* Bank balances */}
-        <Card padding="none" className="overflow-hidden">
+        <Card padding="none" className="overflow-hidden relative">
+          <RefreshingOverlay active={isRefreshing} />
           <button
             onClick={() => navigate('/app/bank-accounts')}
             className="w-full text-left px-6 pt-6 pb-4 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors"
@@ -227,7 +245,7 @@ export default function Dashboard() {
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Bank balances</h3>
             <p className="text-sm text-gray-500 mt-0.5">Book balances per account — click to manage</p>
           </button>
-          <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
+          <div className={refreshingContentClass(isRefreshing, 'divide-y divide-gray-100 dark:divide-gray-700/50')}>
             {data.bank_balances.length === 0 && (
               <p className="px-6 py-8 text-center text-sm text-gray-400">No active bank accounts.</p>
             )}
@@ -250,7 +268,8 @@ export default function Dashboard() {
       </div>
 
       {/* Recent receipts */}
-      <div>
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
             <Receipt className="w-5 h-5 text-gray-400" /> Recent receipts
@@ -259,6 +278,7 @@ export default function Dashboard() {
             View all
           </Link>
         </div>
+        <div className={refreshingContentClass(isRefreshing)}>
         {data.recent_receipts.length === 0 ? (
           <div className="rounded-xl border border-gray-200 dark:border-gray-700 py-10 text-center text-gray-400 text-sm">
             <CalendarDots className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -301,6 +321,7 @@ export default function Dashboard() {
             </table>
           </div>
         )}
+        </div>
       </div>
     </div>
   )

@@ -16,7 +16,9 @@ import {
   Modal,
   ModalFooter,
   PageHeader,
+  RefreshingOverlay,
   Select,
+  refreshingContentClass,
   type Column,
 } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
@@ -41,7 +43,7 @@ export default function FeeStructures() {
     queryFn: () => gradesApi.list().then((r) => r.data as Grade[]),
   })
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.feeStructures.list({ term, grade, page }),
     queryFn: () =>
       feeStructuresApi
@@ -49,6 +51,7 @@ export default function FeeStructures() {
         .then((r) => r.data as Paginated<FeeStructure>),
     placeholderData: keepPreviousData,
   })
+  const isRefreshing = isFetching && !!data
 
   const deleteMutation = useOptimisticDelete<FeeStructure>({
     mutationFn: (id) => feeStructuresApi.delete(id),
@@ -114,15 +117,20 @@ export default function FeeStructures() {
         </Select>
       </div>
 
-      <DataTable<FeeStructure>
-        rowKey={(f) => f.id}
-        columns={columns}
-        data={data?.results ?? []}
-        loading={isLoading}
-        emptyTitle="No fee structures"
-        emptyDescription="No fee structures match the selected filters."
-        pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<FeeStructure>
+            rowKey={(f) => f.id}
+            columns={columns}
+            data={data?.results ?? []}
+            loading={!data}
+            emptyTitle="No fee structures"
+            emptyDescription="No fee structures match the selected filters."
+            pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
+          />
+        </div>
+      </div>
 
       <FeeStructureFormModal open={showCreate} onClose={() => setShowCreate(false)} terms={terms ?? []} grades={grades ?? []} />
 

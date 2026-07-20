@@ -17,7 +17,9 @@ import {
   Modal,
   ModalFooter,
   PageHeader,
+  RefreshingOverlay,
   Select,
+  refreshingContentClass,
   type Column,
 } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
@@ -30,7 +32,7 @@ export default function Classes() {
   const [showCreate, setShowCreate] = useState(false)
   const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.classes.list({ page, search: debouncedSearch }),
     queryFn: () =>
       classesApi
@@ -38,6 +40,9 @@ export default function Classes() {
         .then((r) => r.data as Paginated<ClassRoom>),
     placeholderData: keepPreviousData,
   })
+
+  // Search / paging keeps the current rows on screen; only first load skeletons.
+  const isRefreshing = isFetching && !!data
 
   const { data: years } = useQuery({
     queryKey: qk.academicYears.list(),
@@ -75,19 +80,24 @@ export default function Classes() {
         }
       />
 
-      <DataTable<ClassRoom>
-        rowKey={(c) => c.id}
-        columns={columns}
-        data={data?.results ?? []}
-        loading={isLoading}
-        searchable
-        searchValue={search}
-        onSearch={(q) => { setSearch(q); setPage(1) }}
-        searchPlaceholder="Search class or teacher…"
-        onRowClick={(c) => navigate(`/app/classes/${c.id}`)}
-        emptyTitle="No classes found"
-        pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<ClassRoom>
+            rowKey={(c) => c.id}
+            columns={columns}
+            data={data?.results ?? []}
+            loading={!data}
+            searchable
+            searchValue={search}
+            onSearch={(q) => { setSearch(q); setPage(1) }}
+            searchPlaceholder="Search class or teacher…"
+            onRowClick={(c) => navigate(`/app/classes/${c.id}`)}
+            emptyTitle="No classes found"
+            pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
+          />
+        </div>
+      </div>
 
       <ClassFormModal open={showCreate} onClose={() => setShowCreate(false)} />
     </div>

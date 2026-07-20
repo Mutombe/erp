@@ -4,7 +4,15 @@ import { Link, useParams } from 'react-router-dom'
 import { Stack, Warehouse as WarehouseIcon } from '@phosphor-icons/react'
 import { itemsApi, stockLevelsApi, warehousesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { Badge, PageHeader, SkeletonCard, StatsCard } from '@/components/ui'
+import {
+  Badge,
+  PageHeader,
+  RefreshingOverlay,
+  SkeletonCard,
+  SkeletonTable,
+  StatsCard,
+  refreshingContentClass,
+} from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import type { Item, StockLevel, Warehouse } from '@/types/inventory'
 import { money } from '@/types/procurement'
@@ -12,12 +20,12 @@ import { money } from '@/types/procurement'
 export default function WarehouseDetail() {
   const { id } = useParams()
 
-  const { data: warehouse, isLoading } = useQuery({
+  const { data: warehouse } = useQuery({
     queryKey: qk.warehouses.detail(id!),
     queryFn: () => warehousesApi.get(id!).then((r) => r.data as Warehouse),
   })
 
-  const { data: levels } = useQuery({
+  const { data: levels, isFetching: levelsFetching } = useQuery({
     queryKey: qk.stockLevels.list({ warehouse: id }),
     queryFn: () =>
       stockLevelsApi
@@ -44,7 +52,11 @@ export default function WarehouseDetail() {
   })
   const totalValue = rows.reduce((sum, r) => sum + (r.value ?? 0), 0)
 
-  if (isLoading || !warehouse) return <SkeletonCard />
+  // First paint only — the header and stat cards stay put while stock levels refetch.
+  if (!warehouse) return <SkeletonCard />
+
+  const stockLoaded = !!levels && !!items
+  const stockRefreshing = levelsFetching && !!levels
 
   return (
     <div className="space-y-6">
@@ -61,13 +73,18 @@ export default function WarehouseDetail() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <StatsCard title="Line items in stock" value={rows.length} icon={Stack} color="blue" />
-        <StatsCard title="Stock value (base)" value={money(totalValue)} subtitle="qty × item avg cost" icon={WarehouseIcon} color="green" />
+        <StatsCard title="Line items in stock" value={rows.length} icon={Stack} color="blue" loading={!levels} />
+        <StatsCard title="Stock value (base)" value={money(totalValue)} subtitle="qty × item avg cost" icon={WarehouseIcon} color="green" loading={!stockLoaded} />
       </div>
 
       <div>
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">Stock on hand</h3>
-        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+        {!levels ? (
+          <SkeletonTable rows={5} />
+        ) : (
+        <div className="relative">
+        <RefreshingOverlay active={stockRefreshing} />
+        <div className={refreshingContentClass(stockRefreshing, 'overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700')}>
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
               <tr>
@@ -108,6 +125,8 @@ export default function WarehouseDetail() {
             )}
           </table>
         </div>
+        </div>
+        )}
       </div>
     </div>
   )

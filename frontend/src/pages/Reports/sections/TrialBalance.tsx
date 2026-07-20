@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { DownloadSimple } from '@phosphor-icons/react'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { exportToCSV, formatExportNumber } from '@/lib/export'
-import { Badge, Button, SkeletonTable } from '@/components/ui'
+import { Badge, Button, RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
 
 interface TBRow {
@@ -63,17 +63,22 @@ export default function TrialBalance() {
     queryKey: qk.reports.trialBalance({ asOf }),
     queryFn: () => reportsApi.trialBalance({ as_of_date: asOf }).then((r) => r.data as TBData),
     enabled: mode === 'asat',
+    placeholderData: keepPreviousData,
   })
 
   const movementQuery = useQuery({
     queryKey: qk.reports.trialBalance({ start, end }),
     queryFn: () => reportsApi.trialBalance({ start, end }).then((r) => r.data as TBMovementData),
     enabled: mode === 'movements',
+    placeholderData: keepPreviousData,
   })
 
   const data = mode === 'asat' ? asAtQuery.data : undefined
   const movData = mode === 'movements' ? movementQuery.data : undefined
-  const isLoading = mode === 'asat' ? asAtQuery.isLoading : movementQuery.isLoading
+  // Changing the date range keeps the previous figures on screen; only the very
+  // first load (nothing cached for this mode) falls through to the skeleton.
+  const hasData = mode === 'asat' ? !!data : !!movData
+  const isRefreshing = (mode === 'asat' ? asAtQuery.isFetching : movementQuery.isFetching) && hasData
   const balanced = mode === 'asat' ? data?.balanced : movData?.balanced
   const hasRows = mode === 'asat' ? (data?.rows.length ?? 0) > 0 : (movData?.rows.length ?? 0) > 0
 
@@ -160,11 +165,12 @@ export default function TrialBalance() {
         </div>
       </div>
 
-      {isLoading || (mode === 'asat' ? !data : !movData) ? (
+      {!hasData ? (
         <SkeletonTable rows={12} />
       ) : mode === 'asat' && data ? (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-          <table className="w-full text-sm">
+        <div className="relative overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+          <RefreshingOverlay active={isRefreshing} />
+          <table className={refreshingContentClass(isRefreshing, 'w-full text-sm')}>
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-3 w-24">Code</th>
@@ -202,8 +208,9 @@ export default function TrialBalance() {
           </table>
         </div>
       ) : movData ? (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-          <table className="w-full text-sm">
+        <div className="relative overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+          <RefreshingOverlay active={isRefreshing} />
+          <table className={refreshingContentClass(isRefreshing, 'w-full text-sm')}>
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-3 w-24">Code</th>

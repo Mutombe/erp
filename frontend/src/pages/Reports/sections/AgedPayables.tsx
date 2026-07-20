@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { SkeletonTable } from '@/components/ui'
+import { RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
 
 interface AgedRow {
@@ -29,10 +29,14 @@ const money = (v: number | string) =>
 export default function AgedPayables() {
   const [asOf, setAsOf] = useState(new Date().toISOString().slice(0, 10))
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.reports.agedPayables({ asOf }),
     queryFn: () => reportsApi.agedPayables({ as_of_date: asOf }).then((r) => r.data as AgedData),
+    placeholderData: keepPreviousData,
   })
+
+  // Changing the as-at date refreshes in place rather than blanking the ageing.
+  const isRefreshing = isFetching && !!data
 
   return (
     <div className="space-y-4">
@@ -50,11 +54,12 @@ export default function AgedPayables() {
         <PdfButton reportKey="aged-payables" params={{ as_of_date: asOf }} />
       </div>
 
-      {isLoading || !data ? (
+      {!data ? (
         <SkeletonTable rows={8} />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-          <table className="w-full text-sm">
+        <div className="relative overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+          <RefreshingOverlay active={isRefreshing} />
+          <table className={refreshingContentClass(isRefreshing, 'w-full text-sm')}>
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-3">Supplier</th>

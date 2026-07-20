@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { CalendarCheck, FileArrowUp, Bank, Scales, UploadSimple, Wallet } from '@phosphor-icons/react'
 import { bankAccountsApi, bankStatementsApi, reportsApi } from '@/services/api'
@@ -13,6 +13,8 @@ import {
   Modal,
   ModalFooter,
   PageHeader,
+  RefreshingOverlay,
+  refreshingContentClass,
   SkeletonCard,
   SkeletonTable,
   StatsCard,
@@ -166,17 +168,19 @@ export default function BankAccountDetail() {
   const [end, setEnd] = useState(today())
   const [uploadOpen, setUploadOpen] = useState(false)
 
-  const { data: account, isLoading } = useQuery({
+  const { data: account } = useQuery({
     queryKey: qk.bankAccounts.detail(id!),
     queryFn: () => bankAccountsApi.get(id!).then((r) => r.data as BankAccountRow),
   })
 
-  const { data: cashbook, isLoading: cashbookLoading } = useQuery({
+  const { data: cashbook, isFetching: cashbookFetching } = useQuery({
     queryKey: qk.reports.cashbook({ bank_account: id, start, end }),
     queryFn: () =>
       reportsApi.cashbook({ bank_account: id, start, end }).then((r) => r.data as CashbookData),
     enabled: !!id,
+    placeholderData: keepPreviousData,
   })
+  const cashbookRefreshing = cashbookFetching && !!cashbook
 
   const { data: statements } = useQuery({
     queryKey: qk.bankStatements.list({ bank_account: id }),
@@ -187,7 +191,7 @@ export default function BankAccountDetail() {
     enabled: !!id,
   })
 
-  if (isLoading || !account) return <SkeletonCard />
+  if (!account) return <SkeletonCard />
 
   return (
     <div className="space-y-6">
@@ -263,11 +267,12 @@ export default function BankAccountDetail() {
           </div>
         </div>
 
-        {cashbookLoading || !cashbook ? (
+        {!cashbook ? (
           <SkeletonTable rows={8} />
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-            <table className="w-full text-sm">
+          <div className="relative overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+            <RefreshingOverlay active={cashbookRefreshing} />
+            <table className={refreshingContentClass(cashbookRefreshing, 'w-full text-sm')}>
               <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
                 <tr>
                   <th className="px-4 py-3">Date</th>

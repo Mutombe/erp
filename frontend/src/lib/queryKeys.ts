@@ -72,6 +72,7 @@ export const qk = {
   warehouses: entityKeys('warehouses'),
   stockMoves: entityKeys('stockMoves'),
   stockLevels: entityKeys('stockLevels'),
+  departments: entityKeys('departments'),
 
   // Procurement
   suppliers: entityKeys('suppliers'),
@@ -101,6 +102,8 @@ export const qk = {
     assetRegister: (filters: Filters = {}) => ['reports', 'assetRegister', filters] as QueryKey,
     stockValuation: (filters: Filters = {}) => ['reports', 'stockValuation', filters] as QueryKey,
     feeCollection: (filters: Filters = {}) => ['reports', 'feeCollection', filters] as QueryKey,
+    departmentConsumption: (filters: Filters = {}) =>
+      ['reports', 'departmentConsumption', filters] as QueryKey,
   },
 } as const
 

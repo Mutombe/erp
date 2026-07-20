@@ -18,8 +18,10 @@ import {
   Modal,
   ModalFooter,
   PageHeader,
+  RefreshingOverlay,
   Select,
   Textarea,
+  refreshingContentClass,
   type Column,
 } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
@@ -178,7 +180,7 @@ export default function Suppliers() {
   const [editSupplier, setEditSupplier] = useState<Supplier | null>(null)
   const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.suppliers.list({ page, search: debouncedSearch }),
     queryFn: () =>
       suppliersApi
@@ -186,6 +188,7 @@ export default function Suppliers() {
         .then((r) => r.data as Paginated<Supplier>),
     placeholderData: keepPreviousData,
   })
+  const isRefreshing = isFetching && !!data
 
   const columns: Column<Supplier>[] = [
     { key: 'code', header: 'Code', render: (s) => <span className="font-mono text-primary-600 dark:text-primary-400">{s.code}</span> },
@@ -231,25 +234,30 @@ export default function Suppliers() {
         }
       />
 
-      <DataTable<Supplier>
-        rowKey={(s) => s.id}
-        columns={columns}
-        data={data?.results ?? []}
-        loading={isLoading}
-        searchable
-        searchValue={search}
-        onSearch={(q) => { setSearch(q); setPage(1) }}
-        searchPlaceholder="Search code, name, contact, phone…"
-        onRowClick={(s) => navigate(`/app/suppliers/${s.id}`)}
-        emptyTitle="No suppliers"
-        emptyDescription="Add a supplier to start raising purchase orders."
-        pagination={{
-          page,
-          pageSize: 25,
-          total: data?.count ?? 0,
-          onPageChange: setPage,
-        }}
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<Supplier>
+            rowKey={(s) => s.id}
+            columns={columns}
+            data={data?.results ?? []}
+            loading={!data}
+            searchable
+            searchValue={search}
+            onSearch={(q) => { setSearch(q); setPage(1) }}
+            searchPlaceholder="Search code, name, contact, phone…"
+            onRowClick={(s) => navigate(`/app/suppliers/${s.id}`)}
+            emptyTitle="No suppliers"
+            emptyDescription="Add a supplier to start raising purchase orders."
+            pagination={{
+              page,
+              pageSize: 25,
+              total: data?.count ?? 0,
+              onPageChange: setPage,
+            }}
+          />
+        </div>
+      </div>
 
       <SupplierFormModal
         open={modalOpen}

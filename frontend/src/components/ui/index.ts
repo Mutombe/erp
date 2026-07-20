@@ -32,6 +32,7 @@ export {
   OptimisticItemSkeleton,
 } from './Skeleton'
 export { EmptyState, EmptyTableState } from './EmptyState'
+export { RefreshingOverlay, RefreshingRegion, refreshingContentClass } from './RefreshingOverlay'
 export { AsyncSelect, SelectSkeleton } from './AsyncSelect'
 
 // Forms & Inputs

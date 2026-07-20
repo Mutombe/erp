@@ -5,7 +5,7 @@ import { FileText, X } from '@phosphor-icons/react'
 import { feeInvoicesApi, termsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
-import { DataTable, PageHeader, StatusBadge, type Column } from '@/components/ui'
+import { DataTable, PageHeader, RefreshingOverlay, StatusBadge, refreshingContentClass, type Column } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import type { Term } from '@/types/students'
 import { fmtMoney, type FeeInvoice } from '@/types/fees'
@@ -22,7 +22,7 @@ export default function FeeInvoices() {
   const [page, setPage] = useState(1)
   const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.feeInvoices.list({
       page,
       search: debouncedSearch,
@@ -42,6 +42,7 @@ export default function FeeInvoices() {
         .then((r) => r.data as Paginated<FeeInvoice>),
     placeholderData: keepPreviousData,
   })
+  const isRefreshing = isFetching && !!data
 
   const { data: terms } = useQuery({
     queryKey: qk.terms.list(),
@@ -126,19 +127,24 @@ export default function FeeInvoices() {
         )}
       </div>
 
-      <DataTable<FeeInvoice>
-        rowKey={(i) => i.id}
-        columns={columns}
-        data={data?.results ?? []}
-        loading={isLoading}
-        searchable
-        searchValue={search}
-        onSearch={(q) => { setSearch(q); setPage(1) }}
-        searchPlaceholder="Search invoice number or student…"
-        onRowClick={(i) => navigate(`/app/fee-invoices/${i.id}`)}
-        emptyTitle="No invoices found"
-        pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<FeeInvoice>
+            rowKey={(i) => i.id}
+            columns={columns}
+            data={data?.results ?? []}
+            loading={!data}
+            searchable
+            searchValue={search}
+            onSearch={(q) => { setSearch(q); setPage(1) }}
+            searchPlaceholder="Search invoice number or student…"
+            onRowClick={(i) => navigate(`/app/fee-invoices/${i.id}`)}
+            emptyTitle="No invoices found"
+            pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
+          />
+        </div>
+      </div>
     </div>
   )
 }

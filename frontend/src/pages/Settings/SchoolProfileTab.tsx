@@ -41,7 +41,7 @@ export default function SchoolProfileTab() {
   const queryClient = useQueryClient()
 
   // Singleton endpoint: list() returns the settings object directly.
-  const { data, isLoading } = useQuery({
+  const { data } = useQuery({
     queryKey: qk.settings.list(),
     queryFn: () => settingsApi.list().then((r) => r.data as SchoolSettingsData),
   })
@@ -51,7 +51,9 @@ export default function SchoolProfileTab() {
     queryFn: () => academicYearsApi.list().then((r) => r.data as AcademicYearOption[]),
   })
 
-  if (isLoading || !data) return <SkeletonForm />
+  // Skeleton only until the settings first resolve — a background refetch keeps
+  // the form (and anything the user has typed) mounted.
+  if (!data) return <SkeletonForm />
 
   return <ProfileForm settings={data} years={years ?? []} onSaved={() => {
     queryClient.invalidateQueries({ queryKey: qk.settings.all })

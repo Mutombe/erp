@@ -10,8 +10,10 @@ import {
   ConfirmDialog,
   CurrencyDisplay,
   PageHeader,
+  RefreshingOverlay,
   SkeletonCard,
   StatusBadge,
+  refreshingContentClass,
 } from '@/components/ui'
 import type { BankAccount } from '@/types/accounting'
 import { fmtMoney, type Receipt } from '@/types/fees'
@@ -21,7 +23,7 @@ export default function ReceiptDetail() {
   const queryClient = useQueryClient()
   const [confirmReverse, setConfirmReverse] = useState(false)
 
-  const { data: receipt, isLoading } = useQuery({
+  const { data: receipt, isFetching } = useQuery({
     queryKey: qk.receipts.detail(id!),
     queryFn: () => receiptsApi.get(id!).then((r) => r.data as Receipt),
   })
@@ -44,8 +46,10 @@ export default function ReceiptDetail() {
     onError: (error) => showToast.error(parseApiError(error, 'Failed to reverse receipt')),
   })
 
-  if (isLoading || !receipt) return <SkeletonCard />
+  // First paint only — a reversal refetch updates the record in place.
+  if (!receipt) return <SkeletonCard />
 
+  const isRefreshing = isFetching && !!receipt
   const bank = (bankAccounts ?? []).find((b) => b.id === receipt.bank_account)
 
   return (
@@ -70,7 +74,9 @@ export default function ReceiptDetail() {
         }
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing, 'grid grid-cols-2 md:grid-cols-4 gap-4 text-sm')}>
         <div>
           <span className="text-gray-500 block">Student</span>
           <Link to={`/app/students/${receipt.student}`} className="text-primary-600 dark:text-primary-400 hover:underline">
@@ -103,10 +109,13 @@ export default function ReceiptDetail() {
         {receipt.notes && (
           <div className="col-span-2"><span className="text-gray-500 block">Notes</span>{receipt.notes}</div>
         )}
+        </div>
       </div>
 
-      <div>
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Allocations</h3>
+        <div className={refreshingContentClass(isRefreshing)}>
         {receipt.allocations.length === 0 ? (
           <p className="text-sm text-gray-500">
             Nothing allocated — the full amount is sitting as an unallocated credit on the student's account.
@@ -146,6 +155,7 @@ export default function ReceiptDetail() {
             </table>
           </div>
         )}
+        </div>
       </div>
 
       <ConfirmDialog

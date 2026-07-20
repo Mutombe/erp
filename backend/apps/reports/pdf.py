@@ -360,6 +360,19 @@ def _flatten_stock_valuation(data):
             'columns': columns, 'rows': rows, 'landscape': False}
 
 
+def _flatten_department_consumption(data):
+    columns = [_left('Department'), _right('Issues'), _right('Total Cost')]
+    rows = [
+        _row([f"{r['department_code']} {r['department_name']}".strip(),
+              str(r['issue_count']), _fmt(r['total_cost'])])
+        for r in data['rows']
+    ]
+    rows.append(_row(['Total', '', _fmt(data['total_cost'])], 'total'))
+    return {'title': 'Stock Consumption by Department',
+            'subtitle': f"Period {data['start']} to {data['end']}",
+            'columns': columns, 'rows': rows, 'landscape': False}
+
+
 def _flatten_fee_collection(data):
     columns = [_left('Code'), _left('Category'), _right('Billed'), _right('Collected'),
                _right('Outstanding'), _right('Collection %')]
@@ -390,6 +403,7 @@ def _report_specs():
         'cash-flow': (views.CashFlowView, _flatten_cash_flow),
         'asset-register': (views.AssetRegisterView, _flatten_asset_register),
         'stock-valuation': (views.StockValuationView, _flatten_stock_valuation),
+        'department-consumption': (views.DepartmentConsumptionView, _flatten_department_consumption),
         'fee-collection': (views.FeeCollectionView, _flatten_fee_collection),
     }
 

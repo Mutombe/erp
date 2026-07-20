@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   ArrowsLeftRight,
@@ -29,12 +29,14 @@ import {
   Sun,
   Truck,
   Users,
+  UsersFour,
   Wallet,
   Warehouse,
   X,
   type Icon,
 } from '@phosphor-icons/react'
 import logoUrl from '@/assets/logo.png'
+import { PageSkeleton } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { authApi } from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
@@ -87,6 +89,7 @@ const navSections: NavSection[] = [
     items: [
       { label: 'Items', to: '/app/items', icon: Package },
       { label: 'Warehouses', to: '/app/warehouses', icon: Warehouse },
+      { label: 'Departments', to: '/app/departments', icon: UsersFour },
       { label: 'Stock Moves', to: '/app/stock-moves', icon: ArrowsLeftRight },
     ],
   },
@@ -338,8 +341,14 @@ export default function Layout() {
         </header>
 
         {/* Page content */}
+        {/*
+          Suspense lives here (not in App) so lazy route chunks only replace the
+          content area — the sidebar and header stay mounted and interactive.
+        */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
-          <Outlet />
+          <Suspense fallback={<PageSkeleton />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

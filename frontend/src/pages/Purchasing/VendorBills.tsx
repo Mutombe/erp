@@ -5,7 +5,7 @@ import { FileText, Plus } from '@phosphor-icons/react'
 import { vendorBillsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
-import { Button, DataTable, PageHeader, StatusBadge, type Column } from '@/components/ui'
+import { Button, DataTable, PageHeader, RefreshingOverlay, StatusBadge, refreshingContentClass, type Column } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import { BILL_STATUSES, money, type VendorBill } from '@/types/procurement'
 
@@ -17,7 +17,7 @@ export default function VendorBills() {
   const [page, setPage] = useState(1)
   const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.vendorBills.list({ page, search: debouncedSearch, status: statusFilter }),
     queryFn: () =>
       vendorBillsApi
@@ -25,6 +25,7 @@ export default function VendorBills() {
         .then((r) => r.data as Paginated<VendorBill>),
     placeholderData: keepPreviousData,
   })
+  const isRefreshing = isFetching && !!data
 
   const columns: Column<VendorBill>[] = [
     { key: 'number', header: 'Number', render: (b) => <span className="font-mono text-primary-600 dark:text-primary-400">{b.number}</span> },
@@ -85,25 +86,30 @@ export default function VendorBills() {
         ))}
       </div>
 
-      <DataTable<VendorBill>
-        rowKey={(b) => b.id}
-        columns={columns}
-        data={data?.results ?? []}
-        loading={isLoading}
-        searchable
-        searchValue={search}
-        onSearch={(q) => { setSearch(q); setPage(1) }}
-        searchPlaceholder="Search number, supplier ref, supplier…"
-        onRowClick={(b) => navigate(`/app/vendor-bills/${b.id}`)}
-        emptyTitle="No vendor bills"
-        emptyAction={{ label: 'Capture your first bill', onClick: () => navigate('/app/vendor-bills/new') }}
-        pagination={{
-          page,
-          pageSize: 25,
-          total: data?.count ?? 0,
-          onPageChange: setPage,
-        }}
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<VendorBill>
+            rowKey={(b) => b.id}
+            columns={columns}
+            data={data?.results ?? []}
+            loading={!data}
+            searchable
+            searchValue={search}
+            onSearch={(q) => { setSearch(q); setPage(1) }}
+            searchPlaceholder="Search number, supplier ref, supplier…"
+            onRowClick={(b) => navigate(`/app/vendor-bills/${b.id}`)}
+            emptyTitle="No vendor bills"
+            emptyAction={{ label: 'Capture your first bill', onClick: () => navigate('/app/vendor-bills/new') }}
+            pagination={{
+              page,
+              pageSize: 25,
+              total: data?.count ?? 0,
+              onPageChange: setPage,
+            }}
+          />
+        </div>
+      </div>
     </div>
   )
 }

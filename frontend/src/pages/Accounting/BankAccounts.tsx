@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -17,6 +17,8 @@ import {
   Modal,
   ModalFooter,
   PageHeader,
+  RefreshingOverlay,
+  refreshingContentClass,
   Select,
   type Column,
 } from '@/components/ui'
@@ -205,10 +207,12 @@ export default function BankAccounts() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editAccount, setEditAccount] = useState<BankAccountRow | null>(null)
 
-  const { data: bankAccounts, isLoading } = useQuery({
+  const { data: bankAccounts, isFetching } = useQuery({
     queryKey: qk.bankAccounts.list(),
     queryFn: () => bankAccountsApi.list().then((r) => r.data as BankAccountRow[]),
+    placeholderData: keepPreviousData,
   })
+  const isRefreshing = isFetching && !!bankAccounts
 
   const columns: Column<BankAccountRow>[] = [
     { key: 'code', header: 'Code', render: (b) => <span className="font-mono text-primary-600 dark:text-primary-400">{b.code}</span> },
@@ -271,15 +275,20 @@ export default function BankAccounts() {
         }
       />
 
-      <DataTable<BankAccountRow>
-        rowKey={(b) => b.id}
-        columns={columns}
-        data={bankAccounts ?? []}
-        loading={isLoading}
-        onRowClick={(b) => navigate(`/app/bank-accounts/${b.id}`)}
-        emptyTitle="No bank accounts"
-        emptyDescription="Create a bank account to record receipts and payments."
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<BankAccountRow>
+            rowKey={(b) => b.id}
+            columns={columns}
+            data={bankAccounts ?? []}
+            loading={!bankAccounts}
+            onRowClick={(b) => navigate(`/app/bank-accounts/${b.id}`)}
+            emptyTitle="No bank accounts"
+            emptyDescription="Create a bank account to record receipts and payments."
+          />
+        </div>
+      </div>
 
       <BankAccountFormModal
         open={modalOpen}

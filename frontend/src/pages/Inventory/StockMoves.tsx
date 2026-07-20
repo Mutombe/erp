@@ -2,12 +2,26 @@ import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowsLeftRight } from '@phosphor-icons/react'
-import { stockMovesApi } from '@/services/api'
+import { departmentsApi, stockMovesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
-import { Badge, DataTable, PageHeader, type Column } from '@/components/ui'
+import {
+  Badge,
+  DataTable,
+  PageHeader,
+  RefreshingOverlay,
+  Select,
+  refreshingContentClass,
+  type Column,
+} from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
-import { MOVE_TYPE_LABELS, MOVE_TYPE_VARIANTS, type MoveType, type StockMove } from '@/types/inventory'
+import {
+  MOVE_TYPE_LABELS,
+  MOVE_TYPE_VARIANTS,
+  type Department,
+  type MoveType,
+  type StockMove,
+} from '@/types/inventory'
 import { money } from '@/types/procurement'
 
 const MOVE_TYPES: MoveType[] = ['receipt', 'issue', 'transfer', 'adjustment_in', 'adjustment_out']
@@ -15,18 +29,45 @@ const MOVE_TYPES: MoveType[] = ['receipt', 'issue', 'transfer', 'adjustment_in',
 export default function StockMoves() {
   const [searchParams, setSearchParams] = useSearchParams()
   const typeFilter = searchParams.get('move_type') ?? ''
+  const departmentFilter = searchParams.get('department') ?? ''
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isLoading } = useQuery({
-    queryKey: qk.stockMoves.list({ page, search: debouncedSearch, move_type: typeFilter }),
+  const { data, isFetching } = useQuery({
+    queryKey: qk.stockMoves.list({
+      page,
+      search: debouncedSearch,
+      move_type: typeFilter,
+      department: departmentFilter,
+    }),
     queryFn: () =>
       stockMovesApi
-        .list({ page, search: debouncedSearch || undefined, move_type: typeFilter || undefined })
+        .list({
+          page,
+          search: debouncedSearch || undefined,
+          move_type: typeFilter || undefined,
+          department: departmentFilter || undefined,
+        })
         .then((r) => r.data as Paginated<StockMove>),
     placeholderData: keepPreviousData,
   })
+
+  const { data: departments } = useQuery({
+    queryKey: qk.departments.list({ is_active: true }),
+    queryFn: () => departmentsApi.list({ is_active: true }).then((r) => r.data as Department[]),
+  })
+
+  const isRefreshing = isFetching && !!data
+
+  /** Filters live in the query string so a filtered view is linkable. */
+  const setParam = (key: string, value: string) => {
+    const next = new URLSearchParams(searchParams)
+    if (value) next.set(key, value)
+    else next.delete(key)
+    setSearchParams(next, { replace: true })
+    setPage(1)
+  }
 
   const columns: Column<StockMove>[] = [
     { key: 'number', header: 'Number', render: (m) => <span className="font-mono">{m.number}</span> },
@@ -59,7 +100,7 @@ export default function StockMoves() {
         <span className="font-mono text-xs">{m.warehouse_from_code || '—'} → {m.warehouse_to_code || '—'}</span>
       ),
     },
-    { key: 'department', header: 'Department', render: (m) => m.department || '—' },
+    { key: 'department', header: 'Department', render: (m) => m.department_name || '—' },
     {
       key: 'journal',
       header: 'Journal',
@@ -86,17 +127,11 @@ export default function StockMoves() {
         icon={ArrowsLeftRight}
       />
 
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap items-center">
         {['', ...MOVE_TYPES].map((t) => (
           <button
             key={t}
-            onClick={() => {
-              const next = new URLSearchParams(searchParams)
-              if (t) next.set('move_type', t)
-              else next.delete('move_type')
-              setSearchParams(next, { replace: true })
-              setPage(1)
-            }}
+            onClick={() => setParam('move_type', t)}
             className={`px-3 py-1.5 text-sm rounded-full border ${
               typeFilter === t
                 ? 'bg-primary-600 text-white border-primary-600'
@@ -106,25 +141,42 @@ export default function StockMoves() {
             {t ? MOVE_TYPE_LABELS[t as MoveType] : 'All'}
           </button>
         ))}
+        <div className="w-64 ml-auto">
+          <Select
+            value={departmentFilter}
+            onChange={(e) => setParam('department', e.target.value)}
+            searchable
+          >
+            <option value="">All departments</option>
+            {(departments ?? []).map((d) => (
+              <option key={d.id} value={String(d.id)}>{`${d.code} · ${d.name}`}</option>
+            ))}
+          </Select>
+        </div>
       </div>
 
-      <DataTable<StockMove>
-        rowKey={(m) => m.id}
-        columns={columns}
-        data={data?.results ?? []}
-        loading={isLoading}
-        searchable
-        searchValue={search}
-        onSearch={(q) => { setSearch(q); setPage(1) }}
-        searchPlaceholder="Search number, item, department…"
-        emptyTitle="No stock moves"
-        pagination={{
-          page,
-          pageSize: 25,
-          total: data?.count ?? 0,
-          onPageChange: setPage,
-        }}
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<StockMove>
+            rowKey={(m) => m.id}
+            columns={columns}
+            data={data?.results ?? []}
+            loading={!data}
+            searchable
+            searchValue={search}
+            onSearch={(q) => { setSearch(q); setPage(1) }}
+            searchPlaceholder="Search number, item, department…"
+            emptyTitle="No stock moves"
+            pagination={{
+              page,
+              pageSize: 25,
+              total: data?.count ?? 0,
+              onPageChange: setPage,
+            }}
+          />
+        </div>
+      </div>
     </div>
   )
 }

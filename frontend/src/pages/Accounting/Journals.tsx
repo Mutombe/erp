@@ -5,7 +5,15 @@ import { Plus, Scroll } from '@phosphor-icons/react'
 import { journalsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce } from '@/lib/utils'
-import { Button, DataTable, PageHeader, StatusBadge, type Column } from '@/components/ui'
+import {
+  Button,
+  DataTable,
+  PageHeader,
+  RefreshingOverlay,
+  refreshingContentClass,
+  StatusBadge,
+  type Column,
+} from '@/components/ui'
 import type { Journal, Paginated } from '@/types/accounting'
 
 export default function Journals() {
@@ -16,7 +24,7 @@ export default function Journals() {
   const [page, setPage] = useState(1)
   const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.journals.list({ page, search: debouncedSearch, status: statusFilter }),
     queryFn: () =>
       journalsApi
@@ -24,6 +32,7 @@ export default function Journals() {
         .then((r) => r.data as Paginated<Journal>),
     placeholderData: keepPreviousData,
   })
+  const isRefreshing = isFetching && !!data
 
   const columns: Column<Journal>[] = [
     { key: 'number', header: 'Number', render: (j) => <span className="font-mono text-primary-600 dark:text-primary-400">{j.number}</span> },
@@ -70,24 +79,29 @@ export default function Journals() {
         ))}
       </div>
 
-      <DataTable<Journal>
-        rowKey={(j) => j.id}
-        columns={columns}
-        data={data?.results ?? []}
-        loading={isLoading}
-        searchable
-        searchValue={search}
-        onSearch={(q) => { setSearch(q); setPage(1) }}
-        searchPlaceholder="Search number, description, reference…"
-        onRowClick={(j) => navigate(`/app/journals/${j.id}`)}
-        emptyTitle="No journals found"
-        pagination={{
-          page,
-          pageSize: 25,
-          total: data?.count ?? 0,
-          onPageChange: setPage,
-        }}
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<Journal>
+            rowKey={(j) => j.id}
+            columns={columns}
+            data={data?.results ?? []}
+            loading={!data}
+            searchable
+            searchValue={search}
+            onSearch={(q) => { setSearch(q); setPage(1) }}
+            searchPlaceholder="Search number, description, reference…"
+            onRowClick={(j) => navigate(`/app/journals/${j.id}`)}
+            emptyTitle="No journals found"
+            pagination={{
+              page,
+              pageSize: 25,
+              total: data?.count ?? 0,
+              onPageChange: setPage,
+            }}
+          />
+        </div>
+      </div>
     </div>
   )
 }

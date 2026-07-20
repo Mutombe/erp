@@ -17,6 +17,8 @@ import {
   Modal,
   ModalFooter,
   PageHeader,
+  RefreshingOverlay,
+  refreshingContentClass,
   Select,
   SkeletonCard,
   StatsCard,
@@ -137,10 +139,11 @@ function ReconciliationWorkspace({ reconId }: { reconId: number }) {
   const queryClient = useQueryClient()
   const [confirmForce, setConfirmForce] = useState(false)
 
-  const { data: recon, isLoading } = useQuery({
+  const { data: recon, isFetching } = useQuery({
     queryKey: qk.bankReconciliations.detail(reconId),
     queryFn: () => bankReconciliationsApi.get(reconId).then((r) => r.data as Reconciliation),
   })
+  const isRefreshing = isFetching && !!recon
 
   const toggleMutation = useMutation({
     mutationFn: (itemId: number) => bankReconciliationsApi.toggleItem(reconId, itemId),
@@ -160,7 +163,7 @@ function ReconciliationWorkspace({ reconId }: { reconId: number }) {
     onError: (error) => showToast.error(parseApiError(error, 'Failed to complete reconciliation')),
   })
 
-  if (isLoading || !recon) return <SkeletonCard />
+  if (!recon) return <SkeletonCard />
 
   const difference = Number(recon.difference)
   const balanced = difference === 0
@@ -217,8 +220,9 @@ function ReconciliationWorkspace({ reconId }: { reconId: number }) {
         />
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-        <table className="w-full text-sm">
+      <div className="relative overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+        <RefreshingOverlay active={isRefreshing} />
+        <table className={refreshingContentClass(isRefreshing, 'w-full text-sm')}>
           <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
             <tr>
               <th className="px-4 py-3 w-12">✓</th>

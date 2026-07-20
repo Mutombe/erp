@@ -17,7 +17,9 @@ import {
   Modal,
   ModalFooter,
   PageHeader,
+  RefreshingOverlay,
   Select,
+  refreshingContentClass,
   type Column,
 } from '@/components/ui'
 import type { Account, Paginated } from '@/types/accounting'
@@ -107,7 +109,7 @@ export default function Items() {
   const [editItem, setEditItem] = useState<Item | null>(null)
   const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.items.list({ page, search: debouncedSearch }),
     queryFn: () =>
       itemsApi
@@ -115,6 +117,8 @@ export default function Items() {
         .then((r) => r.data as Paginated<Item>),
     placeholderData: keepPreviousData,
   })
+
+  const isRefreshing = isFetching && !!data
 
   const columns: Column<Item>[] = [
     { key: 'code', header: 'Code', render: (i) => <span className="font-mono text-primary-600 dark:text-primary-400">{i.code}</span> },
@@ -184,25 +188,30 @@ export default function Items() {
         }
       />
 
-      <DataTable<Item>
-        rowKey={(i) => i.id}
-        columns={columns}
-        data={data?.results ?? []}
-        loading={isLoading}
-        searchable
-        searchValue={search}
-        onSearch={(q) => { setSearch(q); setPage(1) }}
-        searchPlaceholder="Search code, name, barcode…"
-        onRowClick={(i) => navigate(`/app/items/${i.id}`)}
-        emptyTitle="No items found"
-        emptyDescription="Create your first inventory item to start tracking stock."
-        pagination={{
-          page,
-          pageSize: 25,
-          total: data?.count ?? 0,
-          onPageChange: setPage,
-        }}
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<Item>
+            rowKey={(i) => i.id}
+            columns={columns}
+            data={data?.results ?? []}
+            loading={!data}
+            searchable
+            searchValue={search}
+            onSearch={(q) => { setSearch(q); setPage(1) }}
+            searchPlaceholder="Search code, name, barcode…"
+            onRowClick={(i) => navigate(`/app/items/${i.id}`)}
+            emptyTitle="No items found"
+            emptyDescription="Create your first inventory item to start tracking stock."
+            pagination={{
+              page,
+              pageSize: 25,
+              total: data?.count ?? 0,
+              onPageChange: setPage,
+            }}
+          />
+        </div>
+      </div>
 
       <ItemFormModal
         open={itemModalOpen}

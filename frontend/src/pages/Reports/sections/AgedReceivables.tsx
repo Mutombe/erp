@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { DownloadSimple } from '@phosphor-icons/react'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { exportToCSV, formatExportNumber } from '@/lib/export'
-import { Button, SkeletonTable } from '@/components/ui'
+import { Button, RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
 
 interface AgedRow {
@@ -32,10 +32,14 @@ const money = (v: number) =>
 export default function AgedReceivables() {
   const [asOf, setAsOf] = useState(new Date().toISOString().slice(0, 10))
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.reports.agedReceivables({ asOf }),
     queryFn: () => reportsApi.agedReceivables({ as_of_date: asOf }).then((r) => r.data as AgedData),
+    placeholderData: keepPreviousData,
   })
+
+  // Changing the as-at date refreshes in place rather than blanking the ageing.
+  const isRefreshing = isFetching && !!data
 
   const handleExport = () => {
     if (!data) return
@@ -91,11 +95,12 @@ export default function AgedReceivables() {
         </div>
       </div>
 
-      {isLoading || !data ? (
+      {!data ? (
         <SkeletonTable rows={8} />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-          <table className="w-full text-sm">
+        <div className="relative overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+          <RefreshingOverlay active={isRefreshing} />
+          <table className={refreshingContentClass(isRefreshing, 'w-full text-sm')}>
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-3">Student</th>

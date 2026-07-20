@@ -17,8 +17,10 @@ import {
   Modal,
   ModalFooter,
   PageHeader,
+  RefreshingOverlay,
   Select,
   StatusBadge,
+  refreshingContentClass,
   type Column,
 } from '@/components/ui'
 import type { BankAccount, Paginated } from '@/types/accounting'
@@ -131,7 +133,7 @@ export default function SupplierPayments() {
   const [modalOpen, setModalOpen] = useState(false)
   const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.supplierPayments.list({ page, search: debouncedSearch }),
     queryFn: () =>
       supplierPaymentsApi
@@ -139,6 +141,7 @@ export default function SupplierPayments() {
         .then((r) => r.data as Paginated<SupplierPayment>),
     placeholderData: keepPreviousData,
   })
+  const isRefreshing = isFetching && !!data
 
   const columns: Column<SupplierPayment>[] = [
     { key: 'number', header: 'Number', render: (p) => <span className="font-mono text-primary-600 dark:text-primary-400">{p.number}</span> },
@@ -191,24 +194,29 @@ export default function SupplierPayments() {
         }
       />
 
-      <DataTable<SupplierPayment>
-        rowKey={(p) => p.id}
-        columns={columns}
-        data={data?.results ?? []}
-        loading={isLoading}
-        searchable
-        searchValue={search}
-        onSearch={(q) => { setSearch(q); setPage(1) }}
-        searchPlaceholder="Search number, reference, supplier…"
-        onRowClick={(p) => navigate(`/app/supplier-payments/${p.id}`)}
-        emptyTitle="No supplier payments"
-        pagination={{
-          page,
-          pageSize: 25,
-          total: data?.count ?? 0,
-          onPageChange: setPage,
-        }}
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<SupplierPayment>
+            rowKey={(p) => p.id}
+            columns={columns}
+            data={data?.results ?? []}
+            loading={!data}
+            searchable
+            searchValue={search}
+            onSearch={(q) => { setSearch(q); setPage(1) }}
+            searchPlaceholder="Search number, reference, supplier…"
+            onRowClick={(p) => navigate(`/app/supplier-payments/${p.id}`)}
+            emptyTitle="No supplier payments"
+            pagination={{
+              page,
+              pageSize: 25,
+              total: data?.count ?? 0,
+              onPageChange: setPage,
+            }}
+          />
+        </div>
+      </div>
 
       <PaymentFormModal open={modalOpen} onClose={() => setModalOpen(false)} />
     </div>

@@ -4,17 +4,29 @@ import { Lock, LockOpen } from '@phosphor-icons/react'
 import { fiscalPeriodsApi, fiscalYearsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
-import { Badge, Button, Card, ConfirmDialog, SkeletonTable, StatusBadge } from '@/components/ui'
+import {
+  Badge,
+  Button,
+  Card,
+  ConfirmDialog,
+  RefreshingOverlay,
+  SkeletonTable,
+  StatusBadge,
+  refreshingContentClass,
+} from '@/components/ui'
 import type { FiscalPeriod, FiscalYear } from '@/types/assets'
 
 export default function FiscalPeriodsTab() {
   const queryClient = useQueryClient()
   const [target, setTarget] = useState<{ period: FiscalPeriod; year: FiscalYear; action: 'lock' | 'unlock' } | null>(null)
 
-  const { data: years, isLoading } = useQuery({
+  const { data: years, isFetching } = useQuery({
     queryKey: qk.fiscalYears.list(),
     queryFn: () => fiscalYearsApi.list().then((r) => r.data as FiscalYear[]),
   })
+
+  // Lock/unlock refetches update the period cards in place.
+  const isRefreshing = isFetching && !!years
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: qk.fiscalYears.all })
@@ -33,7 +45,7 @@ export default function FiscalPeriodsTab() {
     onError: (error) => showToast.error(parseApiError(error, 'Failed to update period')),
   })
 
-  if (isLoading || !years) return <SkeletonTable rows={8} />
+  if (!years) return <SkeletonTable rows={8} />
 
   if (years.length === 0) {
     return (
@@ -45,6 +57,9 @@ export default function FiscalPeriodsTab() {
 
   return (
     <div className="space-y-4">
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing, 'space-y-4')}>
       {years.map((year) => (
         <Card key={year.id} padding="md">
           <div className="flex items-center gap-3 mb-4">
@@ -94,6 +109,8 @@ export default function FiscalPeriodsTab() {
           </div>
         </Card>
       ))}
+        </div>
+      </div>
 
       <ConfirmDialog
         open={!!target}

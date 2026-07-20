@@ -13,7 +13,9 @@ import {
   Input,
   Modal,
   ModalFooter,
+  RefreshingOverlay,
   Select,
+  refreshingContentClass,
   type Column,
 } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
@@ -100,11 +102,14 @@ export default function RatesTab() {
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.exchangeRates.list({ page }),
     queryFn: () => exchangeRatesApi.list({ page }).then((r) => r.data as Paginated<ExchangeRate>),
     placeholderData: keepPreviousData,
   })
+
+  // Paging keeps the current rows rendered while the next page loads.
+  const isRefreshing = isFetching && !!data
 
   const columns: Column<ExchangeRate>[] = [
     {
@@ -133,20 +138,25 @@ export default function RatesTab() {
 
   return (
     <div className="space-y-4">
-      <DataTable<ExchangeRate>
-        rowKey={(r) => r.id}
-        columns={columns}
-        data={data?.results ?? []}
-        loading={isLoading}
-        emptyTitle="No exchange rates yet"
-        emptyDescription="Add a ZWG → USD rate so multi-currency documents can translate to base."
-        actions={
-          <Button onClick={() => setShowModal(true)}>
-            <Plus className="w-4 h-4 mr-2" /> New Rate
-          </Button>
-        }
-        pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<ExchangeRate>
+            rowKey={(r) => r.id}
+            columns={columns}
+            data={data?.results ?? []}
+            loading={!data}
+            emptyTitle="No exchange rates yet"
+            emptyDescription="Add a ZWG → USD rate so multi-currency documents can translate to base."
+            actions={
+              <Button onClick={() => setShowModal(true)}>
+                <Plus className="w-4 h-4 mr-2" /> New Rate
+              </Button>
+            }
+            pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
+          />
+        </div>
+      </div>
 
       {showModal && <RateModal onClose={() => setShowModal(false)} />}
     </div>

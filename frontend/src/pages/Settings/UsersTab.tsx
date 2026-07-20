@@ -14,7 +14,9 @@ import {
   Input,
   Modal,
   ModalFooter,
+  RefreshingOverlay,
   Select,
+  refreshingContentClass,
   type Column,
 } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
@@ -134,12 +136,15 @@ export default function UsersTab() {
   const [modalUser, setModalUser] = useState<UserRow | null | undefined>(undefined)
   const [toggleTarget, setToggleTarget] = useState<UserRow | null>(null)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.users.list({ page, search }),
     queryFn: () =>
       usersApi.list({ page, search: search || undefined }).then((r) => r.data as Paginated<UserRow>),
     placeholderData: keepPreviousData,
   })
+
+  // Searching / paging keeps the current rows rendered while the next set loads.
+  const isRefreshing = isFetching && !!data
 
   const toggleMutation = useMutation({
     mutationFn: (user: UserRow) => usersApi.update(user.id, { is_active: !user.is_active }),
@@ -179,23 +184,28 @@ export default function UsersTab() {
 
   return (
     <div className="space-y-4">
-      <DataTable<UserRow>
-        rowKey={(u) => u.id}
-        columns={columns}
-        data={data?.results ?? []}
-        loading={isLoading}
-        searchable
-        searchValue={search}
-        onSearch={(q) => { setSearch(q); setPage(1) }}
-        searchPlaceholder="Search email or name…"
-        emptyTitle="No users found"
-        actions={
-          <Button onClick={() => setModalUser(null)}>
-            <Plus className="w-4 h-4 mr-2" /> New User
-          </Button>
-        }
-        pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
-      />
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<UserRow>
+            rowKey={(u) => u.id}
+            columns={columns}
+            data={data?.results ?? []}
+            loading={!data}
+            searchable
+            searchValue={search}
+            onSearch={(q) => { setSearch(q); setPage(1) }}
+            searchPlaceholder="Search email or name…"
+            emptyTitle="No users found"
+            actions={
+              <Button onClick={() => setModalUser(null)}>
+                <Plus className="w-4 h-4 mr-2" /> New User
+              </Button>
+            }
+            pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
+          />
+        </div>
+      </div>
 
       {modalUser !== undefined && (
         <UserFormModal user={modalUser} onClose={() => setModalUser(undefined)} />

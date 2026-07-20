@@ -68,6 +68,7 @@ COA = [
     ('5200', 'Food & Catering', 'operating_expenses', '', False),
     ('5210', 'Stationery & Teaching Materials', 'operating_expenses', '', False),
     ('5220', 'Sports & Activities', 'operating_expenses', '', False),
+    ('5230', 'Agriculture & Farm Expenses', 'operating_expenses', '', False),
     ('5300', 'Transport & Fuel', 'operating_expenses', '', False),
     ('5400', 'Administration Expenses', 'administrative_expenses', '', False),
     ('5410', 'Communication & Internet', 'administrative_expenses', '', False),
@@ -118,6 +119,21 @@ GRADES = (
     + [(f'Form {i}', i + 9, 'secondary') for i in range(1, 7)]
 )
 
+DEPARTMENTS = [
+    # (code, name, expense account code or None)
+    ('ACAD', 'Academic / Teaching', '5210'),
+    ('AGRI', 'Agriculture', '5230'),
+    ('SPRT', 'Sports & Recreation', '5220'),
+    ('KITC', 'Kitchen & Catering', '5200'),
+    ('BORD', 'Boarding', None),
+    ('MAINT', 'Maintenance & Grounds', '5110'),
+    ('TRAN', 'Transport', '5300'),
+    ('ADMIN', 'Administration', '5400'),
+    ('ICT', 'ICT', '5410'),
+    ('HLTH', 'Health & Clinic', None),
+    ('LIB', 'Library', None),
+]
+
 BANKS = [
     ('CASH-USD', 'Cash Box (USD)', 'cash', '1000', 'USD', True),
     ('CASH-ZWG', 'Cash Box (ZWG)', 'cash', '1005', 'ZWG', False),
@@ -139,6 +155,7 @@ class Command(BaseCommand):
         )
         from apps.core.models import DocumentSequence, SchoolSettings
         from apps.fees.models import FeeCategory
+        from apps.inventory.models import Department
         from apps.students.models import AcademicYear, Grade, Term
 
         for doc_type, prefix in SEQUENCES:
@@ -215,6 +232,15 @@ class Command(BaseCommand):
                 defaults={
                     'name': name, 'account_type': acc_type, 'gl_account': accounts[gl_code],
                     'currency': currency, 'is_default': is_default,
+                },
+            )
+
+        for code, name, expense_code in DEPARTMENTS:
+            Department.objects.get_or_create(
+                code=code,
+                defaults={
+                    'name': name,
+                    'expense_account': accounts[expense_code] if expense_code else None,
                 },
             )
 

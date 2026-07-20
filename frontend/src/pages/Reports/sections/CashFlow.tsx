@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { DownloadSimple } from '@phosphor-icons/react'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { exportToCSV, formatExportNumber } from '@/lib/export'
-import { Button, SkeletonTable } from '@/components/ui'
+import { Button, RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
 
 type Num = number | string
@@ -37,10 +37,14 @@ export default function CashFlow() {
   const [start, setStart] = useState(`${new Date().getFullYear()}-01-01`)
   const [end, setEnd] = useState(today)
 
-  const { data, isLoading } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: qk.reports.cashFlow({ start, end }),
     queryFn: () => reportsApi.cashFlow({ start, end }).then((r) => r.data as CFData),
+    placeholderData: keepPreviousData,
   })
+
+  // Changing the date range refreshes in place rather than blanking the report.
+  const isRefreshing = isFetching && !!data
 
   const handleExport = () => {
     if (!data) return
@@ -85,11 +89,12 @@ export default function CashFlow() {
         </div>
       </div>
 
-      {isLoading || !data ? (
+      {!data ? (
         <SkeletonTable rows={10} />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-          <table className="w-full text-sm">
+        <div className="relative overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+          <RefreshingOverlay active={isRefreshing} />
+          <table className={refreshingContentClass(isRefreshing, 'w-full text-sm')}>
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-3">Category</th>
