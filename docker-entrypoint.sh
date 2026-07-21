@@ -32,12 +32,14 @@ fi
 
 # One-shot demo seeding, run in-datacenter (low latency to the DB). Set the
 # SEED_DEMO env var to "reset" to rebuild demo data on the next deploy, then
-# REMOVE the var so ordinary restarts don't wipe it. Runs in the background so
-# the web service binds its port and passes health checks immediately.
+# REMOVE the var so ordinary restarts don't wipe it. Run FOREGROUND before
+# gunicorn so it gets the full instance memory (no web workers competing) and
+# streams progress to the deploy logs. Render keeps the previous version
+# serving until this one binds its port, so there is no downtime while seeding.
 if [ "$SEED_DEMO" = "reset" ]; then
-  echo "==> SEED_DEMO=reset — rebuilding demo data in the background"
-  ( python manage.py seed_demo --reset && echo "==> seed_demo finished" \
-    || echo "==> seed_demo FAILED" ) &
+  echo "==> SEED_DEMO=reset — rebuilding demo data (foreground)"
+  python -u manage.py seed_demo --reset || echo "==> seed_demo FAILED (continuing to boot)"
+  echo "==> seed_demo step done"
 fi
 
 echo "==> Starting gunicorn on port ${PORT:-10000}"
