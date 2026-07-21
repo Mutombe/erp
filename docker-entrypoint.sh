@@ -30,6 +30,16 @@ else:
 "
 fi
 
+# One-shot demo seeding, run in-datacenter (low latency to the DB). Set the
+# SEED_DEMO env var to "reset" to rebuild demo data on the next deploy, then
+# REMOVE the var so ordinary restarts don't wipe it. Runs in the background so
+# the web service binds its port and passes health checks immediately.
+if [ "$SEED_DEMO" = "reset" ]; then
+  echo "==> SEED_DEMO=reset — rebuilding demo data in the background"
+  ( python manage.py seed_demo --reset && echo "==> seed_demo finished" \
+    || echo "==> seed_demo FAILED" ) &
+fi
+
 echo "==> Starting gunicorn on port ${PORT:-10000}"
 exec gunicorn config.wsgi:application \
   --bind "0.0.0.0:${PORT:-10000}" \
