@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -7,12 +6,15 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { PencilSimple, Plus, Truck } from '@phosphor-icons/react'
 import { suppliersApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { useDebounce } from '@/lib/utils'
+import { usePagedList } from '@/hooks/usePaginatedQuery'
+import { usePrefetchDetail } from '@/hooks/usePrefetch'
+import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import { useOptimisticCreate, useOptimisticUpdate } from '@/hooks/useOptimisticMutation'
 import {
   Badge,
   Button,
   DataTable,
+  FilterBar,
   FormRow,
   Input,
   Modal,
@@ -26,6 +28,19 @@ import {
 } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import type { Supplier } from '@/types/procurement'
+
+const PAGE_SIZE = 25
+
+const CURRENCY_OPTIONS = [
+  { value: 'USD', label: 'USD' },
+  { value: 'ZWG', label: 'ZWG' },
+]
+
+const FILTER_CONFIG: FilterConfig = [
+  { type: 'search', placeholder: 'Search code, name, contact, phone…' },
+  { type: 'chips', field: 'default_currency', label: 'Currency', options: CURRENCY_OPTIONS },
+  { type: 'boolean', field: 'is_active', label: 'Active' },
+]
 
 const schema = z.object({
   code: z.string().default(''),
@@ -174,21 +189,29 @@ function SupplierFormModal({
 
 export default function Suppliers() {
   const navigate = useNavigate()
-  const [search, setSearch] = useState('')
+  const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
   const [editSupplier, setEditSupplier] = useState<Supplier | null>(null)
-  const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isFetching } = useQuery({
-    queryKey: qk.suppliers.list({ page, search: debouncedSearch }),
-    queryFn: () =>
-      suppliersApi
-        .list({ page, search: debouncedSearch || undefined })
-        .then((r) => r.data as Paginated<Supplier>),
-    placeholderData: keepPreviousData,
+  const filterSignature = JSON.stringify(filters.params)
+  useEffect(() => {
+    setPage(1)
+  }, [filterSignature])
+
+  const { data, results, total, isFetching } = usePagedList<Supplier>({
+    keyFor: (p) => qk.suppliers.list({ ...filters.params, page: p }),
+    fetchPage: (p) =>
+      suppliersApi.list(filtersToQuery(filters.params, { page: p })).then((r) => r.data as Paginated<Supplier>),
+    page,
+    pageSize: PAGE_SIZE,
   })
   const isRefreshing = isFetching && !!data
+
+  const prefetchSupplier = usePrefetchDetail<Supplier>(
+    (s) => qk.suppliers.detail(s.id),
+    (s) => suppliersApi.get(s.id).then((r) => r.data)
+  )
 
   const columns: Column<Supplier>[] = [
     { key: 'code', header: 'Code', render: (s) => <span className="font-mono text-primary-600 dark:text-primary-400">{s.code}</span> },
@@ -234,25 +257,24 @@ export default function Suppliers() {
         }
       />
 
+      <FilterBar config={FILTER_CONFIG} filters={filters} />
+
       <div className="relative">
         <RefreshingOverlay active={isRefreshing} />
         <div className={refreshingContentClass(isRefreshing)}>
           <DataTable<Supplier>
             rowKey={(s) => s.id}
             columns={columns}
-            data={data?.results ?? []}
+            data={results}
             loading={!data}
-            searchable
-            searchValue={search}
-            onSearch={(q) => { setSearch(q); setPage(1) }}
-            searchPlaceholder="Search code, name, contact, phone…"
             onRowClick={(s) => navigate(`/app/suppliers/${s.id}`)}
+            onRowHover={prefetchSupplier}
             emptyTitle="No suppliers"
             emptyDescription="Add a supplier to start raising purchase orders."
             pagination={{
               page,
-              pageSize: 25,
-              total: data?.count ?? 0,
+              pageSize: PAGE_SIZE,
+              total,
               onPageChange: setPage,
             }}
           />

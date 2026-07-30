@@ -26,6 +26,8 @@ const builtRoutes: [string, React.LazyExoticComponent<() => JSX.Element>][] = [
   ['bank-accounts', lazy(() => import('@/pages/Accounting/BankAccounts'))],
   ['bank-accounts/:id', lazy(() => import('@/pages/Accounting/BankAccountDetail'))],
   ['bank-reconciliation', lazy(() => import('@/pages/Accounting/BankReconciliation'))],
+  ['pockets', lazy(() => import('@/pages/Accounting/Pockets'))],
+  ['pockets/:id', lazy(() => import('@/pages/Accounting/PocketStatement'))],
   // Students & Fees
   ['students', lazy(() => import('@/pages/Students/Students'))],
   ['students/:id', lazy(() => import('@/pages/Students/StudentDetail'))],

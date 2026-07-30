@@ -1,10 +1,14 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
+import { useChartTheme, chartMoney, chartCompact } from '@/lib/chartTheme'
 import { RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
+import ExcelButton from './ExcelButton'
+import ReportChart, { ChartLegend } from './ReportChart'
 
 interface ISRow { account_id: number; code: string; name: string; amount: number; prev_amount?: number }
 interface ISSection { group: string; rows: ISRow[]; total: number; prev_total?: number }
@@ -92,6 +96,23 @@ export default function IncomeStatement() {
   const monthlyData = data && 'mode' in data && data.mode === 'monthly' ? (data as MonthlyData) : undefined
   const periodData = data && !(data && 'mode' in data) ? (data as ISData) : undefined
   const showPrev = !monthly && compare !== ''
+  const theme = useChartTheme()
+
+  // Group totals as bars: income groups vs expenditure groups (period mode only).
+  const chartRows = periodData
+    ? [
+        ...periodData.income.map((s) => ({
+          name: GROUP_LABELS[s.group] ?? s.group,
+          value: s.total,
+          kind: 'income' as const,
+        })),
+        ...periodData.expenses.map((s) => ({
+          name: GROUP_LABELS[s.group] ?? s.group,
+          value: s.total,
+          kind: 'expense' as const,
+        })),
+      ].filter((r) => r.value !== 0)
+    : []
 
   const monthLabel = (m: string) => {
     const [year, mm] = m.split('-')
@@ -232,7 +253,63 @@ export default function IncomeStatement() {
             ...(monthly ? { monthly: 1 } : compare ? { compare } : {}),
           }}
         />
+        <ExcelButton
+          reportKey="income-statement"
+          params={{
+            start,
+            end,
+            layout,
+            ...(monthly ? { monthly: 1 } : compare ? { compare } : {}),
+          }}
+        />
       </div>
+
+      {periodData && (
+        <ReportChart title="Income vs expenditure by group" height={248} isEmpty={chartRows.length === 0}>
+          <div className="flex flex-col h-full">
+            <ChartLegend
+              items={[
+                { label: periodData.labels.income, color: theme.series(2) },
+                { label: periodData.labels.expenses, color: theme.series(1) },
+              ]}
+            />
+            <div className="flex-1 min-h-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartRows} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
+                  <CartesianGrid stroke={theme.grid} vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fill: theme.tick, fontSize: 11 }}
+                    axisLine={{ stroke: theme.grid }}
+                    tickLine={false}
+                    interval={0}
+                    height={44}
+                    angle={-10}
+                    textAnchor="end"
+                  />
+                  <YAxis
+                    tick={{ fill: theme.tick, fontSize: 12 }}
+                    tickFormatter={chartCompact}
+                    axisLine={false}
+                    tickLine={false}
+                    width={56}
+                  />
+                  <Tooltip
+                    formatter={(v: number | string) => [chartMoney(v), 'Total']}
+                    cursor={{ fill: theme.cursorFill }}
+                    contentStyle={theme.tooltipStyle}
+                  />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={48} isAnimationActive={!theme.reducedMotion}>
+                    {chartRows.map((r, i) => (
+                      <Cell key={i} fill={r.kind === 'income' ? theme.series(2) : theme.series(1)} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </ReportChart>
+      )}
 
       {!data ? (
         <SkeletonTable rows={12} />

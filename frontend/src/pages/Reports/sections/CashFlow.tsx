@@ -1,11 +1,15 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { DownloadSimple } from '@phosphor-icons/react'
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { exportToCSV, formatExportNumber } from '@/lib/export'
+import { useChartTheme, chartMoney, chartCompact } from '@/lib/chartTheme'
 import { Button, RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
+import ExcelButton from './ExcelButton'
+import ReportChart from './ReportChart'
 
 type Num = number | string
 
@@ -33,6 +37,7 @@ const netClass = (v: Num) =>
   Number(v) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
 
 export default function CashFlow() {
+  const theme = useChartTheme()
   const today = new Date().toISOString().slice(0, 10)
   const [start, setStart] = useState(`${new Date().getFullYear()}-01-01`)
   const [end, setEnd] = useState(today)
@@ -45,6 +50,16 @@ export default function CashFlow() {
 
   // Changing the date range refreshes in place rather than blanking the report.
   const isRefreshing = isFetching && !!data
+
+  // Inflow / outflow aggregated per cash-flow group for the overview chart.
+  const cfChart = Object.values(
+    (data?.rows ?? []).reduce<Record<string, { name: string; inflow: number; outflow: number }>>((acc, r) => {
+      acc[r.group] ??= { name: r.group, inflow: 0, outflow: 0 }
+      acc[r.group].inflow += Number(r.inflow)
+      acc[r.group].outflow += Number(r.outflow)
+      return acc
+    }, {})
+  )
 
   const handleExport = () => {
     if (!data) return
@@ -86,8 +101,33 @@ export default function CashFlow() {
             <DownloadSimple className="w-4 h-4 mr-2" /> Export CSV
           </Button>
           <PdfButton reportKey="cash-flow" params={{ start, end }} />
+          <ExcelButton reportKey="cash-flow" params={{ start, end }} />
         </div>
       </div>
+
+      {data && (
+        <ReportChart title="Inflows vs outflows by group" height={240} isEmpty={cfChart.length === 0}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={cfChart} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
+              <CartesianGrid stroke={theme.grid} vertical={false} />
+              <XAxis dataKey="name" tick={{ fill: theme.tick, fontSize: 11 }} axisLine={{ stroke: theme.grid }} tickLine={false} interval={0} height={44} angle={-10} textAnchor="end" />
+              <YAxis tick={{ fill: theme.tick, fontSize: 12 }} tickFormatter={chartCompact} axisLine={false} tickLine={false} width={56} />
+              <Tooltip
+                formatter={(v: number | string, n: string) => [chartMoney(v), n === 'inflow' ? 'Inflow' : 'Outflow']}
+                cursor={{ fill: theme.cursorFill }}
+                contentStyle={theme.tooltipStyle}
+              />
+              <Legend
+                formatter={(value: string) => (
+                  <span style={{ color: theme.tick, fontSize: 12 }}>{value === 'inflow' ? 'Inflow' : 'Outflow'}</span>
+                )}
+              />
+              <Bar dataKey="inflow" fill={theme.series(2)} radius={[4, 4, 0, 0]} maxBarSize={22} isAnimationActive={!theme.reducedMotion} />
+              <Bar dataKey="outflow" fill={theme.series(1)} radius={[4, 4, 0, 0]} maxBarSize={22} isAnimationActive={!theme.reducedMotion} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ReportChart>
+      )}
 
       {!data ? (
         <SkeletonTable rows={10} />

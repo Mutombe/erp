@@ -5,6 +5,7 @@ import { bankAccountsApi, reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
+import ExcelButton from './ExcelButton'
 import type { BankAccount } from '@/types/accounting'
 
 interface CashbookRow {
@@ -93,8 +94,13 @@ export default function Cashbook() {
           <input type="date" value={end} onChange={(e) => setEnd(e.target.value)}
             className="ml-1 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800" />
         </label>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-3">
           <PdfButton
+            reportKey="cashbook"
+            params={{ bank_account: effectiveBank, start, end }}
+            disabled={!effectiveBank}
+          />
+          <ExcelButton
             reportKey="cashbook"
             params={{ bank_account: effectiveBank, start, end }}
             disabled={!effectiveBank}

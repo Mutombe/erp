@@ -8,10 +8,13 @@ import { Plus, Warehouse as WarehouseIcon } from '@phosphor-icons/react'
 import { warehousesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useOptimisticCreate } from '@/hooks/useOptimisticMutation'
+import { usePrefetchDetail } from '@/hooks/usePrefetch'
+import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import {
   Badge,
   Button,
   DataTable,
+  FilterBar,
   FormRow,
   Input,
   Modal,
@@ -22,6 +25,10 @@ import {
   type Column,
 } from '@/components/ui'
 import type { Warehouse } from '@/types/inventory'
+
+const FILTER_CONFIG: FilterConfig = [
+  { type: 'search', placeholder: 'Search code, name, location…' },
+]
 
 const schema = z.object({
   code: z.string().min(1, 'Code is required'),
@@ -77,15 +84,22 @@ function WarehouseFormModal({ open, onClose }: { open: boolean; onClose: () => v
 
 export default function Warehouses() {
   const navigate = useNavigate()
+  const filters = useUrlFilters(FILTER_CONFIG)
   const [modalOpen, setModalOpen] = useState(false)
 
   const { data: warehouses, isFetching } = useQuery({
-    queryKey: qk.warehouses.list(),
-    queryFn: () => warehousesApi.list().then((r) => r.data as Warehouse[]),
+    queryKey: qk.warehouses.list(filters.params),
+    queryFn: () => warehousesApi.list(filtersToQuery(filters.params)).then((r) => r.data as Warehouse[]),
     placeholderData: keepPreviousData,
   })
 
   const isRefreshing = isFetching && !!warehouses
+
+  // Warm the warehouse detail cache on row hover so opening a warehouse is instant.
+  const prefetchWarehouse = usePrefetchDetail<Warehouse>(
+    (w) => qk.warehouses.detail(w.id),
+    (w) => warehousesApi.get(w.id).then((r) => r.data)
+  )
 
   const columns: Column<Warehouse>[] = [
     { key: 'code', header: 'Code', render: (w) => <span className="font-mono text-primary-600 dark:text-primary-400">{w.code}</span> },
@@ -111,6 +125,8 @@ export default function Warehouses() {
         }
       />
 
+      <FilterBar config={FILTER_CONFIG} filters={filters} />
+
       <div className="relative">
         <RefreshingOverlay active={isRefreshing} />
         <div className={refreshingContentClass(isRefreshing)}>
@@ -120,6 +136,7 @@ export default function Warehouses() {
             data={warehouses ?? []}
             loading={!warehouses}
             onRowClick={(w) => navigate(`/app/warehouses/${w.id}`)}
+            onRowHover={prefetchWarehouse}
             emptyTitle="No warehouses"
             emptyDescription="Create a warehouse to start receiving stock."
           />

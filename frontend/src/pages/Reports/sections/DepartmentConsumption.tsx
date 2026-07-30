@@ -1,11 +1,16 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { DownloadSimple } from '@phosphor-icons/react'
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { exportToCSV, formatExportNumber } from '@/lib/export'
+import { useChartTheme, chartMoney, chartCompact } from '@/lib/chartTheme'
 import { Button, RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
+import ExcelButton from './ExcelButton'
+import ReportChart from './ReportChart'
 
 interface DCRow {
   department_id: number
@@ -42,6 +47,8 @@ function startOfYear() {
 }
 
 export default function DepartmentConsumption() {
+  const navigate = useNavigate()
+  const theme = useChartTheme()
   const [start, setStart] = useState(startOfYear())
   const [end, setEnd] = useState(new Date().toISOString().slice(0, 10))
 
@@ -92,8 +99,50 @@ export default function DepartmentConsumption() {
             <DownloadSimple className="w-4 h-4 mr-2" /> Export CSV
           </Button>
           <PdfButton reportKey="department-consumption" params={{ start, end }} />
+          <ExcelButton reportKey="department-consumption" params={{ start, end }} />
         </div>
       </div>
+
+      {data && (
+        <ReportChart
+          title="Consumption cost by department"
+          height={240}
+          hint="Click a bar to see that department's stock moves"
+          isEmpty={data.rows.length === 0}
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={data.rows.map((r) => ({
+                name: r.department_name,
+                cost: Number(r.total_cost),
+                id: r.department_id,
+              }))}
+              margin={{ top: 8, right: 8, bottom: 0, left: 8 }}
+            >
+              <CartesianGrid stroke={theme.grid} vertical={false} />
+              <XAxis dataKey="name" tick={{ fill: theme.tick, fontSize: 11 }} axisLine={{ stroke: theme.grid }} tickLine={false} interval={0} height={44} angle={-10} textAnchor="end" />
+              <YAxis tick={{ fill: theme.tick, fontSize: 12 }} tickFormatter={chartCompact} axisLine={false} tickLine={false} width={56} />
+              <Tooltip
+                formatter={(v: number | string) => [chartMoney(v), 'Cost']}
+                cursor={{ fill: theme.cursorFill }}
+                contentStyle={theme.tooltipStyle}
+              />
+              <Bar
+                dataKey="cost"
+                fill={theme.primary}
+                radius={[4, 4, 0, 0]}
+                maxBarSize={56}
+                isAnimationActive={!theme.reducedMotion}
+                className="cursor-pointer"
+                onClick={(entry: { id?: number; payload?: { id?: number } }) => {
+                  const deptId = entry?.id ?? entry?.payload?.id
+                  if (deptId) navigate(`/app/stock-moves?department=${deptId}`)
+                }}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </ReportChart>
+      )}
 
       {!data ? (
         <SkeletonTable rows={8} />

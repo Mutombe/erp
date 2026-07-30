@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -7,11 +7,14 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Wallet } from '@phosphor-icons/react'
 import { bankAccountsApi, suppliersApi, supplierPaymentsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { useDebounce } from '@/lib/utils'
+import { usePagedList } from '@/hooks/usePaginatedQuery'
+import { usePrefetchDetail } from '@/hooks/usePrefetch'
+import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import { showToast, parseApiError } from '@/lib/toast'
 import {
   Button,
   DataTable,
+  FilterBar,
   FormRow,
   Input,
   Modal,
@@ -25,6 +28,30 @@ import {
 } from '@/components/ui'
 import type { BankAccount, Paginated } from '@/types/accounting'
 import { money, type Supplier, type SupplierPayment } from '@/types/procurement'
+
+const PAGE_SIZE = 25
+
+const CURRENCY_OPTIONS = [
+  { value: 'USD', label: 'USD' },
+  { value: 'ZWG', label: 'ZWG' },
+]
+
+const FILTER_CONFIG: FilterConfig = [
+  {
+    type: 'select',
+    field: 'supplier',
+    label: 'Supplier',
+    searchable: true,
+    query: {
+      queryKey: ['suppliers', 'facet-options'],
+      queryFn: () => suppliersApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as any[]),
+      toOption: (row) => ({ value: String(row.id), label: `${row.code} · ${row.name}` }),
+    },
+  },
+  { type: 'chips', field: 'currency', label: 'Currency', options: CURRENCY_OPTIONS },
+  { type: 'dateRange', field: 'date', label: 'Date' },
+  { type: 'amountRange', field: 'amount', label: 'Amount' },
+]
 
 const schema = z.object({
   supplier: z.coerce.number().min(1, 'Supplier is required'),
@@ -128,20 +155,28 @@ function PaymentFormModal({ open, onClose }: { open: boolean; onClose: () => voi
 
 export default function SupplierPayments() {
   const navigate = useNavigate()
-  const [search, setSearch] = useState('')
+  const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
-  const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isFetching } = useQuery({
-    queryKey: qk.supplierPayments.list({ page, search: debouncedSearch }),
-    queryFn: () =>
-      supplierPaymentsApi
-        .list({ page, search: debouncedSearch || undefined })
-        .then((r) => r.data as Paginated<SupplierPayment>),
-    placeholderData: keepPreviousData,
+  const filterSignature = JSON.stringify(filters.params)
+  useEffect(() => {
+    setPage(1)
+  }, [filterSignature])
+
+  const { data, results, total, isFetching } = usePagedList<SupplierPayment>({
+    keyFor: (p) => qk.supplierPayments.list({ ...filters.params, page: p }),
+    fetchPage: (p) =>
+      supplierPaymentsApi.list(filtersToQuery(filters.params, { page: p })).then((r) => r.data as Paginated<SupplierPayment>),
+    page,
+    pageSize: PAGE_SIZE,
   })
   const isRefreshing = isFetching && !!data
+
+  const prefetchSupplierPayment = usePrefetchDetail<SupplierPayment>(
+    (p) => qk.supplierPayments.detail(p.id),
+    (p) => supplierPaymentsApi.get(p.id).then((r) => r.data)
+  )
 
   const columns: Column<SupplierPayment>[] = [
     { key: 'number', header: 'Number', render: (p) => <span className="font-mono text-primary-600 dark:text-primary-400">{p.number}</span> },
@@ -194,24 +229,23 @@ export default function SupplierPayments() {
         }
       />
 
+      <FilterBar config={FILTER_CONFIG} filters={filters} />
+
       <div className="relative">
         <RefreshingOverlay active={isRefreshing} />
         <div className={refreshingContentClass(isRefreshing)}>
           <DataTable<SupplierPayment>
             rowKey={(p) => p.id}
             columns={columns}
-            data={data?.results ?? []}
+            data={results}
             loading={!data}
-            searchable
-            searchValue={search}
-            onSearch={(q) => { setSearch(q); setPage(1) }}
-            searchPlaceholder="Search number, reference, supplier…"
             onRowClick={(p) => navigate(`/app/supplier-payments/${p.id}`)}
+            onRowHover={prefetchSupplierPayment}
             emptyTitle="No supplier payments"
             pagination={{
               page,
-              pageSize: 25,
-              total: data?.count ?? 0,
+              pageSize: PAGE_SIZE,
+              total,
               onPageChange: setPage,
             }}
           />

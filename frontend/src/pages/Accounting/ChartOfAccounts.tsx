@@ -4,11 +4,13 @@ import { useNavigate } from 'react-router-dom'
 import { BookOpen, Plus } from '@phosphor-icons/react'
 import { accountsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
+import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import {
   Accordion,
   Badge,
   Button,
   CurrencyDisplay,
+  FilterBar,
   PageHeader,
   RefreshingOverlay,
   refreshingContentClass,
@@ -26,30 +28,40 @@ const TYPE_LABELS: Record<string, string> = {
   expense: 'Expenses',
 }
 
+// Static (stable identity — defined at module scope so filter hooks don't churn).
+const ACCOUNT_TYPE_OPTIONS = TYPE_ORDER.map((t) => ({ value: t, label: TYPE_LABELS[t] }))
+
+const CURRENCY_OPTIONS = [
+  { value: 'USD', label: 'USD' },
+  { value: 'ZWG', label: 'ZWG' },
+]
+
+const FILTER_CONFIG: FilterConfig = [
+  { type: 'search', placeholder: 'Search by code or name…' },
+  { type: 'chips', field: 'account_type', label: 'Type', multi: true, options: ACCOUNT_TYPE_OPTIONS },
+  { type: 'chips', field: 'currency', label: 'Currency', options: CURRENCY_OPTIONS },
+  { type: 'boolean', field: 'is_active', label: 'Active' },
+]
+
 export default function ChartOfAccounts() {
   const navigate = useNavigate()
-  const [search, setSearch] = useState('')
+  const filters = useUrlFilters(FILTER_CONFIG)
   const [showCreate, setShowCreate] = useState(false)
 
   const { data, isFetching } = useQuery({
-    queryKey: qk.accounts.list(),
-    queryFn: () => accountsApi.list().then((r) => r.data as Account[]),
+    queryKey: qk.accounts.list(filters.params),
+    queryFn: () => accountsApi.list(filtersToQuery(filters.params)).then((r) => r.data as Account[]),
     placeholderData: keepPreviousData,
   })
   const isRefreshing = isFetching && !!data
 
   const grouped = useMemo(() => {
-    const accounts = (data ?? []).filter(
-      (a) =>
-        !search ||
-        a.code.includes(search) ||
-        a.name.toLowerCase().includes(search.toLowerCase())
-    )
+    const accounts = data ?? []
     return TYPE_ORDER.map((type) => ({
       type,
       accounts: accounts.filter((a) => a.account_type === type),
     })).filter((g) => g.accounts.length > 0)
-  }, [data, search])
+  }, [data])
 
   return (
     <div className="space-y-6">
@@ -64,13 +76,7 @@ export default function ChartOfAccounts() {
         }
       />
 
-      <input
-        type="text"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search by code or name…"
-        className="w-full max-w-sm px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-      />
+      <FilterBar config={FILTER_CONFIG} filters={filters} />
 
       {!data ? (
         <SkeletonTable rows={10} />

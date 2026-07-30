@@ -1,13 +1,16 @@
-import { useState } from 'react'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { TreeStructure, Bank, Plus, TrendDown, Wallet } from '@phosphor-icons/react'
-import { assetsApi, reportsApi } from '@/services/api'
+import { assetCategoriesApi, assetsApi, reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { useDebounce } from '@/lib/utils'
+import { usePagedList } from '@/hooks/usePaginatedQuery'
+import { usePrefetchDetail } from '@/hooks/usePrefetch'
+import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import {
   Button,
   DataTable,
+  FilterBar,
   PageHeader,
   RefreshingOverlay,
   StatsCard,
@@ -24,28 +27,59 @@ import DepreciationPanel from './DepreciationPanel'
 const money = (v: string | number | null | undefined) =>
   Number(v ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-const STATUS_FILTERS = ['', 'active', 'fully_depreciated', 'disposed', 'written_off']
+const PAGE_SIZE = 25
+
+// Static (stable identity — defined at module scope so filter hooks don't churn).
+const STATUS_OPTIONS = (['draft', 'active', 'fully_depreciated', 'disposed', 'written_off'] as const).map(
+  (value) => ({ value, label: ASSET_STATUS_LABELS[value] })
+)
+
+const FILTER_CONFIG: FilterConfig = [
+  { type: 'search', placeholder: 'Search code, name, serial, location, custodian…' },
+  { type: 'chips', field: 'status', label: 'Status', multi: true, options: STATUS_OPTIONS },
+  {
+    type: 'select',
+    field: 'category',
+    label: 'Category',
+    searchable: true,
+    query: {
+      queryKey: ['assetCategories', 'facet-options'],
+      queryFn: () => assetCategoriesApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as any[]),
+      toOption: (row) => ({ value: String(row.id), label: `${row.code} · ${row.name}` }),
+    },
+  },
+  { type: 'dateRange', field: 'acquisition_date', label: 'Acquired' },
+  { type: 'amountRange', field: 'cost_base', label: 'Cost' },
+]
 
 export default function FixedAssets() {
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const statusFilter = searchParams.get('status') ?? ''
-  const [search, setSearch] = useState('')
+  const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
   const [showAssetModal, setShowAssetModal] = useState(false)
   const [showCategoryModal, setShowCategoryModal] = useState(false)
-  const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isFetching } = useQuery({
-    queryKey: qk.assets.list({ page, search: debouncedSearch, status: statusFilter }),
-    queryFn: () =>
-      assetsApi
-        .list({ page, search: debouncedSearch || undefined, status: statusFilter || undefined })
-        .then((r) => r.data as Paginated<Asset>),
-    placeholderData: keepPreviousData,
+  // Any filter change returns to page 1 (keepPreviousData keeps the old rows on
+  // screen so this never blanks the table).
+  const filterSignature = JSON.stringify(filters.params)
+  useEffect(() => {
+    setPage(1)
+  }, [filterSignature])
+
+  const { data, results, total, isFetching } = usePagedList<Asset>({
+    keyFor: (p) => qk.assets.list({ ...filters.params, page: p }),
+    fetchPage: (p) =>
+      assetsApi.list(filtersToQuery(filters.params, { page: p })).then((r) => r.data as Paginated<Asset>),
+    page,
+    pageSize: PAGE_SIZE,
   })
-
   const isRefreshing = isFetching && !!data
+
+  // Warm the asset detail cache on row hover so opening an asset is instant.
+  const prefetchAsset = usePrefetchDetail<Asset>(
+    (a) => qk.assets.detail(a.id),
+    (a) => assetsApi.get(a.id).then((r) => r.data)
+  )
 
   const { data: register } = useQuery({
     queryKey: qk.reports.assetRegister(),
@@ -111,27 +145,7 @@ export default function FixedAssets() {
         />
       </div>
 
-      <div className="flex gap-2 flex-wrap">
-        {STATUS_FILTERS.map((s) => (
-          <button
-            key={s}
-            onClick={() => {
-              const next = new URLSearchParams(searchParams)
-              if (s) next.set('status', s)
-              else next.delete('status')
-              setSearchParams(next, { replace: true })
-              setPage(1)
-            }}
-            className={`px-3 py-1.5 text-sm rounded-full border ${
-              statusFilter === s
-                ? 'bg-primary-600 text-white border-primary-600'
-                : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-            }`}
-          >
-            {s ? ASSET_STATUS_LABELS[s] ?? s : 'All'}
-          </button>
-        ))}
-      </div>
+      <FilterBar config={FILTER_CONFIG} filters={filters} />
 
       <div className="relative">
         <RefreshingOverlay active={isRefreshing} />
@@ -139,19 +153,16 @@ export default function FixedAssets() {
           <DataTable<Asset>
             rowKey={(a) => a.id}
             columns={columns}
-            data={data?.results ?? []}
+            data={results}
             loading={!data}
-            searchable
-            searchValue={search}
-            onSearch={(q) => { setSearch(q); setPage(1) }}
-            searchPlaceholder="Search code, name, serial, location, custodian…"
             onRowClick={(a) => navigate(`/app/fixed-assets/${a.id}`)}
+            onRowHover={prefetchAsset}
             emptyTitle="No assets found"
             emptyDescription="Register your first asset — it will be capitalized automatically."
             pagination={{
               page,
-              pageSize: 25,
-              total: data?.count ?? 0,
+              pageSize: PAGE_SIZE,
+              total,
               onPageChange: setPage,
             }}
           />

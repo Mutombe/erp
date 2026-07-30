@@ -114,7 +114,11 @@ export const journalsApi = {
 }
 
 export const generalLedgerApi = crud('accounting/general-ledger')
-export const subAccountsApi = crud('accounting/sub-accounts')
+export const subAccountsApi = {
+  ...crud('accounting/sub-accounts'),
+  transactions: (id: Id, params?: ListParams) =>
+    api.get(`/accounting/sub-accounts/${id}/transactions/`, { params }),
+}
 export const bankAccountsApi = crud('accounting/bank-accounts')
 export const bankStatementsApi = {
   ...crud('accounting/bank-statements'),

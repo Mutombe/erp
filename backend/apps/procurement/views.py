@@ -4,6 +4,13 @@ from rest_framework.response import Response
 
 from apps.core.permissions import RoleWritePermission
 
+from .filters import (
+    GRNFilter,
+    PurchaseOrderFilter,
+    SupplierFilter,
+    SupplierPaymentFilter,
+    VendorBillFilter,
+)
 from .models import (
     GoodsReceivedNote,
     PurchaseOrder,
@@ -30,9 +37,9 @@ class ProcurementViewSet(viewsets.ModelViewSet):
 class SupplierViewSet(ProcurementViewSet):
     queryset = Supplier.objects.all()
     serializer_class = SupplierSerializer
-    filterset_fields = ['is_active', 'default_currency']
+    filterset_class = SupplierFilter
     search_fields = ['code', 'name', 'contact_person', 'phone', 'email']
-    ordering_fields = ['name', 'code', 'created_at']
+    ordering_fields = '__all__'
 
 
 class PurchaseOrderViewSet(ProcurementViewSet):
@@ -42,9 +49,9 @@ class PurchaseOrderViewSet(ProcurementViewSet):
         .all()
     )
     serializer_class = PurchaseOrderSerializer
-    filterset_fields = ['status', 'supplier', 'currency']
+    filterset_class = PurchaseOrderFilter
     search_fields = ['number', 'supplier__name']
-    ordering_fields = ['date', 'number']
+    ordering_fields = '__all__'
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
@@ -60,8 +67,9 @@ class GRNViewSet(ProcurementViewSet):
         .all()
     )
     serializer_class = GRNSerializer
-    filterset_fields = ['po', 'warehouse', 'status']
+    filterset_class = GRNFilter
     search_fields = ['number', 'po__number']
+    ordering_fields = '__all__'
 
     @action(detail=True, methods=['post'], url_path='post')
     def post_grn(self, request, pk=None):
@@ -77,9 +85,9 @@ class VendorBillViewSet(ProcurementViewSet):
         .all()
     )
     serializer_class = VendorBillSerializer
-    filterset_fields = ['status', 'supplier', 'currency', 'po']
+    filterset_class = VendorBillFilter
     search_fields = ['number', 'supplier_reference', 'supplier__name']
-    ordering_fields = ['date', 'due_date', 'number', 'total']
+    ordering_fields = '__all__'
 
     @action(detail=True, methods=['post'], url_path='post')
     def post_bill(self, request, pk=None):
@@ -95,8 +103,9 @@ class SupplierPaymentViewSet(ProcurementViewSet):
         .all()
     )
     serializer_class = SupplierPaymentSerializer
-    filterset_fields = ['supplier', 'bank_account', 'currency', 'status']
+    filterset_class = SupplierPaymentFilter
     search_fields = ['number', 'reference', 'supplier__name']
+    ordering_fields = '__all__'
     http_method_names = ['get', 'post', 'head', 'options']
 
     def create(self, request, *args, **kwargs):

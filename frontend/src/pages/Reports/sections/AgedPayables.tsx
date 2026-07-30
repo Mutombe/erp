@@ -1,10 +1,14 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
+import { useChartTheme, chartMoney, chartCompact } from '@/lib/chartTheme'
 import { RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
+import ExcelButton from './ExcelButton'
+import ReportChart from './ReportChart'
 
 interface AgedRow {
   supplier_id: number
@@ -27,6 +31,8 @@ const money = (v: number | string) =>
   Number(v) ? Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''
 
 export default function AgedPayables() {
+  const navigate = useNavigate()
+  const theme = useChartTheme()
   const [asOf, setAsOf] = useState(new Date().toISOString().slice(0, 10))
 
   const { data, isFetching } = useQuery({
@@ -51,8 +57,48 @@ export default function AgedPayables() {
             Balances as they stood on this date (later payments excluded)
           </p>
         </div>
-        <PdfButton reportKey="aged-payables" params={{ as_of_date: asOf }} />
+        <div className="flex items-center gap-3">
+          <PdfButton reportKey="aged-payables" params={{ as_of_date: asOf }} />
+          <ExcelButton reportKey="aged-payables" params={{ as_of_date: asOf }} />
+        </div>
       </div>
+
+      {data && (
+        <ReportChart
+          title="Owed by ageing bucket"
+          height={220}
+          hint="Click a bucket to review open bills"
+          isEmpty={Number(data.grand_total) === 0}
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={data.bucket_labels.map((label, i) => ({ label, amount: Number(data.bucket_totals[i] ?? 0), i }))}
+              margin={{ top: 8, right: 8, bottom: 0, left: 8 }}
+            >
+              <CartesianGrid stroke={theme.grid} vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: theme.tick, fontSize: 12 }} axisLine={{ stroke: theme.grid }} tickLine={false} />
+              <YAxis tick={{ fill: theme.tick, fontSize: 12 }} tickFormatter={chartCompact} axisLine={false} tickLine={false} width={56} />
+              <Tooltip
+                formatter={(v: number | string) => [chartMoney(v), 'Owed']}
+                cursor={{ fill: theme.cursorFill }}
+                contentStyle={theme.tooltipStyle}
+              />
+              <Bar
+                dataKey="amount"
+                radius={[4, 4, 0, 0]}
+                maxBarSize={64}
+                isAnimationActive={!theme.reducedMotion}
+                className="cursor-pointer"
+                onClick={() => navigate('/app/vendor-bills?status__in=posted,partial')}
+              >
+                {data.bucket_labels.map((_l, i) => (
+                  <Cell key={i} fill={theme.aged[Math.min(i, theme.aged.length - 1)]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </ReportChart>
+      )}
 
       {!data ? (
         <SkeletonTable rows={8} />

@@ -1,31 +1,75 @@
-import { useState } from 'react'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { FileText, Plus } from '@phosphor-icons/react'
-import { vendorBillsApi } from '@/services/api'
+import { suppliersApi, vendorBillsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { useDebounce } from '@/lib/utils'
-import { Button, DataTable, PageHeader, RefreshingOverlay, StatusBadge, refreshingContentClass, type Column } from '@/components/ui'
+import { usePagedList } from '@/hooks/usePaginatedQuery'
+import { usePrefetchDetail } from '@/hooks/usePrefetch'
+import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
+import { Button, DataTable, FilterBar, PageHeader, RefreshingOverlay, StatusBadge, refreshingContentClass, type Column } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import { BILL_STATUSES, money, type VendorBill } from '@/types/procurement'
 
+const PAGE_SIZE = 25
+
+const STATUS_LABELS: Record<string, string> = {
+  draft: 'Draft',
+  posted: 'Posted',
+  partial: 'Partial',
+  paid: 'Paid',
+  cancelled: 'Cancelled',
+}
+
+const STATUS_OPTIONS = BILL_STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }))
+
+const CURRENCY_OPTIONS = [
+  { value: 'USD', label: 'USD' },
+  { value: 'ZWG', label: 'ZWG' },
+]
+
+const FILTER_CONFIG: FilterConfig = [
+  { type: 'search', placeholder: 'Search number, supplier ref, supplier…' },
+  { type: 'chips', field: 'status', label: 'Status', options: STATUS_OPTIONS },
+  {
+    type: 'select',
+    field: 'supplier',
+    label: 'Supplier',
+    searchable: true,
+    query: {
+      queryKey: ['suppliers', 'facet-options'],
+      queryFn: () => suppliersApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as any[]),
+      toOption: (row) => ({ value: String(row.id), label: `${row.code} · ${row.name}` }),
+    },
+  },
+  { type: 'chips', field: 'currency', label: 'Currency', options: CURRENCY_OPTIONS },
+  { type: 'dateRange', field: 'date', label: 'Date' },
+  { type: 'dateRange', field: 'due_date', label: 'Due' },
+  { type: 'amountRange', field: 'total', label: 'Total' },
+]
+
 export default function VendorBills() {
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const statusFilter = searchParams.get('status') ?? ''
-  const [search, setSearch] = useState('')
+  const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
-  const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isFetching } = useQuery({
-    queryKey: qk.vendorBills.list({ page, search: debouncedSearch, status: statusFilter }),
-    queryFn: () =>
-      vendorBillsApi
-        .list({ page, search: debouncedSearch || undefined, status: statusFilter || undefined })
-        .then((r) => r.data as Paginated<VendorBill>),
-    placeholderData: keepPreviousData,
+  const filterSignature = JSON.stringify(filters.params)
+  useEffect(() => {
+    setPage(1)
+  }, [filterSignature])
+
+  const { data, results, total, isFetching } = usePagedList<VendorBill>({
+    keyFor: (p) => qk.vendorBills.list({ ...filters.params, page: p }),
+    fetchPage: (p) =>
+      vendorBillsApi.list(filtersToQuery(filters.params, { page: p })).then((r) => r.data as Paginated<VendorBill>),
+    page,
+    pageSize: PAGE_SIZE,
   })
   const isRefreshing = isFetching && !!data
+
+  const prefetchVendorBill = usePrefetchDetail<VendorBill>(
+    (b) => qk.vendorBills.detail(b.id),
+    (b) => vendorBillsApi.get(b.id).then((r) => r.data)
+  )
 
   const columns: Column<VendorBill>[] = [
     { key: 'number', header: 'Number', render: (b) => <span className="font-mono text-primary-600 dark:text-primary-400">{b.number}</span> },
@@ -64,27 +108,7 @@ export default function VendorBills() {
         }
       />
 
-      <div className="flex gap-2 flex-wrap">
-        {['', ...BILL_STATUSES].map((s) => (
-          <button
-            key={s}
-            onClick={() => {
-              const next = new URLSearchParams(searchParams)
-              if (s) next.set('status', s)
-              else next.delete('status')
-              setSearchParams(next, { replace: true })
-              setPage(1)
-            }}
-            className={`px-3 py-1.5 text-sm rounded-full border ${
-              statusFilter === s
-                ? 'bg-primary-600 text-white border-primary-600'
-                : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-            }`}
-          >
-            {s || 'All'}
-          </button>
-        ))}
-      </div>
+      <FilterBar config={FILTER_CONFIG} filters={filters} />
 
       <div className="relative">
         <RefreshingOverlay active={isRefreshing} />
@@ -92,19 +116,16 @@ export default function VendorBills() {
           <DataTable<VendorBill>
             rowKey={(b) => b.id}
             columns={columns}
-            data={data?.results ?? []}
+            data={results}
             loading={!data}
-            searchable
-            searchValue={search}
-            onSearch={(q) => { setSearch(q); setPage(1) }}
-            searchPlaceholder="Search number, supplier ref, supplier…"
             onRowClick={(b) => navigate(`/app/vendor-bills/${b.id}`)}
+            onRowHover={prefetchVendorBill}
             emptyTitle="No vendor bills"
             emptyAction={{ label: 'Capture your first bill', onClick: () => navigate('/app/vendor-bills/new') }}
             pagination={{
               page,
-              pageSize: 25,
-              total: data?.count ?? 0,
+              pageSize: PAGE_SIZE,
+              total,
               onPageChange: setPage,
             }}
           />

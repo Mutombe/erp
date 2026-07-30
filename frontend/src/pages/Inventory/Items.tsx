@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -7,12 +7,15 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { FolderPlus, Package, PencilSimple, Plus } from '@phosphor-icons/react'
 import { accountsApi, itemCategoriesApi, itemsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { useDebounce } from '@/lib/utils'
+import { usePagedList } from '@/hooks/usePaginatedQuery'
+import { usePrefetchDetail } from '@/hooks/usePrefetch'
+import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import { showToast, parseApiError } from '@/lib/toast'
 import {
   Badge,
   Button,
   DataTable,
+  FilterBar,
   Input,
   Modal,
   ModalFooter,
@@ -26,6 +29,32 @@ import type { Account, Paginated } from '@/types/accounting'
 import { isLowStock, type Item } from '@/types/inventory'
 import { money } from '@/types/procurement'
 import ItemFormModal from './ItemFormModal'
+
+const PAGE_SIZE = 25
+
+const ITEM_TYPE_OPTIONS = [
+  { value: 'stockable', label: 'Stockable' },
+  { value: 'consumable', label: 'Consumable' },
+  { value: 'service', label: 'Service' },
+]
+
+const FILTER_CONFIG: FilterConfig = [
+  { type: 'search', placeholder: 'Search code, name, barcode…' },
+  {
+    type: 'select',
+    field: 'category',
+    label: 'Category',
+    searchable: true,
+    query: {
+      queryKey: ['itemCategories', 'facet-options'],
+      queryFn: () => itemCategoriesApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as any[]),
+      toOption: (row) => ({ value: String(row.id), label: row.name }),
+    },
+  },
+  { type: 'chips', field: 'item_type', label: 'Type', options: ITEM_TYPE_OPTIONS },
+  { type: 'boolean', field: 'is_active', label: 'Active' },
+  { type: 'amountRange', field: 'avg_cost', label: 'Avg cost' },
+]
 
 const categorySchema = z.object({
   name: z.string().min(2, 'Name is required'),
@@ -102,23 +131,30 @@ function CategoryFormModal({ open, onClose }: { open: boolean; onClose: () => vo
 
 export default function Items() {
   const navigate = useNavigate()
-  const [search, setSearch] = useState('')
+  const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
   const [itemModalOpen, setItemModalOpen] = useState(false)
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<Item | null>(null)
-  const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isFetching } = useQuery({
-    queryKey: qk.items.list({ page, search: debouncedSearch }),
-    queryFn: () =>
-      itemsApi
-        .list({ page, search: debouncedSearch || undefined })
-        .then((r) => r.data as Paginated<Item>),
-    placeholderData: keepPreviousData,
+  const filterSignature = JSON.stringify(filters.params)
+  useEffect(() => {
+    setPage(1)
+  }, [filterSignature])
+
+  const { data, results, total, isFetching } = usePagedList<Item>({
+    keyFor: (p) => qk.items.list({ ...filters.params, page: p }),
+    fetchPage: (p) => itemsApi.list(filtersToQuery(filters.params, { page: p })).then((r) => r.data as Paginated<Item>),
+    page,
+    pageSize: PAGE_SIZE,
   })
-
   const isRefreshing = isFetching && !!data
+
+  // Warm the item detail cache on row hover so opening an item is instant.
+  const prefetchItem = usePrefetchDetail<Item>(
+    (i) => qk.items.detail(i.id),
+    (i) => itemsApi.get(i.id).then((r) => r.data)
+  )
 
   const columns: Column<Item>[] = [
     { key: 'code', header: 'Code', render: (i) => <span className="font-mono text-primary-600 dark:text-primary-400">{i.code}</span> },
@@ -188,25 +224,24 @@ export default function Items() {
         }
       />
 
+      <FilterBar config={FILTER_CONFIG} filters={filters} />
+
       <div className="relative">
         <RefreshingOverlay active={isRefreshing} />
         <div className={refreshingContentClass(isRefreshing)}>
           <DataTable<Item>
             rowKey={(i) => i.id}
             columns={columns}
-            data={data?.results ?? []}
+            data={results}
             loading={!data}
-            searchable
-            searchValue={search}
-            onSearch={(q) => { setSearch(q); setPage(1) }}
-            searchPlaceholder="Search code, name, barcode…"
             onRowClick={(i) => navigate(`/app/items/${i.id}`)}
+            onRowHover={prefetchItem}
             emptyTitle="No items found"
             emptyDescription="Create your first inventory item to start tracking stock."
             pagination={{
               page,
-              pageSize: 25,
-              total: data?.count ?? 0,
+              pageSize: PAGE_SIZE,
+              total,
               onPageChange: setPage,
             }}
           />

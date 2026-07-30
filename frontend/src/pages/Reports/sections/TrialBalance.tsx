@@ -7,6 +7,7 @@ import { qk } from '@/lib/queryKeys'
 import { exportToCSV, formatExportNumber } from '@/lib/export'
 import { Badge, Button, RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
+import ExcelButton from './ExcelButton'
 
 interface TBRow {
   account_id: number
@@ -159,6 +160,10 @@ export default function TrialBalance() {
             <DownloadSimple className="w-4 h-4 mr-2" /> Export CSV
           </Button>
           <PdfButton
+            reportKey="trial-balance"
+            params={mode === 'asat' ? { as_of_date: asOf } : { start, end }}
+          />
+          <ExcelButton
             reportKey="trial-balance"
             params={mode === 'asat' ? { as_of_date: asOf } : { start, end }}
           />

@@ -1,11 +1,15 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { DownloadSimple } from '@phosphor-icons/react'
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { exportToCSV, formatExportNumber } from '@/lib/export'
+import { useChartTheme, chartMoney, chartCompact } from '@/lib/chartTheme'
 import { Button, RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
+import ExcelButton from './ExcelButton'
+import ReportChart from './ReportChart'
 
 interface SVRow {
   item_id: number
@@ -30,6 +34,7 @@ const qty = (v: number | string) =>
   Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 })
 
 export default function StockValuation() {
+  const theme = useChartTheme()
   const { data, isFetching } = useQuery({
     queryKey: qk.reports.stockValuation(),
     queryFn: () => reportsApi.stockValuation().then((r) => r.data as SVData),
@@ -39,6 +44,16 @@ export default function StockValuation() {
   const isRefreshing = isFetching && !!data
 
   if (!data) return <SkeletonTable rows={10} />
+
+  // Value aggregated per category for the overview chart.
+  const byCategory = Object.values(
+    data.rows.reduce<Record<string, { name: string; value: number }>>((acc, r) => {
+      const key = r.category || 'Uncategorised'
+      acc[key] ??= { name: key, value: 0 }
+      acc[key].value += Number(r.value)
+      return acc
+    }, {})
+  ).sort((a, b) => b.value - a.value)
 
   const handleExport = () =>
     exportToCSV(
@@ -62,7 +77,25 @@ export default function StockValuation() {
           <DownloadSimple className="w-4 h-4 mr-2" /> Export CSV
         </Button>
         <PdfButton reportKey="stock-valuation" />
+        <ExcelButton reportKey="stock-valuation" />
       </div>
+
+      <ReportChart title="Stock value by category" height={240} isEmpty={byCategory.length === 0}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={byCategory} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+            <CartesianGrid stroke={theme.grid} vertical={false} />
+            <XAxis dataKey="name" tick={{ fill: theme.tick, fontSize: 11 }} axisLine={{ stroke: theme.grid }} tickLine={false} interval={0} height={44} angle={-10} textAnchor="end" />
+            <YAxis tick={{ fill: theme.tick, fontSize: 12 }} tickFormatter={chartCompact} axisLine={false} tickLine={false} width={56} />
+            <Tooltip
+              formatter={(v: number | string) => [chartMoney(v), 'Value']}
+              cursor={{ fill: theme.cursorFill }}
+              contentStyle={theme.tooltipStyle}
+            />
+            <Bar dataKey="value" fill={theme.primary} radius={[4, 4, 0, 0]} maxBarSize={56} isAnimationActive={!theme.reducedMotion} />
+          </BarChart>
+        </ResponsiveContainer>
+      </ReportChart>
+
       <div className="relative overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
       <RefreshingOverlay active={isRefreshing} />
       <table className={refreshingContentClass(isRefreshing, 'w-full text-sm')}>

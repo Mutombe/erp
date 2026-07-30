@@ -7,6 +7,7 @@ import { qk } from '@/lib/queryKeys'
 import { exportToCSV, formatExportNumber } from '@/lib/export'
 import { Button, RefreshingOverlay, SkeletonTable, StatusBadge, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
+import ExcelButton from './ExcelButton'
 import type { AssetRegisterData } from '@/types/assets'
 
 type Num = number | string
@@ -99,6 +100,7 @@ export default function AssetRegister() {
             <DownloadSimple className="w-4 h-4 mr-2" /> Export CSV
           </Button>
           <PdfButton reportKey="asset-register" params={{ start, end }} />
+          <ExcelButton reportKey="asset-register" params={{ start, end }} />
         </div>
       </div>
 

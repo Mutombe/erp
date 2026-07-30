@@ -8,10 +8,13 @@ import { Bank, PencilSimple, Plus } from '@phosphor-icons/react'
 import { accountsApi, bankAccountsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useOptimisticCreate, useOptimisticUpdate } from '@/hooks/useOptimisticMutation'
+import { usePrefetchDetail } from '@/hooks/usePrefetch'
+import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import {
   Badge,
   Button,
   DataTable,
+  FilterBar,
   FormRow,
   Input,
   Modal,
@@ -35,6 +38,23 @@ const ACCOUNT_TYPE_LABELS: Record<BankAccount['account_type'], string> = {
   mobile_money: 'Mobile Money',
   cash: 'Cash',
 }
+
+// Static (stable identity — defined at module scope so filter hooks don't churn).
+const ACCOUNT_TYPE_OPTIONS = (Object.keys(ACCOUNT_TYPE_LABELS) as BankAccount['account_type'][]).map(
+  (value) => ({ value, label: ACCOUNT_TYPE_LABELS[value] })
+)
+
+const CURRENCY_OPTIONS = [
+  { value: 'USD', label: 'USD' },
+  { value: 'ZWG', label: 'ZWG' },
+]
+
+const FILTER_CONFIG: FilterConfig = [
+  { type: 'search', placeholder: 'Search code, name, bank…' },
+  { type: 'chips', field: 'account_type', label: 'Type', options: ACCOUNT_TYPE_OPTIONS },
+  { type: 'chips', field: 'currency', label: 'Currency', options: CURRENCY_OPTIONS },
+  { type: 'boolean', field: 'is_active', label: 'Active' },
+]
 
 const money = (v: number | string) =>
   Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -204,15 +224,22 @@ function BankAccountFormModal({
 
 export default function BankAccounts() {
   const navigate = useNavigate()
+  const filters = useUrlFilters(FILTER_CONFIG)
   const [modalOpen, setModalOpen] = useState(false)
   const [editAccount, setEditAccount] = useState<BankAccountRow | null>(null)
 
   const { data: bankAccounts, isFetching } = useQuery({
-    queryKey: qk.bankAccounts.list(),
-    queryFn: () => bankAccountsApi.list().then((r) => r.data as BankAccountRow[]),
+    queryKey: qk.bankAccounts.list(filters.params),
+    queryFn: () => bankAccountsApi.list(filtersToQuery(filters.params)).then((r) => r.data as BankAccountRow[]),
     placeholderData: keepPreviousData,
   })
   const isRefreshing = isFetching && !!bankAccounts
+
+  // Warm the bank account detail cache on row hover so opening one is instant.
+  const prefetchBankAccount = usePrefetchDetail<BankAccountRow>(
+    (b) => qk.bankAccounts.detail(b.id),
+    (b) => bankAccountsApi.get(b.id).then((r) => r.data)
+  )
 
   const columns: Column<BankAccountRow>[] = [
     { key: 'code', header: 'Code', render: (b) => <span className="font-mono text-primary-600 dark:text-primary-400">{b.code}</span> },
@@ -275,6 +302,8 @@ export default function BankAccounts() {
         }
       />
 
+      <FilterBar config={FILTER_CONFIG} filters={filters} />
+
       <div className="relative">
         <RefreshingOverlay active={isRefreshing} />
         <div className={refreshingContentClass(isRefreshing)}>
@@ -284,6 +313,7 @@ export default function BankAccounts() {
             data={bankAccounts ?? []}
             loading={!bankAccounts}
             onRowClick={(b) => navigate(`/app/bank-accounts/${b.id}`)}
+            onRowHover={prefetchBankAccount}
             emptyTitle="No bank accounts"
             emptyDescription="Create a bank account to record receipts and payments."
           />

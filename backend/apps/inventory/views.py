@@ -5,6 +5,13 @@ from rest_framework.response import Response
 
 from apps.core.permissions import RoleWritePermission
 
+from .filters import (
+    DepartmentFilter,
+    ItemFilter,
+    StockLevelFilter,
+    StockMoveFilter,
+    WarehouseFilter,
+)
 from .models import (
     Department,
     Item,
@@ -47,33 +54,35 @@ class DepartmentViewSet(InventoryViewSet):
         stock_move_count_annotated=Count('stock_moves')
     )
     serializer_class = DepartmentSerializer
-    filterset_fields = ['is_active']
+    filterset_class = DepartmentFilter
     search_fields = ['code', 'name']
-    ordering_fields = ['code', 'name']
+    ordering_fields = '__all__'
     pagination_class = None
 
 
 class ItemViewSet(InventoryViewSet):
     queryset = Item.objects.select_related('category').all()
     serializer_class = ItemSerializer
-    filterset_fields = ['category', 'item_type', 'is_active']
+    filterset_class = ItemFilter
     search_fields = ['code', 'name', 'barcode']
-    ordering_fields = ['code', 'name', 'qty_on_hand']
+    ordering_fields = '__all__'
 
 
 class WarehouseViewSet(InventoryViewSet):
     queryset = Warehouse.objects.all()
     serializer_class = WarehouseSerializer
-    filterset_fields = ['is_active']
-    search_fields = ['code', 'name']
+    filterset_class = WarehouseFilter
+    search_fields = ['code', 'name', 'location']
+    ordering_fields = '__all__'
     pagination_class = None
 
 
 class StockLevelViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = StockLevel.objects.select_related('item', 'warehouse').all()
     serializer_class = StockLevelSerializer
-    filterset_fields = ['item', 'warehouse']
-    search_fields = ['item__code', 'item__name']
+    filterset_class = StockLevelFilter
+    search_fields = ['item__code', 'item__name', 'warehouse__code', 'warehouse__name']
+    ordering_fields = '__all__'
 
 
 class StockMoveViewSet(viewsets.ReadOnlyModelViewSet):
@@ -81,9 +90,9 @@ class StockMoveViewSet(viewsets.ReadOnlyModelViewSet):
         'item', 'warehouse_from', 'warehouse_to', 'journal', 'department'
     ).all()
     serializer_class = StockMoveSerializer
-    filterset_fields = ['item', 'move_type', 'warehouse_from', 'warehouse_to', 'department']
+    filterset_class = StockMoveFilter
     search_fields = ['number', 'item__code', 'item__name', 'department__name', 'department__code']
-    ordering_fields = ['date', 'id']
+    ordering_fields = '__all__'
 
     def get_queryset(self):
         qs = super().get_queryset()

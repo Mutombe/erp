@@ -1,13 +1,15 @@
-import { useState } from 'react'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PencilSimple, Plus, Users } from '@phosphor-icons/react'
 import { guardiansApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { useDebounce } from '@/lib/utils'
+import { usePagedList } from '@/hooks/usePaginatedQuery'
+import { usePrefetchDetail } from '@/hooks/usePrefetch'
+import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import {
   Button,
   DataTable,
+  FilterBar,
   PageHeader,
   RefreshingOverlay,
   refreshingContentClass,
@@ -17,25 +19,39 @@ import type { Paginated } from '@/types/accounting'
 import type { Guardian } from '@/types/students'
 import GuardianFormModal from './GuardianFormModal'
 
+const PAGE_SIZE = 25
+
+const FILTER_CONFIG: FilterConfig = [
+  { type: 'search', placeholder: 'Search code, name, phone…' },
+  { type: 'dateRange', field: 'created_at', label: 'Created' },
+]
+
 export default function Guardians() {
   const navigate = useNavigate()
-  const [search, setSearch] = useState('')
+  const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Guardian | null>(null)
-  const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isFetching } = useQuery({
-    queryKey: qk.guardians.list({ page, search: debouncedSearch }),
-    queryFn: () =>
-      guardiansApi
-        .list({ page, search: debouncedSearch || undefined })
-        .then((r) => r.data as Paginated<Guardian>),
-    placeholderData: keepPreviousData,
+  const filterSignature = JSON.stringify(filters.params)
+  useEffect(() => {
+    setPage(1)
+  }, [filterSignature])
+
+  const { data, results, total, isFetching } = usePagedList<Guardian>({
+    keyFor: (p) => qk.guardians.list({ ...filters.params, page: p }),
+    fetchPage: (p) =>
+      guardiansApi.list(filtersToQuery(filters.params, { page: p })).then((r) => r.data as Paginated<Guardian>),
+    page,
+    pageSize: PAGE_SIZE,
   })
-
-  // Search / paging keeps the current rows on screen; only first load skeletons.
   const isRefreshing = isFetching && !!data
+
+  // Warm the guardian detail cache on row hover so opening a guardian is instant.
+  const prefetchGuardian = usePrefetchDetail<Guardian>(
+    (g) => qk.guardians.detail(g.id),
+    (g) => guardiansApi.get(g.id).then((r) => r.data)
+  )
 
   const columns: Column<Guardian>[] = [
     {
@@ -85,21 +101,21 @@ export default function Guardians() {
         }
       />
 
+      <FilterBar config={FILTER_CONFIG} filters={filters} />
+
       <div className="relative">
         <RefreshingOverlay active={isRefreshing} />
         <div className={refreshingContentClass(isRefreshing)}>
           <DataTable<Guardian>
             rowKey={(g) => g.id}
             columns={columns}
-            data={data?.results ?? []}
+            data={results}
             loading={!data}
-            searchable
-            searchValue={search}
-            onSearch={(q) => { setSearch(q); setPage(1) }}
-            searchPlaceholder="Search code, name, phone…"
             onRowClick={(g) => navigate(`/app/guardians/${g.id}`)}
+            onRowHover={prefetchGuardian}
             emptyTitle="No guardians found"
-            pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
+            emptyDescription="No guardians match the current filters."
+            pagination={{ page, pageSize: PAGE_SIZE, total, onPageChange: setPage }}
           />
         </div>
       </div>

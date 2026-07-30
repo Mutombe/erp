@@ -5,6 +5,7 @@ import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { Badge, RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
+import ExcelButton from './ExcelButton'
 
 interface BSRow { account_id: number | null; code: string; name: string; balance: number; prev_balance?: number }
 interface BSSection { group: string; rows: BSRow[]; total: number; prev_total?: number }
@@ -121,6 +122,10 @@ export default function BalanceSheet() {
             </Badge>
           )}
           <PdfButton
+            reportKey="balance-sheet"
+            params={compareDate ? { as_of_date: asOf, compare_date: compareDate } : { as_of_date: asOf }}
+          />
+          <ExcelButton
             reportKey="balance-sheet"
             params={compareDate ? { as_of_date: asOf, compare_date: compareDate } : { as_of_date: asOf }}
           />

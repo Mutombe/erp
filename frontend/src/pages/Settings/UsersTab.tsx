@@ -1,15 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { PencilSimple, Plus, UserCircle } from '@phosphor-icons/react'
 import { usersApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
+import { usePagedList } from '@/hooks/usePaginatedQuery'
+import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import { showToast, parseApiError } from '@/lib/toast'
 import {
   Badge,
   Button,
   ConfirmDialog,
   DataTable,
+  FilterBar,
   FormRow,
   Input,
   Modal,
@@ -43,6 +46,19 @@ export const ROLES: [string, string][] = [
 ]
 
 const roleLabel = (role: string) => ROLES.find(([value]) => value === role)?.[1] ?? role
+
+const PAGE_SIZE = 25
+
+// Static (stable identity — defined at module scope so filter hooks don't churn).
+const ROLE_OPTIONS = ROLES.map(([value, label]) => ({ value, label }))
+
+// URL-persisted filters: free-text search (name/email), a single role facet and
+// an active/disabled toggle.
+const FILTER_CONFIG: FilterConfig = [
+  { type: 'search', placeholder: 'Search email or name…' },
+  { type: 'chips', field: 'role', label: 'Role', options: ROLE_OPTIONS },
+  { type: 'boolean', field: 'is_active', label: 'Active' },
+]
 
 interface UserFormValues {
   email: string
@@ -130,17 +146,25 @@ function UserFormModal({ user, onClose }: { user: UserRow | null; onClose: () =>
 
 export default function UsersTab() {
   const queryClient = useQueryClient()
+  const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
   // undefined = closed, null = create, UserRow = edit
   const [modalUser, setModalUser] = useState<UserRow | null | undefined>(undefined)
   const [toggleTarget, setToggleTarget] = useState<UserRow | null>(null)
 
-  const { data, isFetching } = useQuery({
-    queryKey: qk.users.list({ page, search }),
-    queryFn: () =>
-      usersApi.list({ page, search: search || undefined }).then((r) => r.data as Paginated<UserRow>),
-    placeholderData: keepPreviousData,
+  // Any filter change returns to page 1 (keepPreviousData keeps the old rows on
+  // screen so this never blanks the table).
+  const filterSignature = JSON.stringify(filters.params)
+  useEffect(() => {
+    setPage(1)
+  }, [filterSignature])
+
+  const { data, results, total, isFetching } = usePagedList<UserRow>({
+    keyFor: (p) => qk.users.list({ ...filters.params, page: p }),
+    fetchPage: (p) =>
+      usersApi.list(filtersToQuery(filters.params, { page: p })).then((r) => r.data as Paginated<UserRow>),
+    page,
+    pageSize: PAGE_SIZE,
   })
 
   // Searching / paging keeps the current rows rendered while the next set loads.
@@ -184,25 +208,27 @@ export default function UsersTab() {
 
   return (
     <div className="space-y-4">
+      <FilterBar
+        config={FILTER_CONFIG}
+        filters={filters}
+        actions={
+          <Button onClick={() => setModalUser(null)}>
+            <Plus className="w-4 h-4 mr-2" /> New User
+          </Button>
+        }
+      />
+
       <div className="relative">
         <RefreshingOverlay active={isRefreshing} />
         <div className={refreshingContentClass(isRefreshing)}>
           <DataTable<UserRow>
             rowKey={(u) => u.id}
             columns={columns}
-            data={data?.results ?? []}
+            data={results}
             loading={!data}
-            searchable
-            searchValue={search}
-            onSearch={(q) => { setSearch(q); setPage(1) }}
-            searchPlaceholder="Search email or name…"
             emptyTitle="No users found"
-            actions={
-              <Button onClick={() => setModalUser(null)}>
-                <Plus className="w-4 h-4 mr-2" /> New User
-              </Button>
-            }
-            pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
+            emptyDescription="No users match the current filters."
+            pagination={{ page, pageSize: PAGE_SIZE, total, onPageChange: setPage }}
           />
         </div>
       </div>

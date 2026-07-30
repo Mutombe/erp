@@ -8,6 +8,7 @@ import {
   CaretDown,
   CaretDoubleLeft,
   CaretDoubleRight,
+  Coins,
   CreditCard,
   FileText,
   GitDiff,
@@ -36,6 +37,7 @@ import {
   type Icon,
 } from '@phosphor-icons/react'
 import logoUrl from '@/assets/logo.png'
+import CacheWarmer from '@/components/CacheWarmer'
 import { PageSkeleton } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { authApi } from '@/services/api'
@@ -81,6 +83,7 @@ const navSections: NavSection[] = [
       { label: 'Journals', to: '/app/journals', icon: NotePencil },
       { label: 'Bank Accounts', to: '/app/bank-accounts', icon: Bank },
       { label: 'Reconciliation', to: '/app/bank-reconciliation', icon: GitDiff },
+      { label: 'Pockets', to: '/app/pockets', icon: Coins },
       { label: 'Fixed Assets', to: '/app/fixed-assets', icon: Buildings },
     ],
   },
@@ -259,6 +262,8 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+      {/* Warm common dropdown/option caches once, near the shell root. */}
+      <CacheWarmer />
       {/* Desktop sidebar */}
       <aside
         className={cn(

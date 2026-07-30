@@ -3,13 +3,14 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Buildings, PencilSimple, Plus, Trash } from '@phosphor-icons/react'
 import { departmentsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { useDebounce } from '@/lib/utils'
+import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import { useOptimisticDelete } from '@/hooks/useOptimisticMutation'
 import {
   Badge,
   Button,
   ConfirmDialog,
   DataTable,
+  FilterBar,
   PageHeader,
   RefreshingOverlay,
   refreshingContentClass,
@@ -18,31 +19,20 @@ import {
 import type { Department } from '@/types/inventory'
 import DepartmentFormModal from './DepartmentFormModal'
 
-type ActiveFilter = '' | 'true' | 'false'
-
-const FILTERS: [ActiveFilter, string][] = [
-  ['', 'All'],
-  ['true', 'Active'],
-  ['false', 'Inactive'],
+const FILTER_CONFIG: FilterConfig = [
+  { type: 'search', placeholder: 'Search code, name, head…' },
+  { type: 'boolean', field: 'is_active', label: 'Active' },
 ]
 
 export default function Departments() {
-  const [search, setSearch] = useState('')
-  const [activeFilter, setActiveFilter] = useState<ActiveFilter>('')
+  const filters = useUrlFilters(FILTER_CONFIG)
   const [modalOpen, setModalOpen] = useState(false)
   const [editDepartment, setEditDepartment] = useState<Department | null>(null)
   const [toDelete, setToDelete] = useState<Department | null>(null)
-  const debouncedSearch = useDebounce(search, 300)
 
   const { data, isFetching } = useQuery({
-    queryKey: qk.departments.list({ search: debouncedSearch, is_active: activeFilter }),
-    queryFn: () =>
-      departmentsApi
-        .list({
-          search: debouncedSearch || undefined,
-          is_active: activeFilter || undefined,
-        })
-        .then((r) => r.data as Department[]),
+    queryKey: qk.departments.list(filters.params),
+    queryFn: () => departmentsApi.list(filtersToQuery(filters.params)).then((r) => r.data as Department[]),
     placeholderData: keepPreviousData,
   })
 
@@ -156,21 +146,7 @@ export default function Departments() {
         of the item category default.
       </p>
 
-      <div className="flex gap-2 flex-wrap">
-        {FILTERS.map(([value, label]) => (
-          <button
-            key={value}
-            onClick={() => setActiveFilter(value)}
-            className={`px-3 py-1.5 text-sm rounded-full border ${
-              activeFilter === value
-                ? 'bg-primary-600 text-white border-primary-600'
-                : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <FilterBar config={FILTER_CONFIG} filters={filters} />
 
       <div className="relative">
         <RefreshingOverlay active={isRefreshing} />
@@ -180,10 +156,6 @@ export default function Departments() {
             columns={columns}
             data={data ?? []}
             loading={!data}
-            searchable
-            searchValue={search}
-            onSearch={setSearch}
-            searchPlaceholder="Search code, name, head…"
             emptyTitle="No departments"
             emptyDescription="Create a department to start tagging stock issues by consumer."
           />

@@ -1,16 +1,16 @@
-import { useState } from 'react'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ArrowsLeftRight } from '@phosphor-icons/react'
-import { departmentsApi, stockMovesApi } from '@/services/api'
+import { departmentsApi, itemsApi, stockMovesApi, warehousesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { useDebounce } from '@/lib/utils'
+import { usePagedList } from '@/hooks/usePaginatedQuery'
+import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import {
   Badge,
   DataTable,
+  FilterBar,
   PageHeader,
   RefreshingOverlay,
-  Select,
   refreshingContentClass,
   type Column,
 } from '@/components/ui'
@@ -18,56 +18,85 @@ import type { Paginated } from '@/types/accounting'
 import {
   MOVE_TYPE_LABELS,
   MOVE_TYPE_VARIANTS,
-  type Department,
   type MoveType,
   type StockMove,
 } from '@/types/inventory'
 import { money } from '@/types/procurement'
 
+const PAGE_SIZE = 25
+
 const MOVE_TYPES: MoveType[] = ['receipt', 'issue', 'transfer', 'adjustment_in', 'adjustment_out']
 
+const MOVE_TYPE_OPTIONS = MOVE_TYPES.map((t) => ({ value: t, label: MOVE_TYPE_LABELS[t] }))
+
+const FILTER_CONFIG: FilterConfig = [
+  { type: 'search', placeholder: 'Search number, item, department…' },
+  { type: 'chips', field: 'move_type', label: 'Type', multi: true, options: MOVE_TYPE_OPTIONS },
+  {
+    type: 'select',
+    field: 'item',
+    label: 'Item',
+    searchable: true,
+    query: {
+      queryKey: ['items', 'facet-options'],
+      queryFn: () => itemsApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as any[]),
+      toOption: (row) => ({ value: String(row.id), label: `${row.code} · ${row.name}` }),
+    },
+  },
+  {
+    type: 'select',
+    field: 'department',
+    label: 'Department',
+    searchable: true,
+    query: {
+      queryKey: ['departments', 'facet-options'],
+      queryFn: () => departmentsApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as any[]),
+      toOption: (row) => ({ value: String(row.id), label: `${row.code} · ${row.name}` }),
+    },
+  },
+  {
+    type: 'select',
+    field: 'warehouse_from',
+    label: 'From warehouse',
+    searchable: true,
+    query: {
+      queryKey: ['warehouses', 'facet-options'],
+      queryFn: () => warehousesApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as any[]),
+      toOption: (row) => ({ value: String(row.id), label: `${row.code} · ${row.name}` }),
+    },
+  },
+  {
+    type: 'select',
+    field: 'warehouse_to',
+    label: 'To warehouse',
+    searchable: true,
+    query: {
+      queryKey: ['warehouses', 'facet-options'],
+      queryFn: () => warehousesApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as any[]),
+      toOption: (row) => ({ value: String(row.id), label: `${row.code} · ${row.name}` }),
+    },
+  },
+  { type: 'dateRange', field: 'date', label: 'Date' },
+  { type: 'amountRange', field: 'total_cost_base', label: 'Total (base)' },
+]
+
 export default function StockMoves() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const typeFilter = searchParams.get('move_type') ?? ''
-  const departmentFilter = searchParams.get('department') ?? ''
-  const [search, setSearch] = useState('')
+  const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
-  const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isFetching } = useQuery({
-    queryKey: qk.stockMoves.list({
-      page,
-      search: debouncedSearch,
-      move_type: typeFilter,
-      department: departmentFilter,
-    }),
-    queryFn: () =>
-      stockMovesApi
-        .list({
-          page,
-          search: debouncedSearch || undefined,
-          move_type: typeFilter || undefined,
-          department: departmentFilter || undefined,
-        })
-        .then((r) => r.data as Paginated<StockMove>),
-    placeholderData: keepPreviousData,
-  })
-
-  const { data: departments } = useQuery({
-    queryKey: qk.departments.list({ is_active: true }),
-    queryFn: () => departmentsApi.list({ is_active: true }).then((r) => r.data as Department[]),
-  })
-
-  const isRefreshing = isFetching && !!data
-
-  /** Filters live in the query string so a filtered view is linkable. */
-  const setParam = (key: string, value: string) => {
-    const next = new URLSearchParams(searchParams)
-    if (value) next.set(key, value)
-    else next.delete(key)
-    setSearchParams(next, { replace: true })
+  const filterSignature = JSON.stringify(filters.params)
+  useEffect(() => {
     setPage(1)
-  }
+  }, [filterSignature])
+
+  const { data, results, total, isFetching } = usePagedList<StockMove>({
+    keyFor: (p) => qk.stockMoves.list({ ...filters.params, page: p }),
+    fetchPage: (p) =>
+      stockMovesApi.list(filtersToQuery(filters.params, { page: p })).then((r) => r.data as Paginated<StockMove>),
+    page,
+    pageSize: PAGE_SIZE,
+  })
+  const isRefreshing = isFetching && !!data
 
   const columns: Column<StockMove>[] = [
     { key: 'number', header: 'Number', render: (m) => <span className="font-mono">{m.number}</span> },
@@ -127,33 +156,7 @@ export default function StockMoves() {
         icon={ArrowsLeftRight}
       />
 
-      <div className="flex gap-2 flex-wrap items-center">
-        {['', ...MOVE_TYPES].map((t) => (
-          <button
-            key={t}
-            onClick={() => setParam('move_type', t)}
-            className={`px-3 py-1.5 text-sm rounded-full border ${
-              typeFilter === t
-                ? 'bg-primary-600 text-white border-primary-600'
-                : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-            }`}
-          >
-            {t ? MOVE_TYPE_LABELS[t as MoveType] : 'All'}
-          </button>
-        ))}
-        <div className="w-64 ml-auto">
-          <Select
-            value={departmentFilter}
-            onChange={(e) => setParam('department', e.target.value)}
-            searchable
-          >
-            <option value="">All departments</option>
-            {(departments ?? []).map((d) => (
-              <option key={d.id} value={String(d.id)}>{`${d.code} · ${d.name}`}</option>
-            ))}
-          </Select>
-        </div>
-      </div>
+      <FilterBar config={FILTER_CONFIG} filters={filters} />
 
       <div className="relative">
         <RefreshingOverlay active={isRefreshing} />
@@ -161,17 +164,13 @@ export default function StockMoves() {
           <DataTable<StockMove>
             rowKey={(m) => m.id}
             columns={columns}
-            data={data?.results ?? []}
+            data={results}
             loading={!data}
-            searchable
-            searchValue={search}
-            onSearch={(q) => { setSearch(q); setPage(1) }}
-            searchPlaceholder="Search number, item, department…"
             emptyTitle="No stock moves"
             pagination={{
               page,
-              pageSize: 25,
-              total: data?.count ?? 0,
+              pageSize: PAGE_SIZE,
+              total,
               onPageChange: setPage,
             }}
           />

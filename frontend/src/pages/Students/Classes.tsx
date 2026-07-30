@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Student } from '@phosphor-icons/react'
 import { useForm } from 'react-hook-form'
@@ -7,11 +7,14 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { academicYearsApi, classesApi, gradesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { useDebounce } from '@/lib/utils'
+import { usePagedList } from '@/hooks/usePaginatedQuery'
+import { usePrefetchDetail } from '@/hooks/usePrefetch'
+import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import { useOptimisticCreate } from '@/hooks/useOptimisticMutation'
 import {
   Button,
   DataTable,
+  FilterBar,
   FormRow,
   Input,
   Modal,
@@ -25,24 +28,58 @@ import {
 import type { Paginated } from '@/types/accounting'
 import type { AcademicYear, ClassRoom, Grade } from '@/types/students'
 
+const PAGE_SIZE = 25
+
+const FILTER_CONFIG: FilterConfig = [
+  { type: 'search', placeholder: 'Search class or teacher…' },
+  {
+    type: 'select',
+    field: 'grade',
+    label: 'Grade',
+    searchable: true,
+    query: {
+      queryKey: ['grades', 'facet-options'],
+      queryFn: () => gradesApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as any[]),
+      toOption: (row) => ({ value: String(row.id), label: row.name }),
+    },
+  },
+  {
+    type: 'select',
+    field: 'academic_year',
+    label: 'Academic year',
+    query: {
+      queryKey: ['academicYears', 'facet-options'],
+      queryFn: () => academicYearsApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as any[]),
+      toOption: (row) => ({ value: String(row.id), label: row.name }),
+    },
+  },
+]
+
 export default function Classes() {
   const navigate = useNavigate()
-  const [search, setSearch] = useState('')
+  const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
   const [showCreate, setShowCreate] = useState(false)
-  const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isFetching } = useQuery({
-    queryKey: qk.classes.list({ page, search: debouncedSearch }),
-    queryFn: () =>
-      classesApi
-        .list({ page, search: debouncedSearch || undefined })
-        .then((r) => r.data as Paginated<ClassRoom>),
-    placeholderData: keepPreviousData,
+  const filterSignature = JSON.stringify(filters.params)
+  useEffect(() => {
+    setPage(1)
+  }, [filterSignature])
+
+  const { data, results, total, isFetching } = usePagedList<ClassRoom>({
+    keyFor: (p) => qk.classes.list({ ...filters.params, page: p }),
+    fetchPage: (p) =>
+      classesApi.list(filtersToQuery(filters.params, { page: p })).then((r) => r.data as Paginated<ClassRoom>),
+    page,
+    pageSize: PAGE_SIZE,
   })
-
-  // Search / paging keeps the current rows on screen; only first load skeletons.
   const isRefreshing = isFetching && !!data
+
+  // Warm the class detail cache on row hover so opening a class is instant.
+  const prefetchClass = usePrefetchDetail<ClassRoom>(
+    (c) => qk.classes.detail(c.id),
+    (c) => classesApi.get(c.id).then((r) => r.data)
+  )
 
   const { data: years } = useQuery({
     queryKey: qk.academicYears.list(),
@@ -80,21 +117,21 @@ export default function Classes() {
         }
       />
 
+      <FilterBar config={FILTER_CONFIG} filters={filters} />
+
       <div className="relative">
         <RefreshingOverlay active={isRefreshing} />
         <div className={refreshingContentClass(isRefreshing)}>
           <DataTable<ClassRoom>
             rowKey={(c) => c.id}
             columns={columns}
-            data={data?.results ?? []}
+            data={results}
             loading={!data}
-            searchable
-            searchValue={search}
-            onSearch={(q) => { setSearch(q); setPage(1) }}
-            searchPlaceholder="Search class or teacher…"
             onRowClick={(c) => navigate(`/app/classes/${c.id}`)}
+            onRowHover={prefetchClass}
             emptyTitle="No classes found"
-            pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
+            emptyDescription="No classes match the current filters."
+            pagination={{ page, pageSize: PAGE_SIZE, total, onPageChange: setPage }}
           />
         </div>
       </div>

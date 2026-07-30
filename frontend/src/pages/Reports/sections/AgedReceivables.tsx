@@ -1,12 +1,16 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { DownloadSimple } from '@phosphor-icons/react'
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { exportToCSV, formatExportNumber } from '@/lib/export'
+import { useChartTheme, chartMoney, chartCompact } from '@/lib/chartTheme'
 import { Button, RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
+import ExcelButton from './ExcelButton'
+import ReportChart from './ReportChart'
 
 interface AgedRow {
   student_id: number
@@ -30,6 +34,8 @@ const money = (v: number) =>
   v ? v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''
 
 export default function AgedReceivables() {
+  const navigate = useNavigate()
+  const theme = useChartTheme()
   const [asOf, setAsOf] = useState(new Date().toISOString().slice(0, 10))
 
   const { data, isFetching } = useQuery({
@@ -92,8 +98,46 @@ export default function AgedReceivables() {
             <DownloadSimple className="w-4 h-4 mr-2" /> Export CSV
           </Button>
           <PdfButton reportKey="aged-receivables" params={{ as_of_date: asOf }} />
+          <ExcelButton reportKey="aged-receivables" params={{ as_of_date: asOf }} />
         </div>
       </div>
+
+      {data && (
+        <ReportChart
+          title="Outstanding by ageing bucket"
+          height={220}
+          hint="Click a bucket to review open invoices"
+          isEmpty={data.grand_total === 0}
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={data.bucket_labels.map((label, i) => ({ label, amount: data.bucket_totals[i] ?? 0, i }))}
+              margin={{ top: 8, right: 8, bottom: 0, left: 8 }}
+            >
+              <CartesianGrid stroke={theme.grid} vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: theme.tick, fontSize: 12 }} axisLine={{ stroke: theme.grid }} tickLine={false} />
+              <YAxis tick={{ fill: theme.tick, fontSize: 12 }} tickFormatter={chartCompact} axisLine={false} tickLine={false} width={56} />
+              <Tooltip
+                formatter={(v: number | string) => [chartMoney(v), 'Outstanding']}
+                cursor={{ fill: theme.cursorFill }}
+                contentStyle={theme.tooltipStyle}
+              />
+              <Bar
+                dataKey="amount"
+                radius={[4, 4, 0, 0]}
+                maxBarSize={64}
+                isAnimationActive={!theme.reducedMotion}
+                className="cursor-pointer"
+                onClick={() => navigate('/app/fee-invoices?status__in=posted,partial')}
+              >
+                {data.bucket_labels.map((_l, i) => (
+                  <Cell key={i} fill={theme.aged[Math.min(i, theme.aged.length - 1)]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </ReportChart>
+      )}
 
       {!data ? (
         <SkeletonTable rows={8} />

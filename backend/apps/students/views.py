@@ -5,6 +5,15 @@ from rest_framework.response import Response
 
 from apps.core.permissions import RoleWritePermission
 
+from .filters import (
+    AcademicYearFilter,
+    ClassRoomFilter,
+    EnrollmentFilter,
+    GradeFilter,
+    GuardianFilter,
+    StudentFilter,
+    TermFilter,
+)
 from .models import (
     AcademicYear,
     ClassRoom,
@@ -35,21 +44,27 @@ class StudentsViewSet(viewsets.ModelViewSet):
 class AcademicYearViewSet(StudentsViewSet):
     queryset = AcademicYear.objects.prefetch_related('terms').all()
     serializer_class = AcademicYearSerializer
-    filterset_fields = ['is_current']
+    filterset_class = AcademicYearFilter
+    search_fields = ['name']
+    ordering_fields = '__all__'
     pagination_class = None
 
 
 class TermViewSet(StudentsViewSet):
     queryset = Term.objects.select_related('academic_year').all()
     serializer_class = TermSerializer
-    filterset_fields = ['academic_year', 'is_current']
+    filterset_class = TermFilter
+    search_fields = ['name']
+    ordering_fields = '__all__'
     pagination_class = None
 
 
 class GradeViewSet(StudentsViewSet):
     queryset = Grade.objects.all()
     serializer_class = GradeSerializer
-    filterset_fields = ['section']
+    filterset_class = GradeFilter
+    search_fields = ['name']
+    ordering_fields = '__all__'
     pagination_class = None
 
 
@@ -58,17 +73,17 @@ class ClassRoomViewSet(StudentsViewSet):
         student_count=Count('enrollments', filter=Q(enrollments__status='active'))
     )
     serializer_class = ClassRoomSerializer
-    filterset_fields = ['grade', 'academic_year']
+    filterset_class = ClassRoomFilter
     search_fields = ['name', 'teacher_name']
-    ordering_fields = ['name', 'grade__level']
+    ordering_fields = '__all__'
 
 
 class StudentViewSet(StudentsViewSet):
     queryset = Student.objects.all()
     serializer_class = StudentSerializer
-    filterset_fields = ['status', 'attendance_type']
+    filterset_class = StudentFilter
     search_fields = ['code', 'first_name', 'last_name']
-    ordering_fields = ['code', 'last_name', 'created_at']
+    ordering_fields = '__all__'
 
     @action(detail=True, methods=['get'])
     def sub_accounts(self, request, pk=None):
@@ -83,8 +98,9 @@ class StudentViewSet(StudentsViewSet):
 class GuardianViewSet(StudentsViewSet):
     queryset = Guardian.objects.prefetch_related('students').all()
     serializer_class = GuardianSerializer
+    filterset_class = GuardianFilter
     search_fields = ['code', 'first_name', 'last_name', 'phone']
-    ordering_fields = ['last_name', 'created_at']
+    ordering_fields = '__all__'
 
 
 class StudentGuardianViewSet(StudentsViewSet):
@@ -96,5 +112,6 @@ class StudentGuardianViewSet(StudentsViewSet):
 class EnrollmentViewSet(StudentsViewSet):
     queryset = Enrollment.objects.select_related('student', 'academic_year', 'class_room__grade').all()
     serializer_class = EnrollmentSerializer
-    filterset_fields = ['academic_year', 'class_room', 'status', 'student']
+    filterset_class = EnrollmentFilter
     search_fields = ['student__code', 'student__first_name', 'student__last_name']
+    ordering_fields = '__all__'

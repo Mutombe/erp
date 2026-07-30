@@ -1,16 +1,19 @@
-import { useState } from 'react'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { GridFour, Plus, Trash } from '@phosphor-icons/react'
 import { feeCategoriesApi, feeStructuresApi, gradesApi, termsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
+import { usePagedList } from '@/hooks/usePaginatedQuery'
+import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import { useOptimisticCreate, useOptimisticDelete } from '@/hooks/useOptimisticMutation'
 import {
   Button,
   ConfirmDialog,
   DataTable,
+  FilterBar,
   FormRow,
   Input,
   Modal,
@@ -25,15 +28,71 @@ import type { Paginated } from '@/types/accounting'
 import type { Grade, Term } from '@/types/students'
 import { APPLIES_TO_OPTIONS, fmtMoney, type FeeCategory, type FeeStructure } from '@/types/fees'
 
+const PAGE_SIZE = 25
+
 const APPLIES_LABEL: Record<string, string> = Object.fromEntries(APPLIES_TO_OPTIONS.map(([v, l]) => [v, l]))
 
+// Static (stable identity — defined at module scope so filter hooks don't churn).
+const CURRENCY_OPTIONS = [
+  { value: 'USD', label: 'USD' },
+  { value: 'ZWG', label: 'ZWG' },
+]
+
+const APPLIES_TO_FILTER_OPTIONS = APPLIES_TO_OPTIONS.map(([value, label]) => ({ value, label }))
+
+const FILTER_CONFIG: FilterConfig = [
+  {
+    type: 'select',
+    field: 'term',
+    label: 'Term',
+    searchable: true,
+    query: {
+      queryKey: ['terms', 'facet-options'],
+      queryFn: () => termsApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as any[]),
+      toOption: (row) => ({ value: String(row.id), label: row.name }),
+    },
+  },
+  {
+    type: 'select',
+    field: 'grade',
+    label: 'Grade',
+    searchable: true,
+    query: {
+      queryKey: ['grades', 'facet-options'],
+      queryFn: () => gradesApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as any[]),
+      toOption: (row) => ({ value: String(row.id), label: row.name }),
+    },
+  },
+  {
+    type: 'select',
+    field: 'fee_category',
+    label: 'Category',
+    searchable: true,
+    query: {
+      queryKey: ['feeCategories', 'facet-options'],
+      queryFn: () => feeCategoriesApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as any[]),
+      toOption: (row) => ({ value: String(row.id), label: `${row.code} · ${row.name}` }),
+    },
+  },
+  { type: 'chips', field: 'currency', label: 'Currency', options: CURRENCY_OPTIONS },
+  { type: 'chips', field: 'applies_to', label: 'Applies to', options: APPLIES_TO_FILTER_OPTIONS },
+  { type: 'amountRange', field: 'amount', label: 'Amount' },
+]
+
 export default function FeeStructures() {
-  const [term, setTerm] = useState('')
-  const [grade, setGrade] = useState('')
+  const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
   const [showCreate, setShowCreate] = useState(false)
   const [toDelete, setToDelete] = useState<FeeStructure | null>(null)
 
+  // Any filter change returns to page 1 (keepPreviousData keeps the old rows on
+  // screen so this never blanks the table).
+  const filterSignature = JSON.stringify(filters.params)
+  useEffect(() => {
+    setPage(1)
+  }, [filterSignature])
+
+  // Terms & grades power the create-modal selects.
   const { data: terms } = useQuery({
     queryKey: qk.terms.list(),
     queryFn: () => termsApi.list().then((r) => r.data as Term[]),
@@ -43,13 +102,12 @@ export default function FeeStructures() {
     queryFn: () => gradesApi.list().then((r) => r.data as Grade[]),
   })
 
-  const { data, isFetching } = useQuery({
-    queryKey: qk.feeStructures.list({ term, grade, page }),
-    queryFn: () =>
-      feeStructuresApi
-        .list({ term: term || undefined, grade: grade || undefined, page })
-        .then((r) => r.data as Paginated<FeeStructure>),
-    placeholderData: keepPreviousData,
+  const { data, results, total, isFetching } = usePagedList<FeeStructure>({
+    keyFor: (p) => qk.feeStructures.list({ ...filters.params, page: p }),
+    fetchPage: (p) =>
+      feeStructuresApi.list(filtersToQuery(filters.params, { page: p })).then((r) => r.data as Paginated<FeeStructure>),
+    page,
+    pageSize: PAGE_SIZE,
   })
   const isRefreshing = isFetching && !!data
 
@@ -102,20 +160,7 @@ export default function FeeStructures() {
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl">
-        <Select label="Term" value={term} onChange={(e) => { setTerm(e.target.value); setPage(1) }}>
-          <option value="">All terms</option>
-          {(terms ?? []).map((t) => (
-            <option key={t.id} value={String(t.id)}>{t.name}</option>
-          ))}
-        </Select>
-        <Select label="Grade" value={grade} onChange={(e) => { setGrade(e.target.value); setPage(1) }}>
-          <option value="">All grades</option>
-          {(grades ?? []).map((g) => (
-            <option key={g.id} value={String(g.id)}>{g.name}</option>
-          ))}
-        </Select>
-      </div>
+      <FilterBar config={FILTER_CONFIG} filters={filters} />
 
       <div className="relative">
         <RefreshingOverlay active={isRefreshing} />
@@ -123,11 +168,11 @@ export default function FeeStructures() {
           <DataTable<FeeStructure>
             rowKey={(f) => f.id}
             columns={columns}
-            data={data?.results ?? []}
+            data={results}
             loading={!data}
             emptyTitle="No fee structures"
             emptyDescription="No fee structures match the selected filters."
-            pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
+            pagination={{ page, pageSize: PAGE_SIZE, total, onPageChange: setPage }}
           />
         </div>
       </div>

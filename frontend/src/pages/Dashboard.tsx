@@ -11,7 +11,9 @@ import {
 } from '@phosphor-icons/react'
 import {
   Bar,
+  BarChart,
   CartesianGrid,
+  Cell,
   ComposedChart,
   Legend,
   Line,
@@ -23,6 +25,7 @@ import {
 import { reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useUIStore } from '@/stores/uiStore'
+import { useChartTheme, chartMoney, chartCompact } from '@/lib/chartTheme'
 import {
   Card,
   CardHeader,
@@ -57,6 +60,21 @@ interface DashboardData {
   }[]
 }
 
+interface AgedReceivablesData {
+  bucket_labels: string[]
+  bucket_totals: number[]
+  grand_total: number
+}
+
+interface FeeCollectionData {
+  rows: {
+    category: string
+    category_name: string
+    billed: number | string
+    collected: number | string
+  }[]
+}
+
 const money = (v: number | string | null | undefined) =>
   Number(v ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -69,14 +87,32 @@ function monthLabel(key: string): string {
   return idx >= 0 && idx < 12 ? `${MONTHS[idx]} ${year.slice(2)}` : key
 }
 
+/** '2026-03' -> { gte: '2026-03-01', lte: '2026-03-31' } for month drill-downs. */
+function monthRange(key: string): { gte: string; lte: string } {
+  const [year, month] = key.split('-').map(Number)
+  const lastDay = new Date(year, month, 0).getDate()
+  return { gte: `${key}-01`, lte: `${key}-${String(lastDay).padStart(2, '0')}` }
+}
+
 export default function Dashboard() {
   const navigate = useNavigate()
   const theme = useUIStore((s) => s.theme)
   const dark = theme === 'dark'
+  const ct = useChartTheme()
 
   const { data, isFetching } = useQuery({
     queryKey: qk.reports.dashboard,
     queryFn: () => reportsApi.dashboard().then((r) => r.data as DashboardData),
+  })
+
+  // Aged debtors + fee-collection feed the two secondary dashboard charts.
+  const { data: aged } = useQuery({
+    queryKey: qk.reports.agedReceivables({ scope: 'dashboard' }),
+    queryFn: () => reportsApi.agedReceivables().then((r) => r.data as AgedReceivablesData),
+  })
+  const { data: feeCollection } = useQuery({
+    queryKey: qk.reports.feeCollection({ scope: 'dashboard' }),
+    queryFn: () => reportsApi.feeCollection().then((r) => r.data as FeeCollectionData),
   })
 
   // First paint only — on refetch (e.g. after a receipt or billing run posts)
@@ -93,9 +129,21 @@ export default function Dashboard() {
   const isRefreshing = isFetching && !!data
   const { kpis } = data
   const chartData = data.monthly_billed_vs_collected.map((row) => ({
+    key: row.month,
     month: monthLabel(row.month),
     billed: Number(row.billed),
     collected: Number(row.collected),
+  }))
+
+  // Secondary charts
+  const agedChart = (aged?.bucket_labels ?? []).map((label, i) => ({
+    label,
+    amount: Number(aged?.bucket_totals[i] ?? 0),
+  }))
+  const feeChart = (feeCollection?.rows ?? []).map((r) => ({
+    name: r.category_name || r.category,
+    billed: Number(r.billed),
+    collected: Number(r.collected),
   }))
 
   // Chart chrome, stepped per mode (validated palette: blue #2a78d6/#3987e5, green #008300)
@@ -116,19 +164,27 @@ export default function Dashboard() {
       <div className="relative">
         <RefreshingOverlay active={isRefreshing} />
         <div className={refreshingContentClass(isRefreshing, 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4')}>
-        <StatsCard
-          title="Collected this term"
-          value={money(kpis.collected_this_term)}
-          subtitle={`of ${money(kpis.billed_this_term)} billed · ${kpis.collection_rate.toFixed(1)}% collection`}
-          icon={Wallet}
-          color="green"
-        />
         <div
           role="button"
           tabIndex={0}
           className="cursor-pointer"
-          onClick={() => navigate('/app/fee-invoices?status=posted')}
-          onKeyDown={(e) => e.key === 'Enter' && navigate('/app/fee-invoices?status=posted')}
+          onClick={() => navigate('/app/receipts')}
+          onKeyDown={(e) => e.key === 'Enter' && navigate('/app/receipts')}
+        >
+          <StatsCard
+            title="Collected this term"
+            value={money(kpis.collected_this_term)}
+            subtitle={`of ${money(kpis.billed_this_term)} billed · ${kpis.collection_rate.toFixed(1)}% — view receipts`}
+            icon={Wallet}
+            color="green"
+          />
+        </div>
+        <div
+          role="button"
+          tabIndex={0}
+          className="cursor-pointer"
+          onClick={() => navigate('/app/fee-invoices?status__in=posted,partial')}
+          onKeyDown={(e) => e.key === 'Enter' && navigate('/app/fee-invoices?status__in=posted,partial')}
         >
           <StatsCard
             title="Outstanding fees"
@@ -142,8 +198,8 @@ export default function Dashboard() {
           role="button"
           tabIndex={0}
           className="cursor-pointer"
-          onClick={() => navigate('/app/fee-invoices?status=posted')}
-          onKeyDown={(e) => e.key === 'Enter' && navigate('/app/fee-invoices?status=posted')}
+          onClick={() => navigate('/app/fee-invoices?status__in=posted,partial&due_date__lte=' + new Date().toISOString().slice(0, 10))}
+          onKeyDown={(e) => e.key === 'Enter' && navigate('/app/fee-invoices?status__in=posted,partial&due_date__lte=' + new Date().toISOString().slice(0, 10))}
         >
           <StatsCard
             title="Overdue fees"
@@ -220,12 +276,45 @@ export default function Dashboard() {
                       </span>
                     )}
                   />
-                  <Bar dataKey="billed" fill={billedColor} radius={[4, 4, 0, 0]} maxBarSize={28} />
+                  <Bar
+                    dataKey="billed"
+                    fill={billedColor}
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={28}
+                    isAnimationActive={!ct.reducedMotion}
+                    className="cursor-pointer"
+                    onClick={(d: { key?: string; payload?: { key?: string } }) => {
+                      const key = d?.key ?? d?.payload?.key
+                      if (!key) return
+                      const { gte, lte } = monthRange(key)
+                      navigate(`/app/fee-invoices?date__gte=${gte}&date__lte=${lte}`)
+                    }}
+                  />
                   <Line
                     dataKey="collected"
                     stroke={collectedColor}
                     strokeWidth={2}
-                    dot={{ r: 3, fill: collectedColor, strokeWidth: 0 }}
+                    isAnimationActive={!ct.reducedMotion}
+                    dot={(props: { cx?: number; cy?: number; index?: number; payload?: { key?: string } }) => {
+                      const { cx, cy, payload, index } = props
+                      if (cx == null || cy == null) return <g key={index} />
+                      return (
+                        <circle
+                          key={index}
+                          cx={cx}
+                          cy={cy}
+                          r={4}
+                          fill={collectedColor}
+                          className="cursor-pointer"
+                          onClick={() => {
+                            const key = payload?.key
+                            if (!key) return
+                            const { gte, lte } = monthRange(key)
+                            navigate(`/app/receipts?date__gte=${gte}&date__lte=${lte}`)
+                          }}
+                        />
+                      )
+                    }}
                     activeDot={{ r: 5 }}
                   />
                 </ComposedChart>
@@ -264,6 +353,82 @@ export default function Dashboard() {
               </button>
             ))}
           </div>
+        </Card>
+      </div>
+
+      {/* Aged debtors + fee collection */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader
+            title="Aged debtors"
+            description="Outstanding fees by age — click a bucket for the full report"
+          />
+          {agedChart.length === 0 || Number(aged?.grand_total ?? 0) === 0 ? (
+            <div className="h-64 flex items-center justify-center text-gray-400 text-sm">
+              No outstanding fees. 🎉
+            </div>
+          ) : (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={agedChart} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+                  <CartesianGrid stroke={ct.grid} vertical={false} />
+                  <XAxis dataKey="label" tick={{ fill: ct.tick, fontSize: 12 }} axisLine={{ stroke: ct.grid }} tickLine={false} />
+                  <YAxis tick={{ fill: ct.tick, fontSize: 12 }} tickFormatter={chartCompact} axisLine={false} tickLine={false} width={64} />
+                  <Tooltip
+                    formatter={(v: number | string) => [chartMoney(v), 'Outstanding']}
+                    cursor={{ fill: ct.cursorFill }}
+                    contentStyle={ct.tooltipStyle}
+                  />
+                  <Bar
+                    dataKey="amount"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={64}
+                    isAnimationActive={!ct.reducedMotion}
+                    className="cursor-pointer"
+                    onClick={() => navigate('/app/reports?report=aged-receivables')}
+                  >
+                    {agedChart.map((_row, i) => (
+                      <Cell key={i} fill={ct.aged[Math.min(i, ct.aged.length - 1)]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Fee collection by category"
+            description="Billed against collected per fee stream this term"
+          />
+          {feeChart.length === 0 ? (
+            <div className="h-64 flex items-center justify-center text-gray-400 text-sm">
+              No billing this term yet.
+            </div>
+          ) : (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={feeChart} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+                  <CartesianGrid stroke={ct.grid} vertical={false} />
+                  <XAxis dataKey="name" tick={{ fill: ct.tick, fontSize: 11 }} axisLine={{ stroke: ct.grid }} tickLine={false} interval={0} height={44} angle={-10} textAnchor="end" />
+                  <YAxis tick={{ fill: ct.tick, fontSize: 12 }} tickFormatter={chartCompact} axisLine={false} tickLine={false} width={64} />
+                  <Tooltip
+                    formatter={(v: number | string, n: string) => [chartMoney(v), n === 'billed' ? 'Billed' : 'Collected']}
+                    cursor={{ fill: ct.cursorFill }}
+                    contentStyle={ct.tooltipStyle}
+                  />
+                  <Legend
+                    formatter={(value: string) => (
+                      <span style={{ color: ct.tick, fontSize: 12 }}>{value === 'billed' ? 'Billed' : 'Collected'}</span>
+                    )}
+                  />
+                  <Bar dataKey="billed" fill={ct.series(0)} radius={[4, 4, 0, 0]} maxBarSize={22} isAnimationActive={!ct.reducedMotion} />
+                  <Bar dataKey="collected" fill={ct.series(2)} radius={[4, 4, 0, 0]} maxBarSize={22} isAnimationActive={!ct.reducedMotion} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </Card>
       </div>
 

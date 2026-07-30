@@ -1,9 +1,13 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { reportsApi, termsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
+import { useChartTheme, chartMoney, chartCompact } from '@/lib/chartTheme'
 import { RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
 import PdfButton from './PdfButton'
+import ExcelButton from './ExcelButton'
+import ReportChart from './ReportChart'
 
 interface Term {
   id: number
@@ -35,6 +39,7 @@ const money = (v: number | string) =>
   Number(v) ? Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''
 
 export default function FeeCollection() {
+  const theme = useChartTheme()
   const [term, setTerm] = useState('')
 
   const { data: terms } = useQuery({
@@ -59,6 +64,12 @@ export default function FeeCollection() {
 
   const totalOutstanding = (data?.rows ?? []).reduce((sum, r) => sum + Number(r.outstanding), 0)
 
+  const chartData = (data?.rows ?? []).map((r) => ({
+    name: r.category_name || r.category,
+    billed: Number(r.billed),
+    collected: Number(r.collected),
+  }))
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -77,11 +88,41 @@ export default function FeeCollection() {
             ))}
           </select>
         </label>
-        <PdfButton
-          reportKey="fee-collection"
-          params={effectiveTerm ? { term: effectiveTerm } : undefined}
-        />
+        <div className="flex items-center gap-3">
+          <PdfButton
+            reportKey="fee-collection"
+            params={effectiveTerm ? { term: effectiveTerm } : undefined}
+          />
+          <ExcelButton
+            reportKey="fee-collection"
+            params={effectiveTerm ? { term: effectiveTerm } : undefined}
+          />
+        </div>
       </div>
+
+      {data && (
+        <ReportChart title="Billed vs collected by category" height={248} isEmpty={chartData.length === 0}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
+              <CartesianGrid stroke={theme.grid} vertical={false} />
+              <XAxis dataKey="name" tick={{ fill: theme.tick, fontSize: 11 }} axisLine={{ stroke: theme.grid }} tickLine={false} interval={0} height={44} angle={-10} textAnchor="end" />
+              <YAxis tick={{ fill: theme.tick, fontSize: 12 }} tickFormatter={chartCompact} axisLine={false} tickLine={false} width={56} />
+              <Tooltip
+                formatter={(v: number | string, n: string) => [chartMoney(v), n === 'billed' ? 'Billed' : 'Collected']}
+                cursor={{ fill: theme.cursorFill }}
+                contentStyle={theme.tooltipStyle}
+              />
+              <Legend
+                formatter={(value: string) => (
+                  <span style={{ color: theme.tick, fontSize: 12 }}>{value === 'billed' ? 'Billed' : 'Collected'}</span>
+                )}
+              />
+              <Bar dataKey="billed" fill={theme.series(0)} radius={[4, 4, 0, 0]} maxBarSize={22} isAnimationActive={!theme.reducedMotion} />
+              <Bar dataKey="collected" fill={theme.series(2)} radius={[4, 4, 0, 0]} maxBarSize={22} isAnimationActive={!theme.reducedMotion} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ReportChart>
+      )}
 
       {!data ? (
         <SkeletonTable rows={6} />

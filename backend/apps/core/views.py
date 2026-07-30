@@ -5,6 +5,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 
+from .filters import AuditTrailFilter, UserFilter
 from .models import AuditTrail, DocumentSequence, SchoolSettings, User
 from .permissions import IsAdmin, RoleWritePermission
 from .serializers import (
@@ -59,7 +60,8 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     permission_classes = [IsAdmin]
     search_fields = ['email', 'first_name', 'last_name']
-    filterset_fields = ['role', 'is_active']
+    filterset_class = UserFilter
+    ordering_fields = '__all__'
 
 
 class SchoolSettingsViewSet(viewsets.ViewSet):
@@ -90,5 +92,6 @@ class DocumentSequenceViewSet(viewsets.ModelViewSet):
 class AuditTrailViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = AuditTrail.objects.select_related('user').all()
     serializer_class = AuditTrailSerializer
-    filterset_fields = ['action', 'model_name', 'record_id', 'user']
+    filterset_class = AuditTrailFilter
     search_fields = ['model_name', 'record_id', 'user_email']
+    ordering_fields = '__all__'

@@ -1,13 +1,15 @@
-import { useState } from 'react'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { GraduationCap, Plus } from '@phosphor-icons/react'
 import { studentsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
-import { useDebounce } from '@/lib/utils'
+import { usePagedList } from '@/hooks/usePaginatedQuery'
+import { usePrefetchDetail } from '@/hooks/usePrefetch'
+import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import {
   Button,
   DataTable,
+  FilterBar,
   PageHeader,
   RefreshingOverlay,
   StatusBadge,
@@ -15,31 +17,60 @@ import {
   type Column,
 } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
-import { STUDENT_STATUSES, type Student } from '@/types/students'
+import { STUDENT_STATUSES, ATTENDANCE_TYPES, type Student } from '@/types/students'
 import { fmtMoney } from '@/types/fees'
 import StudentFormModal from './StudentFormModal'
 
+const PAGE_SIZE = 25
+
+// Static (stable identity — defined at module scope so filter hooks don't churn).
+const STATUS_OPTIONS = STUDENT_STATUSES.map((s) => ({
+  value: s,
+  label: s.charAt(0).toUpperCase() + s.slice(1),
+}))
+
+const ATTENDANCE_OPTIONS = ATTENDANCE_TYPES.map(([value, label]) => ({ value, label }))
+
+const GENDER_OPTIONS = [
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+]
+
+const FILTER_CONFIG: FilterConfig = [
+  { type: 'search', placeholder: 'Search admission code or name…' },
+  { type: 'chips', field: 'status', label: 'Status', multi: true, options: STATUS_OPTIONS },
+  { type: 'select', field: 'attendance_type', label: 'Attendance', options: ATTENDANCE_OPTIONS },
+  { type: 'select', field: 'gender', label: 'Gender', options: GENDER_OPTIONS },
+  { type: 'dateRange', field: 'admission_date', label: 'Admission date' },
+]
+
 export default function Students() {
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const statusFilter = searchParams.get('status') ?? ''
-  const [search, setSearch] = useState('')
+  const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
   const [showCreate, setShowCreate] = useState(false)
-  const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isFetching } = useQuery({
-    queryKey: qk.students.list({ page, search: debouncedSearch, status: statusFilter }),
-    queryFn: () =>
-      studentsApi
-        .list({ page, search: debouncedSearch || undefined, status: statusFilter || undefined })
-        .then((r) => r.data as Paginated<Student>),
-    placeholderData: keepPreviousData,
+  // Any filter change returns to page 1 (keepPreviousData keeps the old rows on
+  // screen so this never blanks the table).
+  const filterSignature = JSON.stringify(filters.params)
+  useEffect(() => {
+    setPage(1)
+  }, [filterSignature])
+
+  const { data, results, total, isFetching } = usePagedList<Student>({
+    keyFor: (p) => qk.students.list({ ...filters.params, page: p }),
+    fetchPage: (p) =>
+      studentsApi.list(filtersToQuery(filters.params, { page: p })).then((r) => r.data as Paginated<Student>),
+    page,
+    pageSize: PAGE_SIZE,
   })
-
-  // Only a *background* refresh (we already have rows on screen) gets the subtle
-  // bar. First load has no data and falls through to the table skeleton instead.
   const isRefreshing = isFetching && !!data
+
+  // Warm the student detail cache on row hover so opening a student is instant.
+  const prefetchStudent = usePrefetchDetail<Student>(
+    (s) => qk.students.detail(s.id),
+    (s) => studentsApi.get(s.id).then((r) => r.data)
+  )
 
   const columns: Column<Student>[] = [
     {
@@ -83,27 +114,7 @@ export default function Students() {
         }
       />
 
-      <div className="flex gap-2 flex-wrap">
-        {['', ...STUDENT_STATUSES].map((s) => (
-          <button
-            key={s}
-            onClick={() => {
-              const next = new URLSearchParams(searchParams)
-              if (s) next.set('status', s)
-              else next.delete('status')
-              setSearchParams(next, { replace: true })
-              setPage(1)
-            }}
-            className={`px-3 py-1.5 text-sm rounded-full border capitalize ${
-              statusFilter === s
-                ? 'bg-primary-600 text-white border-primary-600'
-                : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-            }`}
-          >
-            {s || 'All'}
-          </button>
-        ))}
-      </div>
+      <FilterBar config={FILTER_CONFIG} filters={filters} />
 
       <div className="relative">
         <RefreshingOverlay active={isRefreshing} />
@@ -111,18 +122,16 @@ export default function Students() {
           <DataTable<Student>
             rowKey={(s) => s.id}
             columns={columns}
-            data={data?.results ?? []}
+            data={results}
             loading={!data}
-            searchable
-            searchValue={search}
-            onSearch={(q) => { setSearch(q); setPage(1) }}
-            searchPlaceholder="Search admission code or name…"
             onRowClick={(s) => navigate(`/app/students/${s.id}`)}
+            onRowHover={prefetchStudent}
             emptyTitle="No students found"
+            emptyDescription="No students match the current filters."
             pagination={{
               page,
-              pageSize: 25,
-              total: data?.count ?? 0,
+              pageSize: PAGE_SIZE,
+              total,
               onPageChange: setPage,
             }}
           />

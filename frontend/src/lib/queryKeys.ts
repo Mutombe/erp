@@ -35,7 +35,11 @@ export const qk = {
   accounts: entityKeys('accounts'),
   journals: entityKeys('journals'),
   generalLedger: entityKeys('generalLedger'),
-  subAccounts: entityKeys('subAccounts'),
+  subAccounts: {
+    ...entityKeys('subAccounts'),
+    transactions: (id: Id, filters: Filters = {}) =>
+      ['subAccounts', 'transactions', id, filters] as QueryKey,
+  },
   bankAccounts: entityKeys('bankAccounts'),
   bankStatements: entityKeys('bankStatements'),
   bankReconciliations: entityKeys('bankReconciliations'),

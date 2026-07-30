@@ -4,6 +4,7 @@ from rest_framework.response import Response
 
 from apps.core.permissions import RoleWritePermission
 
+from .filters import AssetFilter, DepreciationRunFilter
 from .models import Asset, AssetCategory, DepreciationRun
 from .serializers import (
     AssetCategorySerializer,
@@ -30,9 +31,9 @@ class AssetCategoryViewSet(AssetsViewSet):
 class AssetViewSet(AssetsViewSet):
     queryset = Asset.objects.select_related('category', 'disposal_journal').all()
     serializer_class = AssetSerializer
-    filterset_fields = ['status', 'category']
+    filterset_class = AssetFilter
     search_fields = ['code', 'name', 'serial_number', 'location', 'custodian']
-    ordering_fields = ['code', 'name', 'acquisition_date', 'cost_base']
+    ordering_fields = '__all__'
 
     @action(detail=True, methods=['post'])
     def dispose(self, request, pk=None):
@@ -59,7 +60,8 @@ class DepreciationRunViewSet(viewsets.ReadOnlyModelViewSet):
         .all()
     )
     serializer_class = DepreciationRunSerializer
-    filterset_fields = ['status', 'period']
+    filterset_class = DepreciationRunFilter
+    ordering_fields = '__all__'
 
     @action(detail=False, methods=['post'])
     def run(self, request):

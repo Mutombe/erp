@@ -5,6 +5,15 @@ from rest_framework.response import Response
 
 from apps.core.permissions import RoleWritePermission
 
+from .filters import (
+    BankAccountFilter,
+    ChartOfAccountFilter,
+    ExchangeRateFilter,
+    GeneralLedgerFilter,
+    JournalFilter,
+    OpeningBalanceFilter,
+    SubAccountFilter,
+)
 from .models import (
     AccountMapping,
     BankAccount,
@@ -41,18 +50,18 @@ class AccountingViewSet(viewsets.ModelViewSet):
 class ChartOfAccountViewSet(AccountingViewSet):
     queryset = ChartOfAccount.objects.all()
     serializer_class = ChartOfAccountSerializer
-    filterset_fields = ['account_type', 'account_subtype', 'report_group', 'is_active', 'currency']
-    search_fields = ['code', 'name']
-    ordering_fields = ['code', 'name', 'current_balance']
+    filterset_class = ChartOfAccountFilter
+    search_fields = ['code', 'name', 'description']
+    ordering_fields = '__all__'
     pagination_class = None  # the COA is small and screens want it whole
 
 
 class JournalViewSet(AccountingViewSet):
     queryset = Journal.objects.prefetch_related('lines__account', 'lines__sub_account').all()
     serializer_class = JournalSerializer
-    filterset_fields = ['journal_type', 'status', 'currency', 'source_type', 'source_id']
+    filterset_class = JournalFilter
     search_fields = ['number', 'description', 'reference', 'source_ref']
-    ordering_fields = ['date', 'number']
+    ordering_fields = '__all__'
 
     def create(self, request, *args, **kwargs):
         serializer = ManualJournalSerializer(data=request.data, context={'request': request})
@@ -76,9 +85,9 @@ class JournalViewSet(AccountingViewSet):
 class GeneralLedgerViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = GeneralLedger.objects.select_related('account', 'journal').all()
     serializer_class = GeneralLedgerSerializer
-    filterset_fields = ['account', 'currency', 'journal']
+    filterset_class = GeneralLedgerFilter
     search_fields = ['description', 'journal__number']
-    ordering_fields = ['date', 'id']
+    ordering_fields = '__all__'
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -94,8 +103,9 @@ class GeneralLedgerViewSet(viewsets.ReadOnlyModelViewSet):
 class SubAccountViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = SubAccount.objects.select_related('student', 'supplier').all()
     serializer_class = SubAccountSerializer
-    filterset_fields = ['party_type', 'category', 'currency', 'student', 'supplier', 'is_active']
+    filterset_class = SubAccountFilter
     search_fields = ['code', 'name']
+    ordering_fields = '__all__'
 
     @action(detail=True, methods=['get'])
     def transactions(self, request, pk=None):
@@ -112,16 +122,18 @@ class SubAccountViewSet(viewsets.ReadOnlyModelViewSet):
 class BankAccountViewSet(AccountingViewSet):
     queryset = BankAccount.objects.select_related('gl_account').all()
     serializer_class = BankAccountSerializer
-    filterset_fields = ['currency', 'account_type', 'is_active']
+    filterset_class = BankAccountFilter
     search_fields = ['code', 'name', 'bank_name', 'account_number']
+    ordering_fields = '__all__'
     pagination_class = None
 
 
 class ExchangeRateViewSet(AccountingViewSet):
     queryset = ExchangeRate.objects.all()
     serializer_class = ExchangeRateSerializer
-    filterset_fields = ['from_currency', 'to_currency']
-    ordering_fields = ['effective_date']
+    filterset_class = ExchangeRateFilter
+    search_fields = ['from_currency', 'to_currency', 'source']
+    ordering_fields = '__all__'
 
 
 class FiscalYearViewSet(AccountingViewSet):
@@ -156,7 +168,9 @@ class FiscalPeriodViewSet(AccountingViewSet):
 class OpeningBalanceViewSet(AccountingViewSet):
     queryset = OpeningBalance.objects.select_related('target_account', 'student', 'supplier').all()
     serializer_class = OpeningBalanceSerializer
-    filterset_fields = ['status', 'currency', 'student', 'supplier']
+    filterset_class = OpeningBalanceFilter
+    search_fields = ['number', 'description', 'category']
+    ordering_fields = '__all__'
 
     @action(detail=True, methods=['post'], url_path='post')
     def post_entry(self, request, pk=None):

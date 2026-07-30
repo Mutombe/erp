@@ -5,6 +5,14 @@ from rest_framework.response import Response
 from apps.core.permissions import RoleWritePermission
 
 from . import services
+from .filters import (
+    BillingRunFilter,
+    BursaryAwardFilter,
+    CreditNoteFilter,
+    FeeInvoiceFilter,
+    FeeStructureFilter,
+    ReceiptFilter,
+)
 from .models import (
     BillingRun,
     BursaryAward,
@@ -42,21 +50,25 @@ class FeeCategoryViewSet(FeesViewSet):
 class FeeStructureViewSet(FeesViewSet):
     queryset = FeeStructure.objects.select_related('academic_year', 'term', 'grade', 'fee_category').all()
     serializer_class = FeeStructureSerializer
-    filterset_fields = ['academic_year', 'term', 'grade', 'fee_category', 'currency', 'applies_to']
+    filterset_class = FeeStructureFilter
+    search_fields = ['fee_category__code', 'fee_category__name', 'grade__name']
+    ordering_fields = '__all__'
 
 
 class BursaryAwardViewSet(FeesViewSet):
     queryset = BursaryAward.objects.select_related('student', 'fee_category', 'academic_year', 'term').all()
     serializer_class = BursaryAwardSerializer
-    filterset_fields = ['student', 'fee_category', 'academic_year', 'term', 'award_type', 'is_active']
+    filterset_class = BursaryAwardFilter
     search_fields = ['student__code', 'student__first_name', 'student__last_name', 'funder']
+    ordering_fields = '__all__'
 
 
 class BillingRunViewSet(FeesViewSet):
     queryset = BillingRun.objects.select_related('term', 'created_by').prefetch_related('grades').all()
     serializer_class = BillingRunSerializer
-    filterset_fields = ['term', 'currency', 'status']
+    filterset_class = BillingRunFilter
     search_fields = ['number']
+    ordering_fields = '__all__'
     throttle_scope = 'billing_run'
 
     @action(detail=True, methods=['post'])
@@ -78,9 +90,9 @@ class FeeInvoiceViewSet(FeesViewSet):
         .all()
     )
     serializer_class = FeeInvoiceSerializer
-    filterset_fields = ['status', 'term', 'student', 'currency', 'billing_run']
+    filterset_class = FeeInvoiceFilter
     search_fields = ['number', 'student__code', 'student__first_name', 'student__last_name']
-    ordering_fields = ['date', 'due_date', 'number', 'total']
+    ordering_fields = '__all__'
 
     @action(detail=True, methods=['post'], url_path='post')
     def post_invoice(self, request, pk=None):
@@ -103,8 +115,9 @@ class CreditNoteViewSet(FeesViewSet):
         .all()
     )
     serializer_class = CreditNoteSerializer
-    filterset_fields = ['status', 'student', 'invoice', 'currency']
+    filterset_class = CreditNoteFilter
     search_fields = ['number', 'student__code', 'student__first_name', 'student__last_name']
+    ordering_fields = '__all__'
 
     @action(detail=True, methods=['post'], url_path='post')
     def post_credit_note(self, request, pk=None):
@@ -120,8 +133,9 @@ class ReceiptViewSet(FeesViewSet):
         .all()
     )
     serializer_class = ReceiptSerializer
-    filterset_fields = ['student', 'bank_account', 'currency', 'status', 'payment_method']
+    filterset_class = ReceiptFilter
     search_fields = ['number', 'reference', 'student__code', 'student__first_name', 'student__last_name']
+    ordering_fields = '__all__'
     http_method_names = ['get', 'post', 'head', 'options']
 
     def create(self, request, *args, **kwargs):
