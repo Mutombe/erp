@@ -15,7 +15,7 @@ from .serializers import (
     IngestionItemSerializer,
     RejectSerializer,
 )
-from .services import approve_item, build_proposal, extract_item, normalize
+from .services import approve_item, build_proposal, empty_scaffold, extract_item, normalize
 
 
 class IngestionItemViewSet(viewsets.ModelViewSet):
@@ -44,8 +44,10 @@ class IngestionItemViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser])
     def upload(self, request):
-        """multipart: file + doc_type (+ optional currency) → create item and
-        best-effort extract it."""
+        """multipart: file + doc_type (+ optional currency) → create the item and
+        return immediately. Extraction is a separate step (the client calls
+        /extract/), so the upload never blocks on — or fails because of — the AI
+        service, its cold-start import cost, or transient overload."""
         file = request.FILES.get('file')
         if not file:
             raise DRFValidationError('A file is required.')
@@ -59,10 +61,10 @@ class IngestionItemViewSet(viewsets.ModelViewSet):
             original_filename=getattr(file, 'name', ''),
             mime_type=getattr(file, 'content_type', '') or '',
             target_currency=(request.data.get('currency') or 'USD').upper()[:3],
+            status='received',
+            extraction=empty_scaffold(doc_type),
             created_by=request.user if request.user.is_authenticated else None,
         )
-        extract_item(item)  # guarded; never crashes without a key
-        item.refresh_from_db()
         return Response(self.get_serializer(item).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])

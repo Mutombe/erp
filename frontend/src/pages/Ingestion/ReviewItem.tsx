@@ -149,6 +149,18 @@ export default function ReviewItem() {
     onError: (error) => showToast.error(parseApiError(error, 'Extraction failed')),
   })
 
+  // A freshly uploaded item (status 'received') hasn't been read by the AI yet.
+  // Kick off extraction once on first view — the upload endpoint returns
+  // instantly and delegates the slow/optional AI step here, where a failure just
+  // leaves the item in needs_review for manual entry.
+  const [autoExtractTried, setAutoExtractTried] = useState(false)
+  useEffect(() => {
+    if (item?.status === 'received' && !autoExtractTried && !extractMutation.isPending) {
+      setAutoExtractTried(true)
+      extractMutation.mutate()
+    }
+  }, [item?.status, autoExtractTried]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const saveMutation = useMutation({
     mutationFn: (extraction: Record<string, unknown>) =>
       ingestionApi.editExtraction(id!, { extraction }).then((r) => r.data as IngestionItem),
