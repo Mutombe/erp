@@ -177,6 +177,29 @@ export const studentsApi = {
 export const guardiansApi = crud('students/guardians')
 export const enrollmentsApi = crud('students/enrollments')
 
+export const subjectsApi = crud('students/subjects')
+
+export const teachersApi = {
+  ...crud('students/teachers'),
+  students: (id: Id, params?: ListParams) =>
+    api.get(`/students/teachers/${id}/students/`, { params }),
+  classes: (id: Id, params?: ListParams) =>
+    api.get(`/students/teachers/${id}/classes/`, { params }),
+}
+
+export const teachingAssignmentsApi = crud('students/teaching-assignments')
+
+// ---------------------------------------------------------------------------
+// Attendance
+// ---------------------------------------------------------------------------
+
+export const attendanceSessionsApi = {
+  ...crud('attendance/sessions'),
+  mark: (id: Id, payload: object) => api.post(`/attendance/sessions/${id}/mark/`, payload),
+}
+
+export const attendanceRecordsApi = crud('attendance/records')
+
 // ---------------------------------------------------------------------------
 // Fees
 // ---------------------------------------------------------------------------
@@ -304,6 +327,8 @@ export const reportsApi = {
   receiptListing: (params?: ListParams) => api.get('/reports/receipt-listing/', { params }),
   departmentConsumption: (params?: ListParams) =>
     api.get('/reports/department-consumption/', { params }),
+  attendanceSummary: (params?: ListParams) => api.get('/reports/attendance-summary/', { params }),
+  attendanceRegister: (params?: ListParams) => api.get('/reports/attendance-register/', { params }),
   dashboard: () => api.get('/reports/dashboard/'),
 }
 

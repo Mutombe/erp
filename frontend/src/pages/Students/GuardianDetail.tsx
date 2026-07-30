@@ -14,6 +14,7 @@ import {
   StatusBadge,
   type Column,
 } from '@/components/ui'
+import RecordLink from '@/components/RecordLink'
 import type { Guardian, StudentBrief } from '@/types/students'
 import GuardianFormModal from './GuardianFormModal'
 
@@ -35,7 +36,7 @@ export default function GuardianDetail() {
     {
       key: 'code',
       header: 'Admission #',
-      render: (s) => <span className="font-mono text-primary-600 dark:text-primary-400">{s.code}</span>,
+      render: (s) => <RecordLink to={`/app/students/${s.id}`} mono>{s.code}</RecordLink>,
     },
     { key: 'full_name', header: 'Name', render: (s) => <span className="font-medium">{s.full_name}</span> },
     { key: 'status', header: 'Status', render: (s) => <StatusBadge status={s.status} /> },

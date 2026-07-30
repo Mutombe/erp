@@ -25,6 +25,8 @@ export interface FeeStructure {
   is_mandatory: boolean
 }
 
+export type BillingScope = 'whole_school' | 'grades' | 'classes' | 'students'
+
 export interface BillingRun {
   id: number
   number: string
@@ -33,7 +35,10 @@ export interface BillingRun {
   currency: string
   date: string
   due_date: string | null
+  scope: BillingScope
   grades: number[]
+  classes: number[]
+  students: number[]
   status: 'draft' | 'previewed' | 'running' | 'completed' | 'failed'
   invoices_created: number
   total_billed: string
@@ -137,6 +142,51 @@ export interface Receipt {
   created_at: string
 }
 
+export interface CreditNoteLine {
+  id: number
+  fee_category: number
+  fee_category_code: string
+  amount: string
+}
+
+export interface CreditNote {
+  id: number
+  number: string
+  student: number
+  student_code: string
+  student_name: string
+  invoice: number | null
+  invoice_number: string | null
+  date: string
+  currency: string
+  reason: string
+  total: string
+  status: 'draft' | 'posted'
+  journal: number | null
+  journal_number: string | null
+  lines: CreditNoteLine[]
+  created_by: number | null
+  created_at: string
+}
+
+export type BursaryAwardType = 'percent' | 'fixed'
+
+export interface BursaryAward {
+  id: number
+  student: number
+  student_code: string
+  student_name: string
+  fee_category: number | null
+  fee_category_code: string | null
+  academic_year: number | null
+  term: number | null
+  award_type: BursaryAwardType
+  value: string
+  funder: string
+  notes: string
+  is_active: boolean
+}
+
 export const PAYMENT_METHODS = [
   ['cash', 'Cash'],
   ['bank_transfer', 'Bank transfer'],
@@ -144,6 +194,13 @@ export const PAYMENT_METHODS = [
   ['card', 'Card'],
   ['cheque', 'Cheque'],
 ] as const
+
+export const BILLING_SCOPE_OPTIONS: [BillingScope, string][] = [
+  ['whole_school', 'Whole school'],
+  ['grades', 'By grade'],
+  ['classes', 'By class'],
+  ['students', 'Specific students'],
+]
 
 export const APPLIES_TO_OPTIONS = [
   ['all', 'All students'],

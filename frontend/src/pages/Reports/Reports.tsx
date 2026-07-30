@@ -15,6 +15,7 @@ const CashFlow = lazy(() => import('./sections/CashFlow'))
 const AssetRegister = lazy(() => import('./sections/AssetRegister'))
 const StockValuation = lazy(() => import('./sections/StockValuation'))
 const DepartmentConsumption = lazy(() => import('./sections/DepartmentConsumption'))
+const AttendanceSummary = lazy(() => import('./sections/AttendanceSummary'))
 
 const REPORTS: { key: string; label: string; group: string; component?: React.LazyExoticComponent<() => JSX.Element> }[] = [
   { key: 'trial-balance', label: 'Trial Balance', group: 'Financial', component: TrialBalance },
@@ -29,6 +30,7 @@ const REPORTS: { key: string; label: string; group: string; component?: React.La
   { key: 'asset-register', label: 'Asset Register', group: 'Assets', component: AssetRegister },
   { key: 'stock-valuation', label: 'Stock Valuation', group: 'Inventory', component: StockValuation },
   { key: 'department-consumption', label: 'Department Consumption', group: 'Inventory', component: DepartmentConsumption },
+  { key: 'attendance-summary', label: 'Attendance Summary', group: 'Students', component: AttendanceSummary },
 ]
 
 export default function Reports() {

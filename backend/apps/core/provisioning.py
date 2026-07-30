@@ -104,6 +104,7 @@ SEQUENCES = [
     ('JRN', 'JRN'), ('INV', 'INV'), ('RCT', 'RCT'), ('CRN', 'CRN'),
     ('PO', 'PO'), ('GRN', 'GRN'), ('BIL', 'BIL'), ('PAY', 'PAY'),
     ('AST', 'AST'), ('STU', 'STU'), ('SUP', 'SUP'), ('OPB', 'OPB'), ('ADJ', 'ADJ'), ('RUN', 'RUN'),
+    ('TCH', 'TCH'),
 ]
 
 GRADES = (

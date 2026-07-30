@@ -63,8 +63,8 @@ class BillingRunSerializer(serializers.ModelSerializer):
         model = BillingRun
         fields = [
             'id', 'number', 'term', 'term_name', 'currency', 'date', 'due_date',
-            'grades', 'status', 'invoices_created', 'total_billed', 'error_message',
-            'task_id', 'created_by', 'created_at',
+            'scope', 'grades', 'classes', 'students', 'status', 'invoices_created',
+            'total_billed', 'error_message', 'task_id', 'created_by', 'created_at',
         ]
         read_only_fields = [
             'number', 'status', 'invoices_created', 'total_billed', 'error_message',

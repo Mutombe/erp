@@ -13,6 +13,9 @@ from .filters import (
     GradeFilter,
     GuardianFilter,
     StudentFilter,
+    SubjectFilter,
+    TeacherFilter,
+    TeachingAssignmentFilter,
     TermFilter,
 )
 from .models import (
@@ -23,6 +26,9 @@ from .models import (
     Guardian,
     Student,
     StudentGuardian,
+    Subject,
+    Teacher,
+    TeachingAssignment,
     Term,
 )
 from .serializers import (
@@ -30,9 +36,14 @@ from .serializers import (
     ClassRoomSerializer,
     EnrollmentSerializer,
     GradeSerializer,
+    ClassBriefSerializer,
     GuardianSerializer,
+    StudentBriefSerializer,
     StudentGuardianSerializer,
     StudentSerializer,
+    SubjectSerializer,
+    TeacherSerializer,
+    TeachingAssignmentSerializer,
     TermSerializer,
 )
 
@@ -114,4 +125,40 @@ class EnrollmentViewSet(StudentsViewSet):
     serializer_class = EnrollmentSerializer
     filterset_class = EnrollmentFilter
     search_fields = ['student__code', 'student__first_name', 'student__last_name']
+    ordering_fields = '__all__'
+
+
+class SubjectViewSet(StudentsViewSet):
+    queryset = Subject.objects.all()
+    serializer_class = SubjectSerializer
+    filterset_class = SubjectFilter
+    search_fields = ['code', 'name']
+    ordering_fields = '__all__'
+
+
+class TeacherViewSet(StudentsViewSet):
+    queryset = Teacher.objects.select_related('user').all()
+    serializer_class = TeacherSerializer
+    filterset_class = TeacherFilter
+    search_fields = ['code', 'first_name', 'last_name', 'email']
+    ordering_fields = '__all__'
+
+    @action(detail=True, methods=['get'])
+    def students(self, request, pk=None):
+        teacher = self.get_object()
+        return Response(StudentBriefSerializer(teacher.students, many=True).data)
+
+    @action(detail=True, methods=['get'])
+    def classes(self, request, pk=None):
+        teacher = self.get_object()
+        return Response(ClassBriefSerializer(teacher.classes, many=True).data)
+
+
+class TeachingAssignmentViewSet(StudentsViewSet):
+    queryset = TeachingAssignment.objects.select_related(
+        'teacher', 'class_room__grade', 'subject'
+    ).all()
+    serializer_class = TeachingAssignmentSerializer
+    filterset_class = TeachingAssignmentFilter
+    search_fields = ['teacher__code', 'teacher__last_name', 'subject__code', 'class_room__name']
     ordering_fields = '__all__'

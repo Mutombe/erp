@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ArrowsLeftRight } from '@phosphor-icons/react'
 import { departmentsApi, itemsApi, stockMovesApi, warehousesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { usePagedList } from '@/hooks/usePaginatedQuery'
+import { usePrefetchDetail } from '@/hooks/usePrefetch'
+import RecordLink from '@/components/RecordLink'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import {
   Badge,
@@ -82,6 +84,7 @@ const FILTER_CONFIG: FilterConfig = [
 
 export default function StockMoves() {
   const filters = useUrlFilters(FILTER_CONFIG)
+  const navigate = useNavigate()
   const [page, setPage] = useState(1)
 
   const filterSignature = JSON.stringify(filters.params)
@@ -98,8 +101,13 @@ export default function StockMoves() {
   })
   const isRefreshing = isFetching && !!data
 
+  const prefetch = usePrefetchDetail<StockMove>(
+    (m) => qk.stockMoves.detail(m.id),
+    (m) => stockMovesApi.get(m.id).then((r) => r.data)
+  )
+
   const columns: Column<StockMove>[] = [
-    { key: 'number', header: 'Number', render: (m) => <span className="font-mono">{m.number}</span> },
+    { key: 'number', header: 'Number', render: (m) => <span className="font-mono text-primary-600 dark:text-primary-400">{m.number}</span> },
     { key: 'date', header: 'Date' },
     {
       key: 'move_type',
@@ -110,13 +118,9 @@ export default function StockMoves() {
       key: 'item',
       header: 'Item',
       render: (m) => (
-        <Link
-          to={`/app/items/${m.item}`}
-          onClick={(e) => e.stopPropagation()}
-          className="text-primary-600 dark:text-primary-400 hover:underline"
-        >
+        <RecordLink to={`/app/items/${m.item}`}>
           <span className="font-mono">{m.item_code}</span> {m.item_name}
-        </Link>
+        </RecordLink>
       ),
     },
     { key: 'quantity', header: 'Qty', align: 'right', render: (m) => <span className="tabular-nums">{money(m.quantity)}</span> },
@@ -126,22 +130,37 @@ export default function StockMoves() {
       key: 'route',
       header: 'From → To',
       render: (m) => (
-        <span className="font-mono text-xs">{m.warehouse_from_code || '—'} → {m.warehouse_to_code || '—'}</span>
+        <span className="font-mono text-xs">
+          {m.warehouse_from ? (
+            <RecordLink to={`/app/warehouses/${m.warehouse_from}`} mono>{m.warehouse_from_code}</RecordLink>
+          ) : (
+            '—'
+          )}
+          {' → '}
+          {m.warehouse_to ? (
+            <RecordLink to={`/app/warehouses/${m.warehouse_to}`} mono>{m.warehouse_to_code}</RecordLink>
+          ) : (
+            '—'
+          )}
+        </span>
       ),
     },
-    { key: 'department', header: 'Department', render: (m) => m.department_name || '—' },
+    {
+      key: 'department',
+      header: 'Department',
+      render: (m) =>
+        m.department ? (
+          <RecordLink to={`/app/departments/${m.department}`}>{m.department_name}</RecordLink>
+        ) : (
+          '—'
+        ),
+    },
     {
       key: 'journal',
       header: 'Journal',
       render: (m) =>
         m.journal ? (
-          <Link
-            to={`/app/journals/${m.journal}`}
-            onClick={(e) => e.stopPropagation()}
-            className="text-primary-600 dark:text-primary-400 hover:underline font-mono"
-          >
-            {m.journal_number}
-          </Link>
+          <RecordLink to={`/app/journals/${m.journal}`} mono>{m.journal_number}</RecordLink>
         ) : (
           '—'
         ),
@@ -166,6 +185,8 @@ export default function StockMoves() {
             columns={columns}
             data={results}
             loading={!data}
+            onRowClick={(m) => navigate(`/app/stock-moves/${m.id}`)}
+            onRowHover={prefetch}
             emptyTitle="No stock moves"
             pagination={{
               page,

@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Money, FileArrowDown, FileText, GraduationCap, Receipt as ReceiptIcon, Scroll, User } from '@phosphor-icons/react'
-import { feeInvoicesApi, guardiansApi, receiptsApi, reportsApi, studentsApi } from '@/services/api'
+import { bursariesApi, creditNotesApi, feeInvoicesApi, guardiansApi, receiptsApi, reportsApi, studentsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { formatDate } from '@/lib/utils'
+import RecordLink from '@/components/RecordLink'
 import {
   Button,
   DataTable,
@@ -21,7 +22,7 @@ import {
 } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import type { Guardian, Student, StudentStatement } from '@/types/students'
-import { fmtMoney, type FeeInvoice, type Receipt } from '@/types/fees'
+import { fmtMoney, type BursaryAward, type CreditNote, type FeeInvoice, type Receipt } from '@/types/fees'
 
 const TABS = ['overview', 'invoices', 'receipts', 'statement'] as const
 
@@ -107,6 +108,18 @@ function OverviewTab({ student }: { student: Student }) {
     (g.students ?? []).some((s) => s.id === student.id)
   )
 
+  const { data: bursaries } = useQuery({
+    queryKey: qk.bursaries.list({ student: student.id }),
+    queryFn: () =>
+      bursariesApi.list({ student: student.id, page_size: 100 }).then((r) => (r.data as Paginated<BursaryAward>).results),
+  })
+
+  const { data: creditNotes } = useQuery({
+    queryKey: qk.creditNotes.list({ student: student.id }),
+    queryFn: () =>
+      creditNotesApi.list({ student: student.id, page_size: 100 }).then((r) => (r.data as Paginated<CreditNote>).results),
+  })
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -151,9 +164,7 @@ function OverviewTab({ student }: { student: Student }) {
                 {linkedGuardians.map((g) => (
                   <tr key={g.id} className="border-t border-gray-100 dark:border-gray-700/50">
                     <td className="px-4 py-2.5">
-                      <Link to={`/app/guardians/${g.id}`} className="font-mono text-primary-600 dark:text-primary-400 hover:underline">
-                        {g.code}
-                      </Link>
+                      <RecordLink to={`/app/guardians/${g.id}`} mono>{g.code}</RecordLink>
                     </td>
                     <td className="px-4 py-2.5">{g.full_name}</td>
                     <td className="px-4 py-2.5">{g.phone || '—'}</td>
@@ -165,6 +176,72 @@ function OverviewTab({ student }: { student: Student }) {
           </div>
         )}
       </div>
+
+      {(bursaries ?? []).length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Bursaries</h3>
+          <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
+                <tr>
+                  <th className="px-4 py-3">Category</th>
+                  <th className="px-4 py-3">Type</th>
+                  <th className="px-4 py-3 text-right">Award</th>
+                  <th className="px-4 py-3">Funder</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(bursaries ?? []).map((b) => (
+                  <tr key={b.id} className="border-t border-gray-100 dark:border-gray-700/50">
+                    <td className="px-4 py-2.5 font-mono">{b.fee_category_code || 'All fees'}</td>
+                    <td className="px-4 py-2.5 capitalize">{b.award_type}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">
+                      {b.award_type === 'percent' ? `${parseFloat(b.value)}%` : fmtMoney(b.value)}
+                    </td>
+                    <td className="px-4 py-2.5">{b.funder || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {(creditNotes ?? []).length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Credit notes</h3>
+          <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
+                <tr>
+                  <th className="px-4 py-3">Number</th>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Invoice</th>
+                  <th className="px-4 py-3 text-right">Total</th>
+                  <th className="px-4 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(creditNotes ?? []).map((c) => (
+                  <tr key={c.id} className="border-t border-gray-100 dark:border-gray-700/50">
+                    <td className="px-4 py-2.5">
+                      <RecordLink to={`/app/credit-notes/${c.id}`} mono>{c.number}</RecordLink>
+                    </td>
+                    <td className="px-4 py-2.5">{c.date}</td>
+                    <td className="px-4 py-2.5">
+                      {c.invoice ? (
+                        <RecordLink to={`/app/fee-invoices/${c.invoice}`} mono>{c.invoice_number}</RecordLink>
+                      ) : '—'}
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">{fmtMoney(c.total)}</td>
+                    <td className="px-4 py-2.5"><StatusBadge status={c.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

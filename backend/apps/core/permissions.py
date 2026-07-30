@@ -7,6 +7,7 @@ WRITE_ROLES = {
     'accounting': {Roles.ADMIN, Roles.BURSAR, Roles.ACCOUNTS_CLERK},
     'fees': {Roles.ADMIN, Roles.BURSAR, Roles.ACCOUNTS_CLERK},
     'students': {Roles.ADMIN, Roles.BURSAR, Roles.HEAD},
+    'attendance': {Roles.ADMIN, Roles.BURSAR, Roles.HEAD, Roles.TEACHER},
     'inventory': {Roles.ADMIN, Roles.BURSAR, Roles.STOREKEEPER},
     'procurement': {Roles.ADMIN, Roles.BURSAR, Roles.STOREKEEPER},
     'core': {Roles.ADMIN},

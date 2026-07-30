@@ -15,7 +15,16 @@ import {
   StatusBadge,
   refreshingContentClass,
 } from '@/components/ui'
-import { fmtMoney, type BillingPreview, type BillingRun } from '@/types/fees'
+import { BILLING_SCOPE_OPTIONS, fmtMoney, type BillingPreview, type BillingRun } from '@/types/fees'
+
+const scopeLabel = (scope: string) => BILLING_SCOPE_OPTIONS.find(([v]) => v === scope)?.[1] ?? scope
+
+const scopeCount = (run: BillingRun): number | null => {
+  if (run.scope === 'grades') return run.grades?.length ?? 0
+  if (run.scope === 'classes') return run.classes?.length ?? 0
+  if (run.scope === 'students') return run.students?.length ?? 0
+  return null
+}
 
 export default function BillingRunDetail() {
   const { id } = useParams()
@@ -95,6 +104,11 @@ export default function BillingRunDetail() {
         <div className={refreshingContentClass(isRefreshing, 'grid grid-cols-2 md:grid-cols-4 gap-4 text-sm')}>
           <div><span className="text-gray-500 block">Term</span>{run.term_name}</div>
           <div><span className="text-gray-500 block">Currency</span>{run.currency}</div>
+          <div>
+            <span className="text-gray-500 block">Scope</span>
+            {scopeLabel(run.scope)}
+            {scopeCount(run) !== null && <span className="text-gray-400"> · {scopeCount(run)} selected</span>}
+          </div>
           <div><span className="text-gray-500 block">Invoice date</span>{run.date}</div>
           <div><span className="text-gray-500 block">Due date</span>{run.due_date || '—'}</div>
           <div><span className="text-gray-500 block">Invoices created</span><span className="tabular-nums">{run.invoices_created}</span></div>

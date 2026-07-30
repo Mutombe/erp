@@ -81,6 +81,9 @@ class ClassRoom(models.Model):
     name = models.CharField(max_length=50)  # stream, e.g. "Form 1 Blue"
     academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name='classes')
     teacher_name = models.CharField(max_length=100, blank=True)
+    class_teacher = models.ForeignKey(
+        'Teacher', null=True, blank=True, on_delete=models.SET_NULL, related_name='form_classes'
+    )  # the form/register teacher for this class
     capacity = models.PositiveIntegerField(default=40)
 
     class Meta:
@@ -213,5 +216,117 @@ class Enrollment(models.Model):
             raise ValidationError({'class_room': 'Class belongs to a different academic year.'})
 
     def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
+
+class Subject(models.Model):
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='subjects')
+    code = models.CharField(max_length=20)  # e.g. MATH, ENG
+    name = models.CharField(max_length=100)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['code']
+        unique_together = [('school', 'code')]
+
+    def __str__(self):
+        return f'{self.code} · {self.name}'
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school = _default_school()
+        super().save(*args, **kwargs)
+
+
+class Teacher(models.Model):
+    STATUS = [('active', 'Active'), ('inactive', 'Inactive'), ('on_leave', 'On leave')]
+    GENDERS = [('male', 'Male'), ('female', 'Female')]
+
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='teachers')
+    code = models.CharField(max_length=20)  # per-school, from DocumentSequence 'TCH'
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=30, blank=True)
+    national_id = models.CharField(max_length=30, blank=True)
+    gender = models.CharField(max_length=10, choices=GENDERS, blank=True)
+    dob = models.DateField(null=True, blank=True)
+    hire_date = models.DateField(null=True, blank=True)
+    qualification = models.CharField(max_length=200, blank=True)
+    status = models.CharField(max_length=10, choices=STATUS, default='active', db_index=True)
+    photo = models.ImageField(upload_to='teachers/', null=True, blank=True)
+    user = models.ForeignKey(
+        'core.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='teacher_profiles'
+    )  # optional link to a login account
+    custom_fields = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['code']
+        unique_together = [('school', 'code')]
+
+    def __str__(self):
+        return f'{self.code} · {self.full_name}'
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school = _default_school()
+        if not self.code:
+            from apps.core.models import DocumentSequence
+
+            self.code = DocumentSequence.next_for('TCH', self.school)
+        super().save(*args, **kwargs)
+
+    @property
+    def full_name(self):
+        return f'{self.first_name} {self.last_name}'
+
+    @property
+    def classes(self):
+        """Distinct classrooms this teacher is linked to — as form/register
+        teacher (form_classes) or through subject teaching assignments."""
+        ids = set(self.form_classes.values_list('id', flat=True))
+        ids |= set(self.teaching_assignments.values_list('class_room_id', flat=True))
+        return ClassRoom.objects.filter(id__in=ids).select_related('grade', 'academic_year')
+
+    @property
+    def students(self):
+        """Active students enrolled in any class this teacher teaches/registers."""
+        class_ids = list(self.classes.values_list('id', flat=True))
+        return Student.objects.filter(
+            enrollments__class_room_id__in=class_ids, enrollments__status='active'
+        ).distinct()
+
+
+class TeachingAssignment(models.Model):
+    """A teacher teaches a subject to a class. Ties a class's students to their
+    subject teachers."""
+
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='teaching_assignments')
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name='teaching_assignments')
+    class_room = models.ForeignKey(ClassRoom, on_delete=models.CASCADE, related_name='teaching_assignments')
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='teaching_assignments')
+
+    class Meta:
+        ordering = ['class_room', 'subject']
+        unique_together = [('teacher', 'class_room', 'subject')]
+
+    def __str__(self):
+        return f'{self.teacher.code} · {self.subject.code} → {self.class_room.name}'
+
+    def clean(self):
+        # Tenancy guard: a teacher may only be assigned a subject/class of their
+        # own school.
+        school_id = self.class_room.school_id if self.class_room_id else None
+        if self.teacher_id and self.teacher.school_id != school_id:
+            raise ValidationError({'teacher': 'Teacher belongs to a different school.'})
+        if self.subject_id and self.subject.school_id != school_id:
+            raise ValidationError({'subject': 'Subject belongs to a different school.'})
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school_id = self.class_room.school_id if self.class_room_id else _default_school().pk
         self.clean()
         super().save(*args, **kwargs)

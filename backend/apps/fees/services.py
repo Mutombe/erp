@@ -221,30 +221,56 @@ def reverse_receipt(receipt, reason='', user=None):
 
 # ---------------------------------------------------------------- billing runs
 
-def _structures_for(run):
-    qs = FeeStructure.objects.filter(term=run.term, currency=run.currency).select_related('fee_category', 'grade')
+def _structures_by_grade(run):
+    """All fee structures for the run's term+currency, indexed by grade. Fee
+    amounts always come from here by grade/term/currency/attendance_type,
+    regardless of the run's scope."""
+    structures = FeeStructure.objects.filter(
+        school=run.school, term=run.term, currency=run.currency
+    ).select_related('fee_category', 'grade')
+    by_grade = {}
+    for structure in structures:
+        by_grade.setdefault(structure.grade_id, []).append(structure)
+    return by_grade
+
+
+def _target_enrollments(run):
+    """Resolve the active enrollments a billing run targets, by scope:
+
+    - whole_school: every active enrollment in the term's year for the school
+    - grades:       enrollments in the selected grades (empty = all grades)
+    - classes:      enrollments in the selected classrooms
+    - students:     the selected students' active enrollments
+    """
+    from apps.students.models import Enrollment
+
+    qs = (
+        Enrollment.objects.filter(
+            academic_year=run.term.academic_year, status='active', student__school=run.school
+        )
+        .select_related('student', 'class_room__grade')
+    )
+    scope = run.scope
+    if scope == 'whole_school':
+        return qs
+    if scope == 'classes':
+        return qs.filter(class_room_id__in=list(run.classes.values_list('id', flat=True)))
+    if scope == 'students':
+        return qs.filter(student_id__in=list(run.students.values_list('id', flat=True)))
+    # 'grades' (default) — current behaviour; empty selection means all grades.
     grade_ids = list(run.grades.values_list('id', flat=True))
     if grade_ids:
-        qs = qs.filter(grade_id__in=grade_ids)
+        qs = qs.filter(class_room__grade_id__in=grade_ids)
     return qs
 
 
 def preview_billing_run(run):
     """Return would-be invoices without writing anything."""
-    from apps.students.models import Enrollment
+    by_grade = _structures_by_grade(run)
 
-    structures = list(_structures_for(run))
-    by_grade = {}
-    for structure in structures:
-        by_grade.setdefault(structure.grade_id, []).append(structure)
-
-    enrollments = (
-        Enrollment.objects.filter(academic_year=run.term.academic_year, status='active')
-        .filter(class_room__grade_id__in=by_grade.keys())
-        .select_related('student', 'class_room__grade')
-    )
+    enrollments = _target_enrollments(run).filter(class_room__grade_id__in=list(by_grade.keys()))
     already_billed = set(
-        FeeInvoice.objects.filter(term=run.term, currency=run.currency)
+        FeeInvoice.objects.filter(school=run.school, term=run.term, currency=run.currency)
         .exclude(status='cancelled')
         .values_list('student_id', flat=True)
     )

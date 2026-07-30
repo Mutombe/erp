@@ -893,6 +893,120 @@ class ReceiptListingView(ReportView):
         }
 
 
+class AttendanceSummaryView(ReportView):
+    def build(self, request):
+        """Per-student attendance over a date range: present/absent/late/excused
+        counts and a present-rate. Filters: class_room, grade, student."""
+        from apps.attendance.models import AttendanceRecord
+        from apps.core.models import School
+
+        school = getattr(request, 'school', None) or School.get_default()
+        today = timezone.localdate()
+        start = _parse_date(request.query_params.get('start'), today.replace(day=1))
+        end = _parse_date(request.query_params.get('end'), today)
+
+        qs = AttendanceRecord.objects.filter(
+            session__school=school, session__date__gte=start, session__date__lte=end
+        ).select_related('student', 'session__class_room__grade')
+        class_room = request.query_params.get('class_room')
+        if class_room:
+            qs = qs.filter(session__class_room_id=class_room)
+        grade = request.query_params.get('grade')
+        if grade:
+            qs = qs.filter(session__class_room__grade_id=grade)
+        student = request.query_params.get('student')
+        if student:
+            qs = qs.filter(student_id=student)
+
+        students = {}
+        totals = {'present': 0, 'absent': 0, 'late': 0, 'excused': 0, 'sessions': 0}
+        for rec in qs:
+            entry = students.setdefault(rec.student_id, {
+                'student_id': rec.student_id,
+                'student_code': rec.student.code,
+                'student_name': rec.student.full_name,
+                'grade': rec.session.class_room.grade.name,
+                'present': 0, 'absent': 0, 'late': 0, 'excused': 0, 'total': 0,
+            })
+            entry[rec.status] = entry.get(rec.status, 0) + 1
+            entry['total'] += 1
+            totals[rec.status] = totals.get(rec.status, 0) + 1
+            totals['sessions'] += 1
+
+        rows = []
+        for entry in students.values():
+            entry['present_rate'] = (
+                round(entry['present'] / entry['total'] * 100, 1) if entry['total'] else 0.0
+            )
+            rows.append(entry)
+        rows.sort(key=lambda r: r['student_code'])
+        return {
+            'start': start.isoformat(), 'end': end.isoformat(),
+            'rows': rows,
+            'totals': totals,
+            'overall_present_rate': (
+                round(totals['present'] / totals['sessions'] * 100, 1) if totals['sessions'] else 0.0
+            ),
+        }
+
+
+class AttendanceRegisterView(ReportView):
+    def build(self, request):
+        """A class's daily register grid: one column per session (date+slot),
+        one row per student, marks P/A/L/E. ``date`` gives a single day; else
+        ``start``..``end`` covers a period."""
+        from apps.attendance.models import AttendanceRecord, AttendanceSession
+        from apps.core.models import School
+
+        school = getattr(request, 'school', None) or School.get_default()
+        today = timezone.localdate()
+        single = request.query_params.get('date')
+        if single:
+            start = end = _parse_date(single, today)
+        else:
+            start = _parse_date(request.query_params.get('start'), today.replace(day=1))
+            end = _parse_date(request.query_params.get('end'), today)
+
+        sessions = AttendanceSession.objects.filter(
+            school=school, date__gte=start, date__lte=end
+        ).select_related('class_room__grade').order_by('date', 'session')
+        class_room = request.query_params.get('class_room')
+        if class_room:
+            sessions = sessions.filter(class_room_id=class_room)
+        session_list = list(sessions)
+
+        records = AttendanceRecord.objects.filter(
+            session_id__in=[s.pk for s in session_list]
+        ).select_related('student')
+
+        columns = [
+            {'session_id': s.pk, 'date': s.date.isoformat(), 'session': s.session,
+             'class_room': s.class_room.name, 'grade': s.class_room.grade.name}
+            for s in session_list
+        ]
+        status_code = {'present': 'P', 'absent': 'A', 'late': 'L', 'excused': 'E'}
+        students = {}
+        for rec in records:
+            entry = students.setdefault(rec.student_id, {
+                'student_id': rec.student_id,
+                'student_code': rec.student.code,
+                'student_name': rec.student.full_name,
+                'cells': {}, 'present': 0, 'absent': 0, 'late': 0, 'excused': 0,
+            })
+            entry['cells'][rec.session_id] = status_code.get(rec.status, rec.status)
+            entry[rec.status] = entry.get(rec.status, 0) + 1
+
+        rows = sorted(students.values(), key=lambda r: r['student_code'])
+        for row in rows:
+            row['marks'] = [row['cells'].get(c['session_id'], '') for c in columns]
+            row.pop('cells')
+        return {
+            'start': start.isoformat(), 'end': end.isoformat(),
+            'columns': columns,
+            'rows': rows,
+        }
+
+
 class DashboardView(ReportView):
     cache_seconds = 120
 

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Buildings, PencilSimple, Plus, Trash } from '@phosphor-icons/react'
 import { departmentsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { usePagedList } from '@/hooks/usePaginatedQuery'
+import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import { useOptimisticDelete } from '@/hooks/useOptimisticMutation'
 import {
@@ -16,6 +18,7 @@ import {
   refreshingContentClass,
   type Column,
 } from '@/components/ui'
+import RecordLink from '@/components/RecordLink'
 import type { Department } from '@/types/inventory'
 import type { Paginated } from '@/types/accounting'
 import DepartmentFormModal from './DepartmentFormModal'
@@ -29,6 +32,7 @@ const FILTER_CONFIG: FilterConfig = [
 
 export default function Departments() {
   const filters = useUrlFilters(FILTER_CONFIG)
+  const navigate = useNavigate()
   const [modalOpen, setModalOpen] = useState(false)
   const [editDepartment, setEditDepartment] = useState<Department | null>(null)
   const [toDelete, setToDelete] = useState<Department | null>(null)
@@ -64,6 +68,11 @@ export default function Departments() {
     deleteMutation.mutate(id)
   }
 
+  const prefetch = usePrefetchDetail<Department>(
+    (d) => qk.departments.detail(d.id),
+    (d) => departmentsApi.get(d.id).then((r) => r.data)
+  )
+
   const columns: Column<Department>[] = [
     {
       key: 'code',
@@ -77,10 +86,10 @@ export default function Departments() {
       header: 'Expense account',
       render: (d) =>
         d.expense_account ? (
-          <span>
-            <span className="font-mono text-xs mr-1.5 text-gray-400">{d.expense_account_code}</span>
+          <RecordLink to={`/app/accounts/${d.expense_account}`}>
+            <span className="font-mono text-xs mr-1.5">{d.expense_account_code}</span>
             {d.expense_account_name}
-          </span>
+          </RecordLink>
         ) : (
           <span className="text-gray-400">— uses item category default</span>
         ),
@@ -167,6 +176,8 @@ export default function Departments() {
             columns={columns}
             data={results}
             loading={!data}
+            onRowClick={(d) => navigate(`/app/departments/${d.id}`)}
+            onRowHover={prefetch}
             emptyTitle="No departments"
             emptyDescription="Create a department to start tagging stock issues by consumer."
             pagination={{

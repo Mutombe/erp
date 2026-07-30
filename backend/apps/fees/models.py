@@ -112,6 +112,10 @@ class BillingRun(models.Model):
         ('draft', 'Draft'), ('previewed', 'Previewed'), ('running', 'Running'),
         ('completed', 'Completed'), ('failed', 'Failed'),
     ]
+    SCOPES = [
+        ('whole_school', 'Whole school'), ('grades', 'Grades'),
+        ('classes', 'Classes'), ('students', 'Students'),
+    ]
 
     school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='billing_runs')
     number = models.CharField(max_length=20)
@@ -119,7 +123,10 @@ class BillingRun(models.Model):
     currency = models.CharField(max_length=3)
     date = models.DateField()
     due_date = models.DateField(null=True, blank=True)
-    grades = models.ManyToManyField('students.Grade', blank=True)  # empty = all grades
+    scope = models.CharField(max_length=15, choices=SCOPES, default='grades')
+    grades = models.ManyToManyField('students.Grade', blank=True)  # scope=grades (empty = all grades)
+    classes = models.ManyToManyField('students.ClassRoom', blank=True)  # scope=classes
+    students = models.ManyToManyField('students.Student', blank=True)  # scope=students
     status = models.CharField(max_length=10, choices=STATUS, default='draft')
     invoices_created = models.PositiveIntegerField(default=0)
     total_billed = models.DecimalField(max_digits=18, decimal_places=2, default=ZERO)

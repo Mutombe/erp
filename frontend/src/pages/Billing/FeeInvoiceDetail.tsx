@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { Prohibit, CheckCircle, FileArrowDown, FileText } from '@phosphor-icons/react'
-import { feeInvoicesApi, receiptsApi, termsApi } from '@/services/api'
+import { creditNotesApi, feeInvoicesApi, receiptsApi, termsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
+import RecordLink from '@/components/RecordLink'
 import {
   Button,
   ConfirmDialog,
@@ -18,7 +19,7 @@ import {
 } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import type { Term } from '@/types/students'
-import { fmtMoney, type FeeInvoice, type Receipt } from '@/types/fees'
+import { fmtMoney, type CreditNote, type FeeInvoice, type Receipt } from '@/types/fees'
 
 export default function FeeInvoiceDetail() {
   const { id } = useParams()
@@ -44,6 +45,13 @@ export default function FeeInvoiceDetail() {
         .list({ student: invoice!.student, page_size: 200 })
         .then((r) => (r.data as Paginated<Receipt>).results),
     enabled: Boolean(invoice),
+  })
+
+  const { data: creditNotes } = useQuery({
+    queryKey: qk.creditNotes.list({ invoice: id }),
+    queryFn: () =>
+      creditNotesApi.list({ invoice: id, page_size: 100 }).then((r) => (r.data as Paginated<CreditNote>).results),
+    enabled: Boolean(id),
   })
 
   const invalidateAll = () => {
@@ -235,6 +243,36 @@ export default function FeeInvoiceDetail() {
         )}
         </div>
       </div>
+
+      {(creditNotes ?? []).length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Credit notes</h3>
+          <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
+                <tr>
+                  <th className="px-4 py-3">Number</th>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3 text-right">Total</th>
+                  <th className="px-4 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(creditNotes ?? []).map((c) => (
+                  <tr key={c.id} className="border-t border-gray-100 dark:border-gray-700/50">
+                    <td className="px-4 py-2.5">
+                      <RecordLink to={`/app/credit-notes/${c.id}`} mono>{c.number}</RecordLink>
+                    </td>
+                    <td className="px-4 py-2.5">{c.date}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">{fmtMoney(c.total)}</td>
+                    <td className="px-4 py-2.5"><StatusBadge status={c.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <ConfirmDialog
         open={confirmCancel}

@@ -9,6 +9,9 @@ from .models import (
     Grade,
     Guardian,
     Student,
+    Subject,
+    Teacher,
+    TeachingAssignment,
     Term,
 )
 
@@ -105,3 +108,38 @@ class GradeFilter(filters.FilterSet):
     class Meta:
         model = Grade
         fields = ['section', 'level']
+
+
+class SubjectFilter(filters.FilterSet):
+    class Meta:
+        model = Subject
+        fields = ['is_active']
+
+
+class TeacherFilter(filters.FilterSet):
+    status__in = CharInFilter(field_name='status', lookup_expr='in')
+    gender__in = CharInFilter(field_name='gender', lookup_expr='in')
+    # A teacher linked to a class either as its form teacher or via an assignment.
+    class_room = filters.NumberFilter(method='filter_class_room')
+    subject = NumberInFilter(field_name='teaching_assignments__subject', lookup_expr='in')
+
+    class Meta:
+        model = Teacher
+        fields = ['status', 'gender']
+
+    def filter_class_room(self, queryset, name, value):
+        from django.db.models import Q
+
+        return queryset.filter(
+            Q(form_classes=value) | Q(teaching_assignments__class_room=value)
+        ).distinct()
+
+
+class TeachingAssignmentFilter(filters.FilterSet):
+    teacher__in = NumberInFilter(field_name='teacher', lookup_expr='in')
+    class_room__in = NumberInFilter(field_name='class_room', lookup_expr='in')
+    subject__in = NumberInFilter(field_name='subject', lookup_expr='in')
+
+    class Meta:
+        model = TeachingAssignment
+        fields = ['teacher', 'class_room', 'subject']

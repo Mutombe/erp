@@ -33,9 +33,70 @@ export interface ClassRoom {
   name: string
   academic_year: number
   teacher_name: string
+  /** Linked form teacher (a Teacher record), settable via PATCH. */
+  class_teacher: number | null
+  class_teacher_name: string | null
   capacity: number | null
   student_count: number
 }
+
+export interface ClassBrief {
+  id: number
+  name: string
+  grade: number
+  grade_name: string
+  academic_year: number
+}
+
+export interface Subject {
+  id: number
+  code: string
+  name: string
+  is_active: boolean
+}
+
+export interface Teacher {
+  id: number
+  code: string
+  first_name: string
+  last_name: string
+  full_name: string
+  email: string
+  phone: string
+  national_id: string
+  gender: string
+  dob: string | null
+  hire_date: string | null
+  qualification: string
+  status: 'active' | 'inactive' | 'on_leave'
+  photo: string | null
+  user: number | null
+  custom_fields: Record<string, unknown>
+  class_count: number
+  student_count: number
+  classes: ClassBrief[]
+  subjects: Subject[]
+  created_at: string
+  updated_at: string
+}
+
+export interface TeachingAssignment {
+  id: number
+  teacher: number
+  teacher_code: string
+  teacher_name: string
+  class_room: number
+  class_room_name: string
+  subject: number
+  subject_code: string
+  subject_name: string
+}
+
+export const TEACHER_STATUSES = [
+  ['active', 'Active'],
+  ['inactive', 'Inactive'],
+  ['on_leave', 'On leave'],
+] as const
 
 export interface StudentBrief {
   id: number

@@ -417,6 +417,25 @@ def _flatten_receipt_listing(data):
             'columns': columns, 'rows': rows, 'landscape': True}
 
 
+def _flatten_attendance_summary(data):
+    columns = [_left('Code'), _left('Student'), _left('Grade'),
+               _right('Present'), _right('Absent'), _right('Late'),
+               _right('Excused'), _right('Sessions'), _right('Present %')]
+    rows = [
+        _row([r['student_code'], r['student_name'], r['grade'],
+              str(r['present']), str(r['absent']), str(r['late']),
+              str(r['excused']), str(r['total']), f"{r['present_rate']:.1f}%"])
+        for r in data['rows']
+    ]
+    t = data['totals']
+    rows.append(_row(['', 'Total', '', str(t['present']), str(t['absent']),
+                      str(t['late']), str(t['excused']), str(t['sessions']),
+                      f"{data['overall_present_rate']:.1f}%"], 'total'))
+    return {'title': 'Attendance Summary',
+            'subtitle': f"Period {data['start']} to {data['end']}",
+            'columns': columns, 'rows': rows, 'landscape': True}
+
+
 def _report_specs():
     from . import views
 
@@ -433,6 +452,7 @@ def _report_specs():
         'department-consumption': (views.DepartmentConsumptionView, _flatten_department_consumption),
         'fee-collection': (views.FeeCollectionView, _flatten_fee_collection),
         'receipt-listing': (views.ReceiptListingView, _flatten_receipt_listing),
+        'attendance-summary': (views.AttendanceSummaryView, _flatten_attendance_summary),
     }
 
 

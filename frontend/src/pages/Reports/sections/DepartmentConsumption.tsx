@@ -8,6 +8,7 @@ import { qk } from '@/lib/queryKeys'
 import { exportToCSV, formatExportNumber } from '@/lib/export'
 import { useChartTheme, chartMoney, chartCompact } from '@/lib/chartTheme'
 import { Button, RefreshingOverlay, SkeletonTable, refreshingContentClass } from '@/components/ui'
+import RecordLink from '@/components/RecordLink'
 import PdfButton from './PdfButton'
 import ExcelButton from './ExcelButton'
 import ReportChart from './ReportChart'
@@ -162,8 +163,10 @@ export default function DepartmentConsumption() {
                 {data.rows.map((row) => (
                   <tr key={row.department_id} className="border-t border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/60">
                     <td className="px-4 py-2.5">
-                      <span className="font-mono text-xs mr-2 text-gray-400">{row.department_code}</span>
-                      {row.department_name}
+                      <RecordLink to={`/app/departments/${row.department_id}`}>
+                        <span className="font-mono text-xs mr-2">{row.department_code}</span>
+                        {row.department_name}
+                      </RecordLink>
                     </td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{row.issue_count}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums font-medium">{money(row.total_cost)}</td>

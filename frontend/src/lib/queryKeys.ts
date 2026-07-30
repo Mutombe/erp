@@ -60,6 +60,17 @@ export const qk = {
   },
   guardians: entityKeys('guardians'),
   enrollments: entityKeys('enrollments'),
+  subjects: entityKeys('subjects'),
+  teachers: {
+    ...entityKeys('teachers'),
+    students: (id: Id, filters: Filters = {}) => ['teachers', 'students', id, filters] as QueryKey,
+    classes: (id: Id, filters: Filters = {}) => ['teachers', 'classes', id, filters] as QueryKey,
+  },
+  teachingAssignments: entityKeys('teachingAssignments'),
+
+  // Attendance
+  attendanceSessions: entityKeys('attendanceSessions'),
+  attendanceRecords: entityKeys('attendanceRecords'),
 
   // Fees
   feeCategories: entityKeys('feeCategories'),
@@ -112,6 +123,8 @@ export const qk = {
     receiptListing: (filters: Filters = {}) => ['reports', 'receiptListing', filters] as QueryKey,
     departmentConsumption: (filters: Filters = {}) =>
       ['reports', 'departmentConsumption', filters] as QueryKey,
+    attendanceSummary: (filters: Filters = {}) => ['reports', 'attendanceSummary', filters] as QueryKey,
+    attendanceRegister: (filters: Filters = {}) => ['reports', 'attendanceRegister', filters] as QueryKey,
   },
 } as const
 
