@@ -39,7 +39,6 @@ import {
 } from '@phosphor-icons/react'
 import logoUrl from '@/assets/logo.png'
 import CacheWarmer from '@/components/CacheWarmer'
-import { PageSkeleton } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { authApi } from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
@@ -255,18 +254,38 @@ function UserMenu() {
   )
 }
 
+/** Non-blanking route fallback: a slim progress bar pinned to the top of the
+ *  content area. Route chunks are preloaded (see App.tsx) so this rarely shows;
+ *  when it does, it never replaces the page with a full skeleton. */
+function RouteFallback() {
+  return (
+    <div className="relative h-1 -m-4 sm:-m-6 lg:-m-8">
+      <div className="absolute inset-x-0 top-0 h-0.5 overflow-hidden bg-primary-100 dark:bg-primary-900/30">
+        <div className="h-full w-1/3 bg-primary-500 animate-shimmer" />
+      </div>
+    </div>
+  )
+}
+
 export default function Layout() {
   const { theme, toggleTheme, sidebarCollapsed, toggleSidebar } = useUIStore()
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
+  const mainRef = useRef<HTMLElement>(null)
 
   // Close the mobile drawer on navigation
   useEffect(() => {
     setMobileOpen(false)
   }, [location.pathname])
 
+  // Scoped scrolling: the content pane is its own scroll container, so reset it
+  // to the top on navigation (the shell keeps its own scroll position).
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 })
+  }, [location.pathname])
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+    <div className="h-screen overflow-hidden bg-gray-50 dark:bg-slate-900">
       {/* Warm common dropdown/option caches once, near the shell root. */}
       <CacheWarmer />
       {/* Desktop sidebar */}
@@ -318,15 +337,15 @@ export default function Layout() {
         </div>
       )}
 
-      {/* Main column */}
+      {/* Main column — full viewport height; only <main> scrolls (scoped scroll). */}
       <div
         className={cn(
-          'flex flex-col min-h-screen transition-[padding] duration-200',
+          'flex flex-col h-screen transition-[padding] duration-200',
           sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'
         )}
       >
-        {/* Header */}
-        <header className="sticky top-0 z-20 h-16 flex items-center justify-between gap-3 px-4 sm:px-6 bg-white/80 backdrop-blur-xl border-b border-gray-200 dark:bg-slate-900/80 dark:border-slate-700">
+        {/* Header — fixed row, never scrolls with the content */}
+        <header className="shrink-0 z-20 h-16 flex items-center justify-between gap-3 px-4 sm:px-6 bg-white/80 backdrop-blur-xl border-b border-gray-200 dark:bg-slate-900/80 dark:border-slate-700">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileOpen(true)}
@@ -350,13 +369,11 @@ export default function Layout() {
           </div>
         </header>
 
-        {/* Page content */}
-        {/*
-          Suspense lives here (not in App) so lazy route chunks only replace the
-          content area — the sidebar and header stay mounted and interactive.
-        */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
-          <Suspense fallback={<PageSkeleton />}>
+        {/* Page content — the ONLY scoped scroll container. Sidebar + header stay
+            put; only this pane scrolls. Suspense lives here so lazy chunks replace
+            just the content, and its fallback is a slim bar (never a full skeleton). */}
+        <main ref={mainRef} className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-8">
+          <Suspense fallback={<RouteFallback />}>
             <Outlet />
           </Suspense>
         </main>

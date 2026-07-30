@@ -1,79 +1,98 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, type ComponentType, type LazyExoticComponent } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import PrivateRoute from '@/components/layout/PrivateRoute'
 import Layout from '@/components/layout/Layout'
 import { PageSkeleton } from '@/components/ui'
 import { useUIStore } from '@/stores/uiStore'
 
-const Login = lazy(() => import('@/pages/Login'))
-const Dashboard = lazy(() => import('@/pages/Dashboard'))
-const ComingSoon = lazy(() => import('@/pages/ComingSoon'))
-const ChartOfAccounts = lazy(() => import('@/pages/Accounting/ChartOfAccounts'))
-const AccountLedger = lazy(() => import('@/pages/Accounting/AccountLedger'))
-const Journals = lazy(() => import('@/pages/Accounting/Journals'))
-const JournalDetail = lazy(() => import('@/pages/Accounting/JournalDetail'))
-const JournalForm = lazy(() => import('@/pages/Accounting/JournalForm'))
-const Reports = lazy(() => import('@/pages/Reports/Reports'))
+type AnyComp = ComponentType<Record<string, never>>
+type Preloadable = LazyExoticComponent<AnyComp> & { preload: () => Promise<unknown> }
+
+/** lazy() that also lets us warm the chunk ahead of navigation, so moving
+ *  between pages never suspends — the shell and each page's static chrome are
+ *  already loaded; only dynamic data shows a (scoped) loading state. */
+function pageLazy(factory: () => Promise<{ default: AnyComp }>): Preloadable {
+  const Comp = lazy(factory) as Preloadable
+  Comp.preload = factory
+  return Comp
+}
+
+const Login = pageLazy(() => import('@/pages/Login'))
+const Dashboard = pageLazy(() => import('@/pages/Dashboard'))
+const ComingSoon = pageLazy(() => import('@/pages/ComingSoon'))
 
 // Routes with real pages (everything else stays ComingSoon until built)
-const builtRoutes: [string, React.LazyExoticComponent<() => JSX.Element>][] = [
-  ['reports', Reports],
-  ['chart-of-accounts', ChartOfAccounts],
-  ['accounts/:id', AccountLedger],
-  ['journals', Journals],
-  ['journals/new', JournalForm],
-  ['journals/:id', JournalDetail],
-  ['bank-accounts', lazy(() => import('@/pages/Accounting/BankAccounts'))],
-  ['bank-accounts/:id', lazy(() => import('@/pages/Accounting/BankAccountDetail'))],
-  ['bank-reconciliation', lazy(() => import('@/pages/Accounting/BankReconciliation'))],
-  ['pockets', lazy(() => import('@/pages/Accounting/Pockets'))],
-  ['pockets/:id', lazy(() => import('@/pages/Accounting/PocketStatement'))],
+const builtRoutes: [string, Preloadable][] = [
+  ['reports', pageLazy(() => import('@/pages/Reports/Reports'))],
+  ['chart-of-accounts', pageLazy(() => import('@/pages/Accounting/ChartOfAccounts'))],
+  ['accounts/:id', pageLazy(() => import('@/pages/Accounting/AccountLedger'))],
+  ['journals', pageLazy(() => import('@/pages/Accounting/Journals'))],
+  ['journals/new', pageLazy(() => import('@/pages/Accounting/JournalForm'))],
+  ['journals/:id', pageLazy(() => import('@/pages/Accounting/JournalDetail'))],
+  ['bank-accounts', pageLazy(() => import('@/pages/Accounting/BankAccounts'))],
+  ['bank-accounts/:id', pageLazy(() => import('@/pages/Accounting/BankAccountDetail'))],
+  ['bank-reconciliation', pageLazy(() => import('@/pages/Accounting/BankReconciliation'))],
+  ['pockets', pageLazy(() => import('@/pages/Accounting/Pockets'))],
+  ['pockets/:id', pageLazy(() => import('@/pages/Accounting/PocketStatement'))],
   // Students & Fees
-  ['students', lazy(() => import('@/pages/Students/Students'))],
-  ['students/:id', lazy(() => import('@/pages/Students/StudentDetail'))],
-  ['guardians', lazy(() => import('@/pages/Students/Guardians'))],
-  ['guardians/:id', lazy(() => import('@/pages/Students/GuardianDetail'))],
-  ['classes', lazy(() => import('@/pages/Students/Classes'))],
-  ['classes/:id', lazy(() => import('@/pages/Students/ClassDetail'))],
-  ['fee-structures', lazy(() => import('@/pages/Billing/FeeStructures'))],
-  ['billing-runs', lazy(() => import('@/pages/Billing/BillingRuns'))],
-  ['billing-runs/new', lazy(() => import('@/pages/Billing/BillingRunNew'))],
-  ['billing-runs/:id', lazy(() => import('@/pages/Billing/BillingRunDetail'))],
-  ['fee-invoices', lazy(() => import('@/pages/Billing/FeeInvoices'))],
-  ['fee-invoices/:id', lazy(() => import('@/pages/Billing/FeeInvoiceDetail'))],
-  ['receipts', lazy(() => import('@/pages/Billing/Receipts'))],
-  ['receipts/:id', lazy(() => import('@/pages/Billing/ReceiptDetail'))],
+  ['students', pageLazy(() => import('@/pages/Students/Students'))],
+  ['students/:id', pageLazy(() => import('@/pages/Students/StudentDetail'))],
+  ['guardians', pageLazy(() => import('@/pages/Students/Guardians'))],
+  ['guardians/:id', pageLazy(() => import('@/pages/Students/GuardianDetail'))],
+  ['classes', pageLazy(() => import('@/pages/Students/Classes'))],
+  ['classes/:id', pageLazy(() => import('@/pages/Students/ClassDetail'))],
+  ['fee-structures', pageLazy(() => import('@/pages/Billing/FeeStructures'))],
+  ['billing-runs', pageLazy(() => import('@/pages/Billing/BillingRuns'))],
+  ['billing-runs/new', pageLazy(() => import('@/pages/Billing/BillingRunNew'))],
+  ['billing-runs/:id', pageLazy(() => import('@/pages/Billing/BillingRunDetail'))],
+  ['fee-invoices', pageLazy(() => import('@/pages/Billing/FeeInvoices'))],
+  ['fee-invoices/:id', pageLazy(() => import('@/pages/Billing/FeeInvoiceDetail'))],
+  ['receipts', pageLazy(() => import('@/pages/Billing/Receipts'))],
+  ['receipts/:id', pageLazy(() => import('@/pages/Billing/ReceiptDetail'))],
   // Inventory
-  ['items', lazy(() => import('@/pages/Inventory/Items'))],
-  ['items/:id', lazy(() => import('@/pages/Inventory/ItemDetail'))],
-  ['warehouses', lazy(() => import('@/pages/Inventory/Warehouses'))],
-  ['warehouses/:id', lazy(() => import('@/pages/Inventory/WarehouseDetail'))],
-  ['stock-moves', lazy(() => import('@/pages/Inventory/StockMoves'))],
-  ['departments', lazy(() => import('@/pages/Inventory/Departments'))],
+  ['items', pageLazy(() => import('@/pages/Inventory/Items'))],
+  ['items/:id', pageLazy(() => import('@/pages/Inventory/ItemDetail'))],
+  ['warehouses', pageLazy(() => import('@/pages/Inventory/Warehouses'))],
+  ['warehouses/:id', pageLazy(() => import('@/pages/Inventory/WarehouseDetail'))],
+  ['stock-moves', pageLazy(() => import('@/pages/Inventory/StockMoves'))],
+  ['departments', pageLazy(() => import('@/pages/Inventory/Departments'))],
   // Purchasing
-  ['suppliers', lazy(() => import('@/pages/Purchasing/Suppliers'))],
-  ['suppliers/:id', lazy(() => import('@/pages/Purchasing/SupplierDetail'))],
-  ['purchase-orders', lazy(() => import('@/pages/Purchasing/PurchaseOrders'))],
-  ['purchase-orders/new', lazy(() => import('@/pages/Purchasing/PurchaseOrderForm'))],
-  ['purchase-orders/:id', lazy(() => import('@/pages/Purchasing/PurchaseOrderDetail'))],
-  ['grns', lazy(() => import('@/pages/Purchasing/GRNs'))],
-  ['grns/:id', lazy(() => import('@/pages/Purchasing/GRNDetail'))],
-  ['vendor-bills', lazy(() => import('@/pages/Purchasing/VendorBills'))],
-  ['vendor-bills/new', lazy(() => import('@/pages/Purchasing/VendorBillForm'))],
-  ['vendor-bills/:id', lazy(() => import('@/pages/Purchasing/VendorBillDetail'))],
-  ['supplier-payments', lazy(() => import('@/pages/Purchasing/SupplierPayments'))],
-  ['supplier-payments/:id', lazy(() => import('@/pages/Purchasing/SupplierPaymentDetail'))],
+  ['suppliers', pageLazy(() => import('@/pages/Purchasing/Suppliers'))],
+  ['suppliers/:id', pageLazy(() => import('@/pages/Purchasing/SupplierDetail'))],
+  ['purchase-orders', pageLazy(() => import('@/pages/Purchasing/PurchaseOrders'))],
+  ['purchase-orders/new', pageLazy(() => import('@/pages/Purchasing/PurchaseOrderForm'))],
+  ['purchase-orders/:id', pageLazy(() => import('@/pages/Purchasing/PurchaseOrderDetail'))],
+  ['grns', pageLazy(() => import('@/pages/Purchasing/GRNs'))],
+  ['grns/:id', pageLazy(() => import('@/pages/Purchasing/GRNDetail'))],
+  ['vendor-bills', pageLazy(() => import('@/pages/Purchasing/VendorBills'))],
+  ['vendor-bills/new', pageLazy(() => import('@/pages/Purchasing/VendorBillForm'))],
+  ['vendor-bills/:id', pageLazy(() => import('@/pages/Purchasing/VendorBillDetail'))],
+  ['supplier-payments', pageLazy(() => import('@/pages/Purchasing/SupplierPayments'))],
+  ['supplier-payments/:id', pageLazy(() => import('@/pages/Purchasing/SupplierPaymentDetail'))],
   // Assets & Settings
-  ['fixed-assets', lazy(() => import('@/pages/Assets/FixedAssets'))],
-  ['fixed-assets/:id', lazy(() => import('@/pages/Assets/AssetDetail'))],
-  ['settings', lazy(() => import('@/pages/Settings/Settings'))],
+  ['fixed-assets', pageLazy(() => import('@/pages/Assets/FixedAssets'))],
+  ['fixed-assets/:id', pageLazy(() => import('@/pages/Assets/AssetDetail'))],
+  ['settings', pageLazy(() => import('@/pages/Settings/Settings'))],
   // Document ingestion
-  ['ingestion', lazy(() => import('@/pages/Ingestion/Inbox'))],
-  ['ingestion/:id', lazy(() => import('@/pages/Ingestion/ReviewItem'))],
+  ['ingestion', pageLazy(() => import('@/pages/Ingestion/Inbox'))],
+  ['ingestion/:id', pageLazy(() => import('@/pages/Ingestion/ReviewItem'))],
 ]
 
-function PageFallback() {
-  return <PageSkeleton />
+/** Warm every route chunk once the browser is idle after first paint. After
+ *  this runs, navigating never hits the Suspense fallback. */
+function preloadAllRoutes() {
+  const all = [Dashboard, ComingSoon, ...builtRoutes.map(([, c]) => c)]
+  let i = 0
+  const pump = () => {
+    // A few at a time so we never contend with the current view's own fetches.
+    for (let n = 0; n < 4 && i < all.length; n++, i++) all[i].preload().catch(() => {})
+    if (i < all.length) schedule(pump)
+  }
+  const schedule = (fn: () => void) =>
+    'requestIdleCallback' in window
+      ? (window as unknown as { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(fn)
+      : setTimeout(fn, 200)
+  schedule(pump)
 }
 
 // Every route that isn't built yet renders the shared ComingSoon page.
@@ -89,12 +108,17 @@ export default function App() {
     document.documentElement.classList.toggle('dark', theme === 'dark')
   }, [theme])
 
+  // Warm all page chunks in the background so navigation is instant.
+  useEffect(() => {
+    preloadAllRoutes()
+  }, [])
+
   return (
     <Routes>
       <Route
         path="/login"
         element={
-          <Suspense fallback={<PageFallback />}>
+          <Suspense fallback={<PageSkeleton />}>
             <Login />
           </Suspense>
         }
