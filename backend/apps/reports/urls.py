@@ -22,5 +22,6 @@ urlpatterns = [
     path('stock-valuation/', views.StockValuationView.as_view()),
     path('department-consumption/', views.DepartmentConsumptionView.as_view()),
     path('fee-collection/', views.FeeCollectionView.as_view()),
+    path('receipt-listing/', views.ReceiptListingView.as_view()),
     path('dashboard/', views.DashboardView.as_view()),
 ]

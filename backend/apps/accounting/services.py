@@ -32,11 +32,11 @@ class LineSpec:
     credit_base: Decimal | None = None
     source: tuple | None = field(default=None)  # ('app.Model', id)
 
-    def resolve_account(self, currency):
+    def resolve_account(self, currency, school=None):
         if self.account is not None:
             return self.account
         if self.mapping_purpose:
-            return AccountMapping.resolve(self.mapping_purpose, currency)
+            return AccountMapping.resolve(self.mapping_purpose, currency, school=school)
         raise ValidationError('LineSpec needs an account or a mapping_purpose.')
 
 
@@ -55,13 +55,25 @@ def build_and_post_journal(
     user=None,
     source=None,  # ('app.Model', id, display_ref)
     auto_post=True,
+    school=None,
 ):
-    """Create a journal from LineSpecs and (by default) post it atomically."""
+    """Create a journal from LineSpecs and (by default) post it atomically.
+
+    `school` is the tenant the journal belongs to. It is stamped on the Journal,
+    its GL rows, and used to scope the JRN sequence and account-mapping lookups.
+    TODO(multi-tenant wave 2): callers in fees/procurement/inventory/assets/
+    ingestion still omit `school`; they transitionally default to the Oceanwaves/
+    default school here.
+    """
     if not lines:
         raise ValidationError('A journal needs at least one line.')
 
+    if school is None:
+        from apps.core.models import School
+        school = School.get_default()
+
     if exchange_rate is None:
-        exchange_rate = ExchangeRate.get_rate(currency, base_currency(), date)
+        exchange_rate = ExchangeRate.get_rate(currency, base_currency(), date, school=school)
 
     source_type, source_id, source_ref = ('', None, '')
     if source:
@@ -70,7 +82,8 @@ def build_and_post_journal(
 
     with transaction.atomic():
         journal = Journal.objects.create(
-            number=DocumentSequence.next_for('JRN'),
+            school=school,
+            number=DocumentSequence.next_for('JRN', school),
             journal_type=journal_type,
             date=date,
             description=description,
@@ -89,7 +102,7 @@ def build_and_post_journal(
             credit_base = spec.credit_base if spec.credit_base is not None else None
             if debit == 0 and credit == 0 and not debit_base and not credit_base:
                 continue
-            account = spec.resolve_account(currency)
+            account = spec.resolve_account(currency, school=school)
             JournalLine.objects.create(
                 journal=journal,
                 account=account,

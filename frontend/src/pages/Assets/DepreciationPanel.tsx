@@ -38,7 +38,7 @@ export default function DepreciationPanel() {
 
   const { data: years } = useQuery({
     queryKey: qk.fiscalYears.list(),
-    queryFn: () => fiscalYearsApi.list().then((r) => r.data as FiscalYear[]),
+    queryFn: () => fiscalYearsApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as FiscalYear[]),
   })
 
   // Only unlocked periods in open fiscal years can take a depreciation run.

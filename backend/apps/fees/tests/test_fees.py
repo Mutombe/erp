@@ -115,6 +115,7 @@ class TestReceiptsAndAllocation:
         # Invoice in ZWG at seed rate, then devalue before payment.
         invoice = make_invoice(student, {'TUI': '1000'}, invoice_date=date(2026, 2, 1), currency='ZWG')
         ExchangeRate.objects.create(
+            school=zwg_bank.school,  # TODO(multi-tenant wave 2): scope explicitly
             from_currency='ZWG', to_currency='USD', rate=D('0.030000'), effective_date=date(2026, 3, 1)
         )
         create_receipt(student=student, bank_account=zwg_bank, amount=D('1000'), date=date(2026, 3, 5))

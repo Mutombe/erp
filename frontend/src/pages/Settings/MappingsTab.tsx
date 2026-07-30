@@ -68,7 +68,7 @@ function MappingModal({ mapping, onClose }: { mapping: Mapping | null; onClose: 
 
   const { data: accounts } = useQuery({
     queryKey: qk.accounts.list(),
-    queryFn: () => accountsApi.list().then((r) => r.data as Account[]),
+    queryFn: () => accountsApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as Account[]),
   })
 
   const mutation = useMutation({
@@ -134,7 +134,7 @@ export default function MappingsTab() {
 
   const { data, isFetching } = useQuery({
     queryKey: qk.mappings.list(),
-    queryFn: () => mappingsApi.list().then((r) => r.data as Mapping[]),
+    queryFn: () => mappingsApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as Mapping[]),
   })
 
   // Refetches after a save refresh the rows in place instead of blanking the table.

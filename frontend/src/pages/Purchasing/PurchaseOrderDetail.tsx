@@ -54,7 +54,7 @@ function ReceiveGoodsModal({
 
   const { data: warehouses } = useQuery({
     queryKey: qk.warehouses.list({ is_active: true }),
-    queryFn: () => warehousesApi.list({ is_active: true }).then((r) => r.data as Warehouse[]),
+    queryFn: () => warehousesApi.list({ is_active: true, page_size: 500 }).then((r) => (r.data.results ?? r.data) as Warehouse[]),
   })
 
   // Default every line's receive quantity to the outstanding balance.

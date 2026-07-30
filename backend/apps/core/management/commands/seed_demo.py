@@ -216,6 +216,10 @@ class Command(BaseCommand):
 
     # ------------------------------------------------------------------ build
     def _build(self):
+        from apps.core.models import School
+
+        # Everything below is seeded into the default (Oceanwaves) tenant.
+        self.school = School.get_default()
         self.stdout.write(self.style.MIGRATE_HEADING('Building demo dataset...'))
         self._exchange_rates()
         self._inventory_masters()
@@ -246,28 +250,32 @@ class Command(BaseCommand):
             (date(2026, 7, 1), '0.025000'),
         ]:
             ExchangeRate.objects.get_or_create(
-                from_currency='ZWG', to_currency='USD', effective_date=d,
+                school=self.school, from_currency='ZWG', to_currency='USD', effective_date=d,
                 defaults={'rate': Decimal(rate), 'source': 'seed_demo'},
             )
 
-    def _inventory_masters(self):
+    def _coa(self, code):
         from apps.accounting.models import ChartOfAccount
+
+        return ChartOfAccount.objects.get(school=self.school, code=code)
+
+    def _inventory_masters(self):
         from apps.inventory.models import ItemCategory, Warehouse
 
         self.item_categories = {}
         for name, inv_code, exp_code in ITEM_CATEGORIES:
             cat, _ = ItemCategory.objects.get_or_create(
-                name=name,
+                school=self.school, name=name,
                 defaults={
-                    'inventory_account': ChartOfAccount.objects.get(code=inv_code),
-                    'consumption_expense_account': ChartOfAccount.objects.get(code=exp_code),
+                    'inventory_account': self._coa(inv_code),
+                    'consumption_expense_account': self._coa(exp_code),
                 },
             )
             self.item_categories[name] = cat
 
         self.warehouses = {}
         for code, name in [('MAIN', 'Main Store'), ('FARM', 'Farm Store')]:
-            wh, _ = Warehouse.objects.get_or_create(code=code, defaults={'name': name})
+            wh, _ = Warehouse.objects.get_or_create(school=self.school, code=code, defaults={'name': name})
             self.warehouses[code] = wh
 
     def _suppliers(self):
@@ -285,7 +293,8 @@ class Command(BaseCommand):
         self.suppliers = {}
         for name, key in specs:
             supplier = Supplier.objects.create(
-                code=DocumentSequence.next_for('SUP'),
+                school=self.school,
+                code=DocumentSequence.next_for('SUP', self.school),
                 name=name,
                 contact_person=self.rng.choice(FIRST_NAMES) + ' ' + self.rng.choice(LAST_NAMES),
                 phone=self._phone(),
@@ -318,7 +327,7 @@ class Command(BaseCommand):
         self.procured_items = []
         for code, name, cat_name, wh_code, reorder, procured in catalog:
             item = Item.objects.create(
-                code=code, name=name,
+                school=self.school, code=code, name=name,
                 category=self.item_categories[cat_name],
                 reorder_level=Decimal(reorder),
             )
@@ -328,19 +337,18 @@ class Command(BaseCommand):
         self.counts['items'] = len(self.items)
 
     def _asset_categories(self):
-        from apps.accounting.models import ChartOfAccount
         from apps.assets.models import AssetCategory
 
         self.asset_categories = {}
         for code, name, a_code, accum_code, exp_code, life, residual in ASSET_CATEGORIES:
             cat = AssetCategory.objects.create(
-                code=code, name=name,
+                school=self.school, code=code, name=name,
                 depreciation_method='straight_line',
                 useful_life_months=life,
                 residual_rate=residual,
-                asset_account=ChartOfAccount.objects.get(code=a_code),
-                accum_depr_account=ChartOfAccount.objects.get(code=accum_code),
-                depr_expense_account=ChartOfAccount.objects.get(code=exp_code),
+                asset_account=self._coa(a_code),
+                accum_depr_account=self._coa(accum_code),
+                depr_expense_account=self._coa(exp_code),
             )
             self.asset_categories[code] = cat
 
@@ -348,14 +356,14 @@ class Command(BaseCommand):
     def _classrooms(self):
         from apps.students.models import AcademicYear, ClassRoom, Grade
 
-        self.year = AcademicYear.objects.get(name='2026')
+        self.year = AcademicYear.objects.get(school=self.school, name='2026')
         self.classrooms = {}  # grade_name -> ClassRoom
         stream_colours = ['Red', 'Blue', 'Green', 'Gold', 'Silver']
         for i, (grade_name, _tuition) in enumerate(GRADE_PLAN):
-            grade = Grade.objects.get(name=grade_name)
+            grade = Grade.objects.get(school=self.school, name=grade_name)
             colour = stream_colours[i % len(stream_colours)]
             room, _ = ClassRoom.objects.get_or_create(
-                name=f'{grade_name} {colour}', academic_year=self.year,
+                school=self.school, name=f'{grade_name} {colour}', academic_year=self.year,
                 defaults={'grade': grade, 'teacher_name': TEACHERS[i % len(TEACHERS)]},
             )
             self.classrooms[grade_name] = room
@@ -371,6 +379,7 @@ class Command(BaseCommand):
         def make_guardian(last_name):
             guardian_seq[0] += 1
             g = Guardian.objects.create(
+                school=self.school,
                 code=f'GRD{guardian_seq[0]:04d}',
                 first_name=self.rng.choice(FIRST_NAMES),
                 last_name=last_name,
@@ -401,7 +410,8 @@ class Command(BaseCommand):
                 attendance = 'boarder' if boarder else 'day'
                 admission = date(2026, 1, 13) + timedelta(days=self.rng.randint(0, 5))
                 student = Student.objects.create(
-                    code=DocumentSequence.next_for('STU'),
+                    school=self.school,
+                    code=DocumentSequence.next_for('STU', self.school),
                     first_name=first, last_name=last,
                     gender=self.rng.choice(['male', 'female']),
                     admission_date=admission,
@@ -423,7 +433,8 @@ class Command(BaseCommand):
         for _ in range(4):
             last = self.rng.choice(LAST_NAMES)
             student = Student.objects.create(
-                code=DocumentSequence.next_for('STU'),
+                school=self.school,
+                code=DocumentSequence.next_for('STU', self.school),
                 first_name=self.rng.choice(FIRST_NAMES), last_name=last,
                 gender=self.rng.choice(['male', 'female']),
                 admission_date=date(2026, 6, 1) + timedelta(days=self.rng.randint(0, 20)),
@@ -441,38 +452,38 @@ class Command(BaseCommand):
         from apps.fees.models import FeeCategory, FeeStructure
         from apps.students.models import Grade, Term
 
-        tui = FeeCategory.objects.get(code='TUI')
-        lvy = FeeCategory.objects.get(code='LVY')
-        exm = FeeCategory.objects.get(code='EXM')
-        brd = FeeCategory.objects.get(code='BRD')
+        tui = FeeCategory.objects.get(school=self.school, code='TUI')
+        lvy = FeeCategory.objects.get(school=self.school, code='LVY')
+        exm = FeeCategory.objects.get(school=self.school, code='EXM')
+        brd = FeeCategory.objects.get(school=self.school, code='BRD')
 
-        terms = [Term.objects.get(academic_year=self.year, number=n) for n in (1, 2)]
+        terms = [Term.objects.get(school=self.school, academic_year=self.year, number=n) for n in (1, 2)]
         for term in terms:
             for grade_name, tuition in GRADE_PLAN:
-                grade = Grade.objects.get(name=grade_name)
+                grade = Grade.objects.get(school=self.school, name=grade_name)
                 FeeStructure.objects.get_or_create(
-                    term=term, grade=grade, fee_category=tui, currency='USD', applies_to='all',
+                    school=self.school, term=term, grade=grade, fee_category=tui, currency='USD', applies_to='all',
                     defaults={'academic_year': self.year, 'amount': tuition},
                 )
                 FeeStructure.objects.get_or_create(
-                    term=term, grade=grade, fee_category=lvy, currency='USD', applies_to='all',
+                    school=self.school, term=term, grade=grade, fee_category=lvy, currency='USD', applies_to='all',
                     defaults={'academic_year': self.year, 'amount': Decimal('50')},
                 )
                 if grade_name in EXAM_GRADES:
                     FeeStructure.objects.get_or_create(
-                        term=term, grade=grade, fee_category=exm, currency='USD', applies_to='all',
+                        school=self.school, term=term, grade=grade, fee_category=exm, currency='USD', applies_to='all',
                         defaults={'academic_year': self.year, 'amount': Decimal('30')},
                     )
                 if grade.section == 'secondary':
                     FeeStructure.objects.get_or_create(
-                        term=term, grade=grade, fee_category=brd, currency='USD', applies_to='boarder',
+                        school=self.school, term=term, grade=grade, fee_category=brd, currency='USD', applies_to='boarder',
                         defaults={'academic_year': self.year, 'amount': Decimal('600')},
                     )
 
     def _bursaries(self):
         from apps.fees.models import BursaryAward, FeeCategory
 
-        tui = FeeCategory.objects.get(code='TUI')
+        tui = FeeCategory.objects.get(school=self.school, code='TUI')
         # 3 students on a 50% tuition bursary (created BEFORE billing so the
         # discount flows into invoice lines and the bursary contra posts).
         chosen = self.rng.sample(self.enrolled_students, 3)
@@ -495,9 +506,10 @@ class Command(BaseCommand):
             (1, 1, date(2026, 1, 15), date(2026, 2, 15)),
             (2, 2, date(2026, 5, 6), date(2026, 6, 6)),
         ]:
-            term = Term.objects.get(academic_year=self.year, number=term_no)
+            term = Term.objects.get(school=self.school, academic_year=self.year, number=term_no)
             run = BillingRun.objects.create(
-                number=DocumentSequence.next_for('RUN'),
+                school=self.school,
+                number=DocumentSequence.next_for('RUN', self.school),
                 term=term, currency='USD', date=run_date, due_date=due,
             )
             execute_billing_run(run.pk)
@@ -512,8 +524,10 @@ class Command(BaseCommand):
         from apps.fees.models import FeeInvoice
         from apps.fees.services import create_receipt
 
-        bank_usd = BankAccount.objects.get(code='BANK-USD')
-        cash_usd = BankAccount.objects.get(code='CASH-USD')
+        from apps.core.models import School
+        _school = School.get_default()
+        bank_usd = BankAccount.objects.get(school=_school, code='BANK-USD')
+        cash_usd = BankAccount.objects.get(school=_school, code='CASH-USD')
         methods = ['cash', 'bank_transfer', 'ecocash']
 
         # (term_no, run_date_window, full_prob, partial_prob)
@@ -553,7 +567,7 @@ class Command(BaseCommand):
         from apps.core.models import DocumentSequence
         from apps.fees.models import CreditNote, CreditNoteLine, FeeCategory, FeeInvoice
 
-        lvy = FeeCategory.objects.get(code='LVY')
+        lvy = FeeCategory.objects.get(school=self.school, code='LVY')
         # Two fee adjustments on invoices that still carry a balance.
         candidates = list(
             FeeInvoice.objects.filter(status__in=['posted', 'partial'])
@@ -566,7 +580,8 @@ class Command(BaseCommand):
             if invoice.balance < Decimal('40'):
                 continue
             note = CreditNote.objects.create(
-                number=DocumentSequence.next_for('CRN'),
+                school=self.school,
+                number=DocumentSequence.next_for('CRN', self.school),
                 student=invoice.student, invoice=invoice,
                 date=self._rand_date(date(2026, 6, 1), date(2026, 7, 10)),
                 currency='USD',
@@ -608,7 +623,8 @@ class Command(BaseCommand):
             po_date = date(2026, 2, 5) + timedelta(days=idx * 18)
 
             po = PurchaseOrder.objects.create(
-                number=DocumentSequence.next_for('PO'),
+                school=self.school,
+                number=DocumentSequence.next_for('PO', self.school),
                 supplier=supplier, date=po_date,
                 expected_date=po_date + timedelta(days=10),
                 currency='USD', status='draft',
@@ -618,7 +634,8 @@ class Command(BaseCommand):
             self.counts['pos'] += 1
 
             grn = GoodsReceivedNote.objects.create(
-                number=DocumentSequence.next_for('GRN'),
+                school=self.school,
+                number=DocumentSequence.next_for('GRN', self.school),
                 po=po, warehouse=warehouse,
                 date=po_date + timedelta(days=7),
             )
@@ -628,7 +645,8 @@ class Command(BaseCommand):
 
             bill_date = grn.date + timedelta(days=2)
             bill = VendorBill.objects.create(
-                number=DocumentSequence.next_for('BIL'),
+                school=self.school,
+                number=DocumentSequence.next_for('BIL', self.school),
                 supplier=supplier, supplier_reference=f'INV-{supplier.code}-{idx+1}',
                 po=po, date=bill_date, due_date=bill_date + timedelta(days=30),
                 currency='USD',
@@ -670,7 +688,7 @@ class Command(BaseCommand):
         issues = 0
         for item, wh_code in self.procured_items:
             dept_code, quantities = plan[item.code]
-            department = Department.objects.get(code=dept_code)
+            department = Department.objects.get(school=self.school, code=dept_code)
             warehouse = self.warehouses[wh_code]
             for qty, idate in zip(quantities, issue_dates):
                 issue_stock(
@@ -701,7 +719,8 @@ class Command(BaseCommand):
             cat = self.asset_categories[cat_code]
             residual = (cost * cat.residual_rate / Decimal('100')).quantize(TWO)
             asset = Asset.objects.create(
-                code=DocumentSequence.next_for('AST'),
+                school=self.school,
+                code=DocumentSequence.next_for('AST', self.school),
                 name=name, category=cat,
                 acquisition_date=acq, in_service_date=acq,
                 cost=cost, currency='USD', cost_base=cost,
@@ -712,7 +731,8 @@ class Command(BaseCommand):
             # Keeps the balance sheet's fixed-asset section meaningful while the
             # ledger stays balanced by construction.
             ob = OpeningBalance.objects.create(
-                number=DocumentSequence.next_for('OPB'),
+                school=self.school,
+                number=DocumentSequence.next_for('OPB', self.school),
                 date=date(2026, 1, 1),
                 target_account=cat.asset_account,
                 direction='debit', amount=cost, currency='USD',
@@ -725,7 +745,7 @@ class Command(BaseCommand):
         from apps.accounting.models import FiscalPeriod, FiscalYear
         from apps.assets.services import run_depreciation
 
-        fy = FiscalYear.objects.get(name='FY2026')
+        fy = FiscalYear.objects.get(school=self.school, name='FY2026')
         runs = 0
         for period_no in range(1, 7):  # Jan..Jun
             period = FiscalPeriod.objects.get(fiscal_year=fy, period_no=period_no)
@@ -737,8 +757,9 @@ class Command(BaseCommand):
     def _direct_expenses(self):
         from apps.accounting.models import BankAccount, ChartOfAccount
         from apps.accounting.services import LineSpec, build_and_post_journal
+        from apps.core.models import School
 
-        bank = BankAccount.objects.get(code='BANK-USD')
+        bank = BankAccount.objects.get(school=self.school, code='BANK-USD')
         # code -> monthly amount
         monthly_expenses = [
             ('5000', 'Salaries & Wages', Decimal('12000')),
@@ -757,7 +778,7 @@ class Command(BaseCommand):
                 # small deterministic variation
                 amt = (amount * Decimal(str(1 + (self.rng.random() - 0.5) * 0.1))).quantize(TWO)
                 specs.append(LineSpec(
-                    account=ChartOfAccount.objects.get(code=code),
+                    account=self._coa(code),
                     debit=amt, description=f'{name} — {pay_date:%B %Y}',
                 ))
                 total += amt
@@ -769,6 +790,7 @@ class Command(BaseCommand):
                 journal_type='payments', date=pay_date, currency='USD',
                 description=f'Operating expenses — {pay_date:%B %Y}',
                 lines=specs, reference=f'OPEX-{pay_date:%Y-%m}',
+                school=self.school,
             )
             journals += 1
         self.counts['expense_journals'] = journals
@@ -780,9 +802,10 @@ class Command(BaseCommand):
         from apps.accounting.models import ChartOfAccount
         # A pre-system equipment loan (Cr Loans Payable / Dr Opening contra).
         ob = OpeningBalance.objects.create(
-            number=DocumentSequence.next_for('OPB'),
+            school=self.school,
+            number=DocumentSequence.next_for('OPB', self.school),
             date=date(2026, 1, 1),
-            target_account=ChartOfAccount.objects.get(code='2500'),
+            target_account=self._coa('2500'),
             direction='credit', amount=Decimal('10000'), currency='USD',
             description='Opening equipment finance loan',
         )
@@ -841,4 +864,5 @@ class Command(BaseCommand):
 
     def _bank(self, code):
         from apps.accounting.models import BankAccount
-        return BankAccount.objects.get(code=code)
+        from apps.core.models import School
+        return BankAccount.objects.get(school=School.get_default(), code=code)

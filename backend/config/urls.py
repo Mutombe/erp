@@ -7,6 +7,8 @@ from django.views.generic import TemplateView
 from django.views.static import serve as static_serve
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
+from apps.core.views import public_schools_view
+
 
 def health(request):
     return JsonResponse({'status': 'ok'})
@@ -34,6 +36,7 @@ urlpatterns = [
     path('health/', health),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('api/public/schools/', public_schools_view),
     path('api/core/', include('apps.core.urls')),
     path('api/accounting/', include('apps.accounting.urls')),
     path('api/assets/', include('apps.assets.urls')),

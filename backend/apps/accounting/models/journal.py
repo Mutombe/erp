@@ -27,7 +27,8 @@ JOURNAL_STATUS = [('draft', 'Draft'), ('posted', 'Posted'), ('reversed', 'Revers
 
 
 class Journal(models.Model):
-    number = models.CharField(max_length=20, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='journals')
+    number = models.CharField(max_length=20)
     journal_type = models.CharField(max_length=15, choices=JOURNAL_TYPES, default='general')
     date = models.DateField(db_index=True)
     description = models.CharField(max_length=500, blank=True)
@@ -51,6 +52,7 @@ class Journal(models.Model):
 
     class Meta:
         ordering = ['-date', '-id']
+        unique_together = [('school', 'number')]
         indexes = [
             models.Index(fields=['status', 'date']),
             models.Index(fields=['source_type', 'source_id']),
@@ -93,7 +95,7 @@ class Journal(models.Model):
             journal = Journal.objects.select_for_update().get(pk=self.pk)
             if journal.status != 'draft':
                 raise ValidationError(f'Journal {journal.number} is {journal.status}; only drafts can be posted.')
-            FiscalPeriod.assert_open(journal.date)
+            FiscalPeriod.assert_open(journal.date, school=journal.school)
             journal.validate_balance()
 
             lines = list(
@@ -105,6 +107,13 @@ class Journal(models.Model):
                 acc.id: acc
                 for acc in ChartOfAccount.objects.select_for_update().filter(id__in=account_ids).order_by('id')
             }
+            # Tenancy guard: a journal only ever touches its own school's accounts.
+            cross = [acc.code for acc in locked_accounts.values() if acc.school_id != journal.school_id]
+            if cross:
+                raise ValidationError(
+                    f'Journal {journal.number} (school {journal.school_id}) references '
+                    f'accounts from another school: {cross}.'
+                )
 
             bank_ids = sorted({line.bank_account_id for line in lines if line.bank_account_id})
             locked_banks = {}
@@ -130,6 +139,7 @@ class Journal(models.Model):
                     GeneralLedger(
                         journal_line=line,
                         journal=journal,
+                        school_id=journal.school_id,
                         account=account,
                         date=journal.date,
                         description=line.description or journal.description,
@@ -185,7 +195,8 @@ class Journal(models.Model):
                 raise ValidationError(f'Only posted journals can be reversed (status={original.status}).')
 
             reversal = Journal.objects.create(
-                number=DocumentSequence.next_for('JRN'),
+                school_id=original.school_id,
+                number=DocumentSequence.next_for('JRN', original.school),
                 journal_type='reversal',
                 date=date or original.date,
                 description=f'Reversal of {original.number}' + (f': {reason}' if reason else ''),
@@ -280,6 +291,7 @@ class GeneralLedger(models.Model):
 
     journal_line = models.OneToOneField(JournalLine, on_delete=models.PROTECT, related_name='gl_entry')
     journal = models.ForeignKey(Journal, on_delete=models.PROTECT, related_name='gl_entries')
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='gl_entries')
     account = models.ForeignKey(ChartOfAccount, on_delete=models.PROTECT, related_name='gl_entries')
     date = models.DateField(db_index=True)
     description = models.CharField(max_length=500, blank=True)
@@ -298,6 +310,7 @@ class GeneralLedger(models.Model):
         indexes = [
             models.Index(fields=['account', 'date']),
             models.Index(fields=['currency', 'date']),
+            models.Index(fields=['school', 'date'], name='gl_school_date_idx'),
         ]
 
     def __str__(self):

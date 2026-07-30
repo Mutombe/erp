@@ -39,7 +39,7 @@ export default function JournalForm() {
 
   const { data: accounts } = useQuery({
     queryKey: qk.accounts.list({ manual: true }),
-    queryFn: () => accountsApi.list({ is_active: true }).then((r) => r.data as Account[]),
+    queryFn: () => accountsApi.list({ is_active: true, page_size: 500 }).then((r) => (r.data.results ?? r.data) as Account[]),
   })
 
   const {

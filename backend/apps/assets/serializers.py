@@ -45,11 +45,15 @@ class AssetSerializer(serializers.ModelSerializer):
         }
 
     def create(self, validated_data):
+        # An asset inherits its category's school.
+        school = validated_data['category'].school
+        validated_data['school'] = school
         if not validated_data.get('code'):
-            validated_data['code'] = DocumentSequence.next_for('AST')
+            validated_data['code'] = DocumentSequence.next_for('AST', school)
         if validated_data.get('cost_base') is None:
             currency = validated_data.get('currency') or 'USD'
-            rate = ExchangeRate.get_rate(currency, settings.BASE_CURRENCY, validated_data['acquisition_date'])
+            rate = ExchangeRate.get_rate(currency, settings.BASE_CURRENCY, validated_data['acquisition_date'],
+                                         school=school)
             validated_data['cost_base'] = (validated_data['cost'] * rate).quantize(Decimal('0.01'))
         return super().create(validated_data)
 

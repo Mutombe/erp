@@ -3,6 +3,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.core.mixins import TenantScopedViewSet
 from apps.core.permissions import RoleWritePermission
 
 from .filters import (
@@ -36,7 +37,7 @@ from .serializers import (
 )
 
 
-class InventoryViewSet(viewsets.ModelViewSet):
+class InventoryViewSet(TenantScopedViewSet, viewsets.ModelViewSet):
     permission_classes = [RoleWritePermission]
     write_area = 'inventory'
 
@@ -46,18 +47,16 @@ class ItemCategoryViewSet(InventoryViewSet):
     serializer_class = ItemCategorySerializer
     filterset_fields = ['is_active']
     search_fields = ['name']
-    pagination_class = None
 
 
 class DepartmentViewSet(InventoryViewSet):
     queryset = Department.objects.select_related('expense_account').annotate(
         stock_move_count_annotated=Count('stock_moves')
-    )
+    ).order_by('name')
     serializer_class = DepartmentSerializer
     filterset_class = DepartmentFilter
     search_fields = ['code', 'name']
     ordering_fields = '__all__'
-    pagination_class = None
 
 
 class ItemViewSet(InventoryViewSet):
@@ -74,7 +73,6 @@ class WarehouseViewSet(InventoryViewSet):
     filterset_class = WarehouseFilter
     search_fields = ['code', 'name', 'location']
     ordering_fields = '__all__'
-    pagination_class = None
 
 
 class StockLevelViewSet(viewsets.ReadOnlyModelViewSet):
@@ -84,8 +82,19 @@ class StockLevelViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['item__code', 'item__name', 'warehouse__code', 'warehouse__name']
     ordering_fields = '__all__'
 
+    def get_queryset(self):
+        # StockLevel derives its school from its item; scope the list accordingly.
+        qs = super().get_queryset()
+        active = getattr(self.request, 'school', None)
+        if active is not None:
+            return qs.filter(item__school=active)
+        school_ids = getattr(self.request, 'school_ids', None)
+        if school_ids is None:
+            return qs
+        return qs.filter(item__school_id__in=school_ids)
 
-class StockMoveViewSet(viewsets.ReadOnlyModelViewSet):
+
+class StockMoveViewSet(TenantScopedViewSet, viewsets.ReadOnlyModelViewSet):
     queryset = StockMove.objects.select_related(
         'item', 'warehouse_from', 'warehouse_to', 'journal', 'department'
     ).all()

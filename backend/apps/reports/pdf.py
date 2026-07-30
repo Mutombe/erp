@@ -11,7 +11,7 @@ from rest_framework.exceptions import NotFound
 from rest_framework.views import APIView
 from xhtml2pdf import pisa
 
-from apps.core.models import SchoolSettings
+from apps.core.models import School
 
 
 def _resolve_static(uri, rel):
@@ -32,7 +32,9 @@ def _resolve_static(uri, rel):
 
 
 def render_pdf(template, context, filename):
-    context['school'] = SchoolSettings.get()
+    # Letterhead: prefer the document's own school when the caller supplied one,
+    # else fall back to the default school (single-school Wave-1 behaviour).
+    context['school'] = context.get('school') or School.get_default()
     context.setdefault('logo_url', '/static/brand/logo.png')
     html = render_to_string(template, context)
     buffer = io.BytesIO()
@@ -390,6 +392,31 @@ def _flatten_fee_collection(data):
             'columns': columns, 'rows': rows, 'landscape': False}
 
 
+def _flatten_receipt_listing(data):
+    columns = [_left('Date'), _left('Receipt'), _left('Student'), _left('Method'),
+               _left('Reference'), _right('Amount')]
+    rows = []
+    for group in data['groups']:
+        rows.append(_row([
+            f"{group['bank_account_name']} ({group['currency']}) · {group['date']}"
+        ], 'section'))
+        for r in group['receipts']:
+            rows.append(_row([group['date'], r['number'], r['student_name'],
+                              r['method'], (r['reference'] or ''), _fmt(r['amount'])]))
+        rows.append(_row(['', '', '', '', f"Subtotal ({group['count']})",
+                          _fmt(group['subtotal'])], 'bold'))
+    rows.append(_row(['', '', '', '', f"Grand Total ({data['count']})",
+                      _fmt(data['total'])], 'total'))
+    if data['by_method']:
+        rows.append(_row(['Payment method summary'], 'section'))
+        for m in data['by_method']:
+            rows.append(_row(['', '', '', m['method'], f"{m['count']} receipt(s)",
+                              _fmt(m['total'])]))
+    return {'title': 'Receipt Listing (Daily Banking)',
+            'subtitle': f"Period {data['start']} to {data['end']}",
+            'columns': columns, 'rows': rows, 'landscape': True}
+
+
 def _report_specs():
     from . import views
 
@@ -405,6 +432,7 @@ def _report_specs():
         'stock-valuation': (views.StockValuationView, _flatten_stock_valuation),
         'department-consumption': (views.DepartmentConsumptionView, _flatten_department_consumption),
         'fee-collection': (views.FeeCollectionView, _flatten_fee_collection),
+        'receipt-listing': (views.ReceiptListingView, _flatten_receipt_listing),
     }
 
 

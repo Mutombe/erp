@@ -141,13 +141,14 @@ class TestImmutability:
 
 
 class TestChartOfAccounts:
-    def test_code_ranges_enforced(self, seeded_db):
+    def test_code_ranges_enforced(self, seeded_db, school):
         with pytest.raises(ValidationError):
-            ChartOfAccount.objects.create(code='4100', name='Bad', account_type='expense',
+            ChartOfAccount.objects.create(school=school, code='4100', name='Bad', account_type='expense',
                                           report_group='operating_expenses')
 
-    def test_type_derived_from_code(self, seeded_db):
-        account = ChartOfAccount.objects.create(code='5150', name='Gardening', report_group='operating_expenses')
+    def test_type_derived_from_code(self, seeded_db, school):
+        account = ChartOfAccount.objects.create(
+            school=school, code='5150', name='Gardening', report_group='operating_expenses')
         assert account.account_type == 'expense'
         assert account.normal_balance == 'debit'
 

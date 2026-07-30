@@ -10,10 +10,17 @@ TWO = Decimal('0.01')
 ZERO = Decimal('0')
 
 
+def _default_school():
+    from apps.core.models import School
+
+    return School.get_default()
+
+
 class AssetCategory(models.Model):
     METHODS = [('straight_line', 'Straight line'), ('reducing_balance', 'Reducing balance')]
 
-    code = models.CharField(max_length=10, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='asset_categories')
+    code = models.CharField(max_length=10)
     name = models.CharField(max_length=100)
     depreciation_method = models.CharField(max_length=20, choices=METHODS, default='straight_line')
     useful_life_months = models.PositiveIntegerField(default=60)
@@ -26,9 +33,15 @@ class AssetCategory(models.Model):
     class Meta:
         ordering = ['code']
         verbose_name_plural = 'Asset categories'
+        unique_together = [('school', 'code')]
 
     def __str__(self):
         return f'{self.code} · {self.name}'
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school = _default_school()
+        super().save(*args, **kwargs)
 
 
 class Asset(models.Model):
@@ -37,7 +50,8 @@ class Asset(models.Model):
         ('disposed', 'Disposed'), ('written_off', 'Written off'),
     ]
 
-    code = models.CharField(max_length=20, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='assets')
+    code = models.CharField(max_length=20)
     name = models.CharField(max_length=200)
     category = models.ForeignKey(AssetCategory, on_delete=models.PROTECT, related_name='assets')
     description = models.TextField(blank=True)
@@ -69,9 +83,15 @@ class Asset(models.Model):
 
     class Meta:
         ordering = ['code']
+        unique_together = [('school', 'code')]
 
     def __str__(self):
         return f'{self.code} · {self.name}'
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school_id = self.category.school_id if self.category_id else _default_school().pk
+        super().save(*args, **kwargs)
 
     @property
     def net_book_value(self):
@@ -98,6 +118,8 @@ class Asset(models.Model):
         proceeds = Decimal(proceeds or 0).quantize(TWO)
         if proceeds > 0 and bank_account is None:
             raise ValidationError('Disposal with proceeds needs a bank account.')
+        if proceeds > 0 and bank_account.school_id != self.school_id:
+            raise ValidationError('Disposal bank account belongs to another school.')
 
         specs = [
             LineSpec(account=self.category.accum_depr_account, debit=self.accumulated_depreciation,
@@ -126,6 +148,7 @@ class Asset(models.Model):
                 reference=self.code,
                 exchange_rate=Decimal('1'),
                 user=user,
+                school=self.school,
                 source=('assets.Asset', self.pk, self.code),
             )
             self.disposal_date = date
@@ -139,6 +162,7 @@ class Asset(models.Model):
 class DepreciationRun(models.Model):
     STATUS = [('draft', 'Draft'), ('posted', 'Posted'), ('reversed', 'Reversed')]
 
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='depreciation_runs')
     period = models.OneToOneField('accounting.FiscalPeriod', on_delete=models.PROTECT, related_name='depreciation_run')
     run_date = models.DateField()
     status = models.CharField(max_length=10, choices=STATUS, default='draft')
@@ -152,6 +176,11 @@ class DepreciationRun(models.Model):
 
     def __str__(self):
         return f'Depreciation {self.period} ({self.status})'
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school_id = self.period.school_id if self.period_id else _default_school().pk
+        super().save(*args, **kwargs)
 
 
 class DepreciationEntry(models.Model):

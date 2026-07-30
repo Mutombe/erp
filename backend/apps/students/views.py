@@ -3,6 +3,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.core.mixins import TenantScopedViewSet
 from apps.core.permissions import RoleWritePermission
 
 from .filters import (
@@ -36,7 +37,7 @@ from .serializers import (
 )
 
 
-class StudentsViewSet(viewsets.ModelViewSet):
+class StudentsViewSet(TenantScopedViewSet, viewsets.ModelViewSet):
     permission_classes = [RoleWritePermission]
     write_area = 'students'
 
@@ -65,7 +66,6 @@ class GradeViewSet(StudentsViewSet):
     filterset_class = GradeFilter
     search_fields = ['name']
     ordering_fields = '__all__'
-    pagination_class = None
 
 
 class ClassRoomViewSet(StudentsViewSet):

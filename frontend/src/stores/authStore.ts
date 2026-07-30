@@ -5,13 +5,43 @@ export interface User {
   id: number
   email: string
   full_name: string
+  first_name?: string
+  last_name?: string
+  phone?: string
   role: string
+  is_active?: boolean
+  home_school?: number | null
+  is_hq?: boolean
+  extra_schools?: number[]
+}
+
+/** Lightweight school card shared by the picker, login response and switcher. */
+export interface SchoolSummary {
+  id: number
+  code: string
+  name: string
+  slug?: string
+  logo: string | null
+}
+
+/** The extended `me` payload returned by login / me / switch-school. */
+export interface Me extends User {
+  is_hq: boolean
+  home_school: number | null
+  accessible_schools: SchoolSummary[]
+  active_school: SchoolSummary | null
 }
 
 interface AuthState {
   user: User | null
   isAuthenticated: boolean
-  setUser: (user: User | null) => void
+  isHq: boolean
+  /** The active school; null means "Golden Knot — all schools" (HQ). */
+  activeSchool: SchoolSummary | null
+  accessibleSchools: SchoolSummary[]
+  /** Populate the whole session from a `me`-shaped payload. */
+  setSession: (me: Me) => void
+  setActiveSchool: (school: SchoolSummary | null) => void
   logout: () => void
 }
 
@@ -20,8 +50,26 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       isAuthenticated: false,
-      setUser: (user) => set({ user, isAuthenticated: !!user }),
-      logout: () => set({ user: null, isAuthenticated: false }),
+      isHq: false,
+      activeSchool: null,
+      accessibleSchools: [],
+      setSession: (me) =>
+        set({
+          user: me,
+          isAuthenticated: !!me,
+          isHq: !!me?.is_hq,
+          activeSchool: me?.active_school ?? null,
+          accessibleSchools: me?.accessible_schools ?? [],
+        }),
+      setActiveSchool: (school) => set({ activeSchool: school }),
+      logout: () =>
+        set({
+          user: null,
+          isAuthenticated: false,
+          isHq: false,
+          activeSchool: null,
+          accessibleSchools: [],
+        }),
     }),
     {
       name: 'auth-storage',

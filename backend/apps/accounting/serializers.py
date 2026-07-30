@@ -38,14 +38,14 @@ class ExchangeRateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExchangeRate
         fields = '__all__'
-        read_only_fields = ['is_locked']
+        read_only_fields = ['is_locked', 'school']
 
 
 class FiscalPeriodSerializer(serializers.ModelSerializer):
     class Meta:
         model = FiscalPeriod
         fields = '__all__'
-        read_only_fields = ['locked_by', 'locked_at']
+        read_only_fields = ['locked_by', 'locked_at', 'school']
 
 
 class FiscalYearSerializer(serializers.ModelSerializer):
@@ -54,6 +54,7 @@ class FiscalYearSerializer(serializers.ModelSerializer):
     class Meta:
         model = FiscalYear
         fields = '__all__'
+        read_only_fields = ['school']
 
 
 class JournalLineSerializer(serializers.ModelSerializer):
@@ -135,15 +136,22 @@ class ManualJournalSerializer(serializers.Serializer):
         return attrs
 
     def create(self, validated_data):
+        from apps.core.mixins import active_school
+
         from .models import ExchangeRate
         from .services import base_currency
 
         lines = validated_data.pop('lines')
-        user = self.context['request'].user
-        rate = ExchangeRate.get_rate(validated_data['currency'], base_currency(), validated_data['date'])
+        request = self.context['request']
+        user = request.user
+        school = active_school(request)
+        rate = ExchangeRate.get_rate(
+            validated_data['currency'], base_currency(), validated_data['date'], school=school
+        )
         with transaction.atomic():
             journal = Journal.objects.create(
-                number=DocumentSequence.next_for('JRN'),
+                school=school,
+                number=DocumentSequence.next_for('JRN', school),
                 exchange_rate=rate,
                 created_by=user,
                 **validated_data,
@@ -208,7 +216,8 @@ class BankAccountSerializer(serializers.ModelSerializer):
     class Meta:
         model = BankAccount
         fields = '__all__'
-        read_only_fields = ['book_balance', 'bank_balance', 'last_reconciled_date', 'last_reconciled_balance']
+        read_only_fields = ['book_balance', 'bank_balance', 'last_reconciled_date',
+                            'last_reconciled_balance', 'school']
 
 
 class AccountMappingSerializer(serializers.ModelSerializer):
@@ -226,9 +235,13 @@ class OpeningBalanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = OpeningBalance
         fields = '__all__'
-        read_only_fields = ['number', 'status', 'journal']
+        read_only_fields = ['number', 'status', 'journal', 'school']
 
     def create(self, validated_data):
-        validated_data['number'] = DocumentSequence.next_for('OPB')
+        from apps.core.mixins import active_school
+
+        school = validated_data.get('school') or active_school(self.context['request'])
+        validated_data['school'] = school
+        validated_data['number'] = DocumentSequence.next_for('OPB', school)
         validated_data['created_by'] = self.context['request'].user
         return super().create(validated_data)

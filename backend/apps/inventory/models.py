@@ -11,8 +11,15 @@ FOUR = Decimal('0.0001')
 ZERO = Decimal('0')
 
 
+def _default_school():
+    from apps.core.models import School
+
+    return School.get_default()
+
+
 class ItemCategory(models.Model):
-    name = models.CharField(max_length=100, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='item_categories')
+    name = models.CharField(max_length=100)
     inventory_account = models.ForeignKey('accounting.ChartOfAccount', on_delete=models.PROTECT, related_name='+')
     consumption_expense_account = models.ForeignKey(
         'accounting.ChartOfAccount', on_delete=models.PROTECT, related_name='+'
@@ -22,9 +29,15 @@ class ItemCategory(models.Model):
     class Meta:
         ordering = ['name']
         verbose_name_plural = 'Item categories'
+        unique_together = [('school', 'name')]
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school = _default_school()
+        super().save(*args, **kwargs)
 
 
 class Department(models.Model):
@@ -33,7 +46,8 @@ class Department(models.Model):
     When ``expense_account`` is set, stock issued to the department debits that
     account instead of the item category's consumption expense account."""
 
-    code = models.CharField(max_length=10, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='departments')
+    code = models.CharField(max_length=10)
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     expense_account = models.ForeignKey(
@@ -45,15 +59,22 @@ class Department(models.Model):
 
     class Meta:
         ordering = ['name']
+        unique_together = [('school', 'code')]
 
     def __str__(self):
         return f'{self.code} · {self.name}'
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school = _default_school()
+        super().save(*args, **kwargs)
 
 
 class Item(models.Model):
     ITEM_TYPES = [('stockable', 'Stockable'), ('consumable', 'Consumable'), ('service', 'Service')]
 
-    code = models.CharField(max_length=30, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='items')
+    code = models.CharField(max_length=30)
     name = models.CharField(max_length=200)
     category = models.ForeignKey(ItemCategory, on_delete=models.PROTECT, related_name='items')
     uom = models.CharField(max_length=20, default='each')
@@ -68,13 +89,20 @@ class Item(models.Model):
 
     class Meta:
         ordering = ['code']
+        unique_together = [('school', 'code')]
 
     def __str__(self):
         return f'{self.code} · {self.name}'
 
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school_id = self.category.school_id if self.category_id else _default_school().pk
+        super().save(*args, **kwargs)
+
 
 class Warehouse(models.Model):
-    code = models.CharField(max_length=20, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='warehouses')
+    code = models.CharField(max_length=20)
     name = models.CharField(max_length=100)
     location = models.CharField(max_length=200, blank=True)
     storekeeper = models.ForeignKey('core.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
@@ -82,9 +110,15 @@ class Warehouse(models.Model):
 
     class Meta:
         ordering = ['code']
+        unique_together = [('school', 'code')]
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school = _default_school()
+        super().save(*args, **kwargs)
 
 
 class StockLevel(models.Model):
@@ -106,7 +140,8 @@ class StockMove(models.Model):
     ]
     STATUS = [('posted', 'Posted')]
 
-    number = models.CharField(max_length=20, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='stock_moves')
+    number = models.CharField(max_length=20)
     move_type = models.CharField(max_length=15, choices=MOVE_TYPES)
     item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name='moves')
     warehouse_from = models.ForeignKey(
@@ -132,10 +167,17 @@ class StockMove(models.Model):
 
     class Meta:
         ordering = ['-date', '-id']
+        unique_together = [('school', 'number')]
         indexes = [models.Index(fields=['item', 'date'])]
 
     def __str__(self):
         return f'{self.number} {self.move_type} {self.item.code} x{self.quantity}'
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school_id = (self.warehouse_to or self.warehouse_from).school_id \
+                if (self.warehouse_to_id or self.warehouse_from_id) else _default_school().pk
+        super().save(*args, **kwargs)
 
 
 def _adjust_level(item, warehouse, delta):
@@ -148,13 +190,17 @@ def _adjust_level(item, warehouse, delta):
     level.save(update_fields=['quantity'])
 
 
-def receive_stock(*, item, warehouse, quantity, unit_cost_base, date, source=None, journal=None, user=None, post_gl=True):
+def receive_stock(*, item, warehouse, quantity, unit_cost_base, date, source=None, journal=None,
+                  user=None, post_gl=True, school=None):
     """Stock receipt at actual cost; updates the moving average under a row lock.
     When post_gl is False the caller (e.g. GRN) posts the journal itself."""
     quantity = Decimal(quantity)
     if quantity <= 0:
         raise ValidationError('Receipt quantity must be positive.')
     unit_cost_base = Decimal(unit_cost_base)
+    school = school or warehouse.school
+    if item.school_id != school.id or warehouse.school_id != school.id:
+        raise ValidationError('Stock receipt item and warehouse belong to different schools.')
 
     with transaction.atomic():
         item = Item.objects.select_for_update().get(pk=item.pk)
@@ -168,7 +214,8 @@ def receive_stock(*, item, warehouse, quantity, unit_cost_base, date, source=Non
         _adjust_level(item, warehouse, quantity)
 
         move = StockMove.objects.create(
-            number=DocumentSequence.next_for('ADJ'),
+            school=school,
+            number=DocumentSequence.next_for('ADJ', school),
             move_type='receipt' if source else 'adjustment_in',
             item=item,
             warehouse_to=warehouse,
@@ -195,6 +242,7 @@ def receive_stock(*, item, warehouse, quantity, unit_cost_base, date, source=Non
                 ],
                 reference=move.number,
                 user=user,
+                school=school,
                 source=('inventory.StockMove', move.pk, move.number),
             )
             move.journal = gl_journal
@@ -212,7 +260,8 @@ def _issue_debit_account(item, department, expense_account):
     return item.category.consumption_expense_account
 
 
-def issue_stock(*, item, warehouse, quantity, date, department=None, reason='', user=None, expense_account=None):
+def issue_stock(*, item, warehouse, quantity, date, department=None, reason='', user=None,
+                expense_account=None, school=None):
     """Issue at moving-average cost: Dr consumption expense / Cr inventory.
 
     ``department`` is a Department instance (or None); when it carries its own
@@ -222,6 +271,9 @@ def issue_stock(*, item, warehouse, quantity, date, department=None, reason='', 
     quantity = Decimal(quantity)
     if quantity <= 0:
         raise ValidationError('Issue quantity must be positive.')
+    school = school or warehouse.school
+    if item.school_id != school.id or warehouse.school_id != school.id:
+        raise ValidationError('Stock issue item and warehouse belong to different schools.')
 
     with transaction.atomic():
         item = Item.objects.select_for_update().get(pk=item.pk)
@@ -231,7 +283,8 @@ def issue_stock(*, item, warehouse, quantity, date, department=None, reason='', 
         item.save(update_fields=['qty_on_hand'])
 
         move = StockMove.objects.create(
-            number=DocumentSequence.next_for('ADJ'),
+            school=school,
+            number=DocumentSequence.next_for('ADJ', school),
             move_type='issue',
             item=item,
             warehouse_from=warehouse,
@@ -258,6 +311,7 @@ def issue_stock(*, item, warehouse, quantity, date, department=None, reason='', 
                 ],
                 reference=move.number,
                 user=user,
+                school=school,
                 source=('inventory.StockMove', move.pk, move.number),
             )
             move.journal = journal
@@ -265,19 +319,23 @@ def issue_stock(*, item, warehouse, quantity, date, department=None, reason='', 
         return move
 
 
-def transfer_stock(*, item, warehouse_from, warehouse_to, quantity, date, user=None):
+def transfer_stock(*, item, warehouse_from, warehouse_to, quantity, date, user=None, school=None):
     """Warehouse transfer — no GL impact, quantities only."""
     quantity = Decimal(quantity)
     if quantity <= 0:
         raise ValidationError('Transfer quantity must be positive.')
     if warehouse_from == warehouse_to:
         raise ValidationError('Source and destination warehouses must differ.')
+    school = school or warehouse_from.school
+    if warehouse_from.school_id != school.id or warehouse_to.school_id != school.id:
+        raise ValidationError('Stock transfer warehouses belong to different schools.')
     with transaction.atomic():
         item = Item.objects.select_for_update().get(pk=item.pk)
         _adjust_level(item, warehouse_from, -quantity)
         _adjust_level(item, warehouse_to, quantity)
         return StockMove.objects.create(
-            number=DocumentSequence.next_for('ADJ'),
+            school=school,
+            number=DocumentSequence.next_for('ADJ', school),
             move_type='transfer',
             item=item,
             warehouse_from=warehouse_from,

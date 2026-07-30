@@ -12,7 +12,8 @@ class OpeningBalance(models.Model):
     DIRECTIONS = [('debit', 'Debit target account'), ('credit', 'Credit target account')]
     STATUS = [('draft', 'Draft'), ('posted', 'Posted'), ('reversed', 'Reversed')]
 
-    number = models.CharField(max_length=20, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='opening_balances')
+    number = models.CharField(max_length=20)
     date = models.DateField()
     target_account = models.ForeignKey('accounting.ChartOfAccount', on_delete=models.PROTECT, related_name='+')
     direction = models.CharField(max_length=6, choices=DIRECTIONS)
@@ -29,6 +30,7 @@ class OpeningBalance(models.Model):
 
     class Meta:
         ordering = ['-date', '-id']
+        unique_together = [('school', 'number')]
 
     def __str__(self):
         return f'{self.number} {self.target_account.code} {self.direction} {self.amount}'
@@ -51,9 +53,9 @@ class OpeningBalance(models.Model):
 
         sub_account = None
         if self.student_id:
-            sub_account = SubAccount.for_student(self.student, self.category, self.currency)
+            sub_account = SubAccount.for_student(self.student, self.category, self.currency, school=self.school)
         elif self.supplier_id:
-            sub_account = SubAccount.for_supplier(self.supplier, self.currency)
+            sub_account = SubAccount.for_supplier(self.supplier, self.currency, school=self.school)
 
         zero = Decimal('0')
         target = LineSpec(
@@ -79,6 +81,7 @@ class OpeningBalance(models.Model):
                 lines=[target, contra],
                 reference=self.number,
                 user=user,
+                school=self.school,
                 source=('accounting.OpeningBalance', self.pk, self.number),
             )
             self.journal = journal

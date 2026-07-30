@@ -72,7 +72,9 @@ class BillingRunSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
-        validated_data['number'] = DocumentSequence.next_for('RUN')
+        school = validated_data['term'].school
+        validated_data['school'] = school
+        validated_data['number'] = DocumentSequence.next_for('RUN', school)
         request = self.context.get('request')
         if request is not None:
             validated_data['created_by'] = request.user
@@ -120,9 +122,11 @@ class FeeInvoiceSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         lines = validated_data.pop('lines')
         request = self.context.get('request')
+        school = validated_data['student'].school
         with transaction.atomic():
             invoice = FeeInvoice.objects.create(
-                number=DocumentSequence.next_for('INV'),
+                school=school,
+                number=DocumentSequence.next_for('INV', school),
                 created_by=request.user if request is not None else None,
                 **validated_data,
             )
@@ -181,9 +185,11 @@ class CreditNoteSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         lines = validated_data.pop('lines')
         request = self.context.get('request')
+        school = validated_data['student'].school
         with transaction.atomic():
             credit_note = CreditNote.objects.create(
-                number=DocumentSequence.next_for('CRN'),
+                school=school,
+                number=DocumentSequence.next_for('CRN', school),
                 created_by=request.user if request is not None else None,
                 **validated_data,
             )

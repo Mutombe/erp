@@ -1,14 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowsLeftRight, Plus } from '@phosphor-icons/react'
 import { exchangeRatesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
+import { usePagedList } from '@/hooks/usePaginatedQuery'
+import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import { showToast, parseApiError } from '@/lib/toast'
 import {
   Badge,
   Button,
   DataTable,
+  FilterBar,
   FormRow,
   Input,
   Modal,
@@ -19,6 +22,19 @@ import {
   type Column,
 } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
+
+const PAGE_SIZE = 25
+
+const CURRENCY_OPTIONS = [
+  { value: 'USD', label: 'USD' },
+  { value: 'ZWG', label: 'ZWG' },
+]
+
+const FILTER_CONFIG: FilterConfig = [
+  { type: 'search', placeholder: 'Search currency or source…' },
+  { type: 'chips', field: 'from_currency', label: 'From', multi: true, options: CURRENCY_OPTIONS },
+  { type: 'chips', field: 'to_currency', label: 'To', multi: true, options: CURRENCY_OPTIONS },
+]
 
 interface ExchangeRate {
   id: number
@@ -99,13 +115,21 @@ function RateModal({ onClose }: { onClose: () => void }) {
 }
 
 export default function RatesTab() {
+  const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
 
-  const { data, isFetching } = useQuery({
-    queryKey: qk.exchangeRates.list({ page }),
-    queryFn: () => exchangeRatesApi.list({ page }).then((r) => r.data as Paginated<ExchangeRate>),
-    placeholderData: keepPreviousData,
+  const filterSignature = JSON.stringify(filters.params)
+  useEffect(() => {
+    setPage(1)
+  }, [filterSignature])
+
+  const { data, results, total, isFetching } = usePagedList<ExchangeRate>({
+    keyFor: (p) => qk.exchangeRates.list({ ...filters.params, page: p }),
+    fetchPage: (p) =>
+      exchangeRatesApi.list(filtersToQuery(filters.params, { page: p })).then((r) => r.data as Paginated<ExchangeRate>),
+    page,
+    pageSize: PAGE_SIZE,
   })
 
   // Paging keeps the current rows rendered while the next page loads.
@@ -138,13 +162,14 @@ export default function RatesTab() {
 
   return (
     <div className="space-y-4">
+      <FilterBar config={FILTER_CONFIG} filters={filters} />
       <div className="relative">
         <RefreshingOverlay active={isRefreshing} />
         <div className={refreshingContentClass(isRefreshing)}>
           <DataTable<ExchangeRate>
             rowKey={(r) => r.id}
             columns={columns}
-            data={data?.results ?? []}
+            data={results}
             loading={!data}
             emptyTitle="No exchange rates yet"
             emptyDescription="Add a ZWG → USD rate so multi-currency documents can translate to base."
@@ -153,7 +178,7 @@ export default function RatesTab() {
                 <Plus className="w-4 h-4 mr-2" /> New Rate
               </Button>
             }
-            pagination={{ page, pageSize: 25, total: data?.count ?? 0, onPageChange: setPage }}
+            pagination={{ page, pageSize: PAGE_SIZE, total, onPageChange: setPage }}
           />
         </div>
       </div>

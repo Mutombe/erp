@@ -6,6 +6,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 
+from apps.core.mixins import TenantScopedViewSet, active_school
 from apps.core.permissions import RoleWritePermission
 
 from .filters import IngestionItemFilter
@@ -18,7 +19,7 @@ from .serializers import (
 from .services import approve_item, build_proposal, empty_scaffold, extract_item, normalize
 
 
-class IngestionItemViewSet(viewsets.ModelViewSet):
+class IngestionItemViewSet(TenantScopedViewSet, viewsets.ModelViewSet):
     """Inbox for AI-proposed documents: upload → review/edit → approve posts."""
 
     queryset = IngestionItem.objects.select_related('created_by', 'reviewed_by').all()
@@ -55,6 +56,7 @@ class IngestionItemViewSet(viewsets.ModelViewSet):
         if doc_type not in dict(IngestionItem.DOC_TYPES):
             raise DRFValidationError(f'Invalid doc_type "{doc_type}".')
         item = IngestionItem.objects.create(
+            school=active_school(request),
             doc_type=doc_type,
             source='upload',
             file=file,

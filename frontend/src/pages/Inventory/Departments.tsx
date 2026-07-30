@@ -1,8 +1,8 @@
-import { useState } from 'react'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
 import { Buildings, PencilSimple, Plus, Trash } from '@phosphor-icons/react'
 import { departmentsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
+import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import { useOptimisticDelete } from '@/hooks/useOptimisticMutation'
 import {
@@ -17,7 +17,10 @@ import {
   type Column,
 } from '@/components/ui'
 import type { Department } from '@/types/inventory'
+import type { Paginated } from '@/types/accounting'
 import DepartmentFormModal from './DepartmentFormModal'
+
+const PAGE_SIZE = 25
 
 const FILTER_CONFIG: FilterConfig = [
   { type: 'search', placeholder: 'Search code, name, head…' },
@@ -29,11 +32,19 @@ export default function Departments() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editDepartment, setEditDepartment] = useState<Department | null>(null)
   const [toDelete, setToDelete] = useState<Department | null>(null)
+  const [page, setPage] = useState(1)
 
-  const { data, isFetching } = useQuery({
-    queryKey: qk.departments.list(filters.params),
-    queryFn: () => departmentsApi.list(filtersToQuery(filters.params)).then((r) => r.data as Department[]),
-    placeholderData: keepPreviousData,
+  const filterSignature = JSON.stringify(filters.params)
+  useEffect(() => {
+    setPage(1)
+  }, [filterSignature])
+
+  const { data, results, total, isFetching } = usePagedList<Department>({
+    keyFor: (p) => qk.departments.list({ ...filters.params, page: p }),
+    fetchPage: (p) =>
+      departmentsApi.list(filtersToQuery(filters.params, { page: p })).then((r) => r.data as Paginated<Department>),
+    page,
+    pageSize: PAGE_SIZE,
   })
 
   const isRefreshing = isFetching && !!data
@@ -154,10 +165,16 @@ export default function Departments() {
           <DataTable<Department>
             rowKey={(d) => d.id}
             columns={columns}
-            data={data ?? []}
+            data={results}
             loading={!data}
             emptyTitle="No departments"
             emptyDescription="Create a department to start tagging stock issues by consumer."
+            pagination={{
+              page,
+              pageSize: PAGE_SIZE,
+              total,
+              onPageChange: setPage,
+            }}
           />
         </div>
       </div>

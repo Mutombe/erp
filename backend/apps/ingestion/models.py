@@ -30,6 +30,7 @@ class IngestionItem(models.Model):
         ('rejected', 'Rejected'),
     ]
 
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='ingestion_items')
     doc_type = models.CharField(max_length=20, choices=DOC_TYPES, default='other', db_index=True)
     source = models.CharField(max_length=10, choices=SOURCES, default='upload')
     status = models.CharField(max_length=15, choices=STATUS, default='received', db_index=True)
@@ -71,3 +72,9 @@ class IngestionItem(models.Model):
 
     def __str__(self):
         return f'{self.get_doc_type_display()} · {self.original_filename or self.pk} ({self.status})'
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            from apps.core.models import School
+            self.school = School.get_default()
+        super().save(*args, **kwargs)

@@ -50,12 +50,17 @@ def create_receipt(
     amount = Decimal(amount).quantize(TWO)
     if amount <= 0:
         raise ValidationError('Receipt amount must be positive.')
+    school = student.school
+    # Tenancy guard: the student and the bank the money lands in share a school.
+    if bank_account.school_id != school.id:
+        raise ValidationError('Receipt student and bank account belong to different schools.')
     currency = bank_account.currency
-    receipt_rate = ExchangeRate.get_rate(currency, base_currency(), date)
+    receipt_rate = ExchangeRate.get_rate(currency, base_currency(), date, school=school)
 
     with transaction.atomic():
         receipt = Receipt.objects.create(
-            number=DocumentSequence.next_for('RCT'),
+            school=school,
+            number=DocumentSequence.next_for('RCT', school),
             student=student,
             payer_guardian=payer_guardian,
             date=date,
@@ -123,7 +128,7 @@ def create_receipt(
                 if line_open <= 0:
                     continue
                 portion = min(line_open, line_remaining)
-                pocket = SubAccount.for_student(student, line.fee_category.code, currency)
+                pocket = SubAccount.for_student(student, line.fee_category.code, currency, school=school)
                 specs.append(LineSpec(
                     mapping_purpose='ar_control',
                     credit=portion,
@@ -147,7 +152,7 @@ def create_receipt(
             invoice.save(update_fields=['amount_paid', 'status'])
 
         if remaining > 0:
-            pocket = SubAccount.for_student(student, GENERAL_POCKET, currency)
+            pocket = SubAccount.for_student(student, GENERAL_POCKET, currency, school=school)
             specs.append(LineSpec(
                 mapping_purpose='ar_control',
                 credit=remaining,
@@ -177,6 +182,7 @@ def create_receipt(
             reference=receipt.number,
             exchange_rate=receipt_rate,
             user=user,
+            school=school,
             source=('fees.Receipt', receipt.pk, receipt.number),
         )
         receipt.journal = journal
@@ -306,7 +312,8 @@ def execute_billing_run(run_id, user_id=None):
                     student_id=row['student_id'], academic_year=run.term.academic_year
                 )
                 invoice = FeeInvoice.objects.create(
-                    number=DocumentSequence.next_for('INV'),
+                    school=run.school,
+                    number=DocumentSequence.next_for('INV', run.school),
                     student=enrollment.student,
                     enrollment=enrollment,
                     term=run.term,
@@ -321,7 +328,7 @@ def execute_billing_run(run_id, user_id=None):
                 for line in row['lines']:
                     FeeInvoiceLine.objects.create(
                         invoice=invoice,
-                        fee_category=FeeCategory.objects.get(code=line['fee_category']),
+                        fee_category=FeeCategory.objects.get(school=run.school, code=line['fee_category']),
                         description=f'{line["fee_category"]} — {run.term}',
                         amount=line['amount'],
                         discount_amount=line['discount'],

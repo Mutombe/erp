@@ -298,7 +298,7 @@ export default function BankReconciliation() {
 
   const { data: bankAccounts } = useQuery({
     queryKey: qk.bankAccounts.list(),
-    queryFn: () => bankAccountsApi.list().then((r) => r.data as BankAccount[]),
+    queryFn: () => bankAccountsApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as BankAccount[]),
   })
 
   const { data: recons } = useQuery({

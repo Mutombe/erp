@@ -150,10 +150,10 @@ class TestDepartmentApi:
     def test_list_departments(self, admin_client):
         response = admin_client.get('/api/inventory/departments/')
         assert response.status_code == 200
-        # pagination_class = None → a plain list
-        codes = {row['code'] for row in response.data}
+        rows = response.data['results'] if 'results' in response.data else response.data
+        codes = {row['code'] for row in rows}
         assert {'AGRI', 'KITC', 'ACAD'} <= codes
-        agri = next(r for r in response.data if r['code'] == 'AGRI')
+        agri = next(r for r in rows if r['code'] == 'AGRI')
         assert agri['expense_account_code'] == '5230'
         assert agri['expense_account_name'] == 'Agriculture & Farm Expenses'
         assert agri['stock_move_count'] == 0
@@ -161,7 +161,8 @@ class TestDepartmentApi:
     def test_stock_move_count_reflects_issues(self, admin_client, stocked_item, store):
         issue(stocked_item, store, '2', department=Department.objects.get(code='AGRI'))
         response = admin_client.get('/api/inventory/departments/')
-        agri = next(r for r in response.data if r['code'] == 'AGRI')
+        rows = response.data['results'] if 'results' in response.data else response.data
+        agri = next(r for r in rows if r['code'] == 'AGRI')
         assert agri['stock_move_count'] == 1
 
     def test_create_department(self, admin_client):

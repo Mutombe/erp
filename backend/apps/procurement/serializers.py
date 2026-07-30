@@ -76,10 +76,13 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         lines = validated_data.pop('lines')
+        validated_data.pop('school', None)  # a PO inherits its supplier's school
         request = self.context.get('request')
+        school = validated_data['supplier'].school
         with transaction.atomic():
             po = PurchaseOrder.objects.create(
-                number=DocumentSequence.next_for('PO'),
+                school=school,
+                number=DocumentSequence.next_for('PO', school),
                 created_by=request.user if request is not None else None,
                 **validated_data,
             )
@@ -128,10 +131,13 @@ class GRNSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         lines = validated_data.pop('lines')
+        validated_data.pop('school', None)  # a GRN inherits its PO's school
         request = self.context.get('request')
+        school = validated_data['po'].school
         with transaction.atomic():
             grn = GoodsReceivedNote.objects.create(
-                number=DocumentSequence.next_for('GRN'),
+                school=school,
+                number=DocumentSequence.next_for('GRN', school),
                 received_by=request.user if request is not None else None,
                 **validated_data,
             )
@@ -191,10 +197,13 @@ class VendorBillSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         lines = validated_data.pop('lines')
+        validated_data.pop('school', None)  # a bill inherits its supplier's school
         request = self.context.get('request')
+        school = validated_data['supplier'].school
         with transaction.atomic():
             bill = VendorBill.objects.create(
-                number=DocumentSequence.next_for('BIL'),
+                school=school,
+                number=DocumentSequence.next_for('BIL', school),
                 created_by=request.user if request is not None else None,
                 **validated_data,
             )

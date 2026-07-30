@@ -47,13 +47,14 @@ def months_between(start, end):
 def run_depreciation(period, user=None):
     """One run per fiscal period. Posts a single journal grouped by category:
     Dr depreciation expense / Cr accumulated depreciation."""
+    school = period.school
     existing = DepreciationRun.objects.filter(period=period).first()
     if existing and existing.status == 'posted':
         raise ValidationError(f'Depreciation for {period} has already been posted.')
 
     with transaction.atomic():
         run = existing or DepreciationRun.objects.create(
-            period=period, run_date=period.end_date, created_by=user
+            school=school, period=period, run_date=period.end_date, created_by=user
         )
         run.entries.all().delete()
 
@@ -62,7 +63,7 @@ def run_depreciation(period, user=None):
         assets = (
             Asset.objects.select_for_update()
             .select_related('category')
-            .filter(status='active', in_service_date__lte=period.end_date)
+            .filter(school=school, status='active', in_service_date__lte=period.end_date)
             .order_by('code')
         )
         for asset in assets:
@@ -103,6 +104,7 @@ def run_depreciation(period, user=None):
             reference=str(period),
             exchange_rate=Decimal('1'),
             user=user,
+            school=school,
             source=('assets.DepreciationRun', run.pk, str(period)),
         )
         run.journal = journal

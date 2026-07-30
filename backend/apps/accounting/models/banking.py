@@ -7,7 +7,8 @@ from django.db import models
 class BankAccount(models.Model):
     ACCOUNT_TYPES = [('bank', 'Bank'), ('mobile_money', 'Mobile Money'), ('cash', 'Cash')]
 
-    code = models.CharField(max_length=20, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='bank_accounts')
+    code = models.CharField(max_length=20)
     name = models.CharField(max_length=200)
     account_type = models.CharField(max_length=15, choices=ACCOUNT_TYPES, default='bank')
     bank_name = models.CharField(max_length=100, blank=True)
@@ -28,6 +29,7 @@ class BankAccount(models.Model):
 
     class Meta:
         ordering = ['code']
+        unique_together = [('school', 'code')]
 
     def __str__(self):
         return f'{self.name} ({self.currency})'

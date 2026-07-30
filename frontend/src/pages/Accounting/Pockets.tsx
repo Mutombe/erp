@@ -40,7 +40,8 @@ const money = (v: number | string) =>
 // `category` field; supplier pockets use the reserved 'PAYABLE' code).
 const CATEGORY_QUERY = {
   queryKey: qk.feeCategories.list({ scope: 'pockets' }),
-  queryFn: () => feeCategoriesApi.list({ is_active: true }).then((r) => r.data as unknown[]),
+  queryFn: () =>
+    feeCategoriesApi.list({ is_active: true, page_size: 500 }).then((r) => (r.data.results ?? r.data) as unknown[]),
   toOption: (row: { code: string; name: string }) => ({ value: row.code, label: `${row.code} · ${row.name}` }),
 }
 

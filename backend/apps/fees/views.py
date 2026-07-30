@@ -2,6 +2,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.core.mixins import TenantScopedViewSet
 from apps.core.permissions import RoleWritePermission
 
 from . import services
@@ -34,7 +35,7 @@ from .serializers import (
 )
 
 
-class FeesViewSet(viewsets.ModelViewSet):
+class FeesViewSet(TenantScopedViewSet, viewsets.ModelViewSet):
     permission_classes = [RoleWritePermission]
     write_area = 'fees'
 
@@ -44,7 +45,6 @@ class FeeCategoryViewSet(FeesViewSet):
     serializer_class = FeeCategorySerializer
     filterset_fields = ['is_active']
     search_fields = ['code', 'name']
-    pagination_class = None
 
 
 class FeeStructureViewSet(FeesViewSet):
@@ -71,6 +71,10 @@ class BillingRunViewSet(FeesViewSet):
     ordering_fields = '__all__'
     throttle_scope = 'billing_run'
 
+    def perform_create(self, serializer):
+        # School + number are derived from the term inside the serializer.
+        serializer.save()
+
     @action(detail=True, methods=['post'])
     def preview(self, request, pk=None):
         run = self.get_object()
@@ -93,6 +97,10 @@ class FeeInvoiceViewSet(FeesViewSet):
     filterset_class = FeeInvoiceFilter
     search_fields = ['number', 'student__code', 'student__first_name', 'student__last_name']
     ordering_fields = '__all__'
+
+    def perform_create(self, serializer):
+        # An invoice's school is its student's school (set inside the serializer).
+        serializer.save()
 
     @action(detail=True, methods=['post'], url_path='post')
     def post_invoice(self, request, pk=None):
@@ -118,6 +126,10 @@ class CreditNoteViewSet(FeesViewSet):
     filterset_class = CreditNoteFilter
     search_fields = ['number', 'student__code', 'student__first_name', 'student__last_name']
     ordering_fields = '__all__'
+
+    def perform_create(self, serializer):
+        # A credit note's school is its student's school (set inside the serializer).
+        serializer.save()
 
     @action(detail=True, methods=['post'], url_path='post')
     def post_credit_note(self, request, pk=None):

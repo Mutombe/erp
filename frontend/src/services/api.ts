@@ -91,9 +91,17 @@ function crud(base: string) {
 // ---------------------------------------------------------------------------
 
 export const authApi = {
-  login: (data: { email: string; password: string }) => api.post('/core/auth/login/', data),
+  login: (data: { school?: string | number | null; email: string; password: string }) =>
+    api.post('/core/auth/login/', data),
   logout: () => api.post('/core/auth/logout/'),
   me: () => api.get('/core/auth/me/'),
+  switchSchool: (school: string | number | null) =>
+    api.post('/core/auth/switch-school/', { school }),
+}
+
+// Public (pre-login) endpoints — no auth/session required.
+export const publicApi = {
+  schools: () => api.get('/public/schools/'),
 }
 
 export const usersApi = crud('core/users')
@@ -293,6 +301,7 @@ export const reportsApi = {
   assetRegister: (params?: ListParams) => api.get('/reports/asset-register/', { params }),
   stockValuation: (params?: ListParams) => api.get('/reports/stock-valuation/', { params }),
   feeCollection: (params?: ListParams) => api.get('/reports/fee-collection/', { params }),
+  receiptListing: (params?: ListParams) => api.get('/reports/receipt-listing/', { params }),
   departmentConsumption: (params?: ListParams) =>
     api.get('/reports/department-consumption/', { params }),
   dashboard: () => api.get('/reports/dashboard/'),

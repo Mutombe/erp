@@ -22,7 +22,7 @@ export default function FiscalPeriodsTab() {
 
   const { data: years, isFetching } = useQuery({
     queryKey: qk.fiscalYears.list(),
-    queryFn: () => fiscalYearsApi.list().then((r) => r.data as FiscalYear[]),
+    queryFn: () => fiscalYearsApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as FiscalYear[]),
   })
 
   // Lock/unlock refetches update the period cards in place.

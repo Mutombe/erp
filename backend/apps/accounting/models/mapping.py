@@ -24,12 +24,13 @@ MAPPING_PURPOSES = [
 
 
 class AccountMapping(models.Model):
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='account_mappings')
     purpose = models.CharField(max_length=30, choices=MAPPING_PURPOSES)
     currency = models.CharField(max_length=3, blank=True, default='')  # '' = any currency
     account = models.ForeignKey('accounting.ChartOfAccount', on_delete=models.PROTECT, related_name='mappings')
 
     class Meta:
-        unique_together = [('purpose', 'currency')]
+        unique_together = [('school', 'purpose', 'currency')]
         ordering = ['purpose', 'currency']
 
     def __str__(self):
@@ -37,13 +38,21 @@ class AccountMapping(models.Model):
         return f'{self.purpose} [{ccy}] → {self.account.code}'
 
     @classmethod
-    def resolve(cls, purpose, currency=None):
-        """Exact-currency match, then currency-agnostic fallback, then hard error."""
+    def resolve(cls, purpose, currency=None, school=None):
+        """Exact-currency match, then currency-agnostic fallback, then hard error.
+        Scoped to the given school (defaults to the active/default school)."""
+        if school is None:
+            from apps.core.models import School
+            school = School.get_default()
         row = None
         if currency:
-            row = cls.objects.select_related('account').filter(purpose=purpose, currency=currency).first()
+            row = cls.objects.select_related('account').filter(
+                school=school, purpose=purpose, currency=currency
+            ).first()
         if row is None:
-            row = cls.objects.select_related('account').filter(purpose=purpose, currency='').first()
+            row = cls.objects.select_related('account').filter(
+                school=school, purpose=purpose, currency=''
+            ).first()
         if row is None:
             raise ValidationError(
                 f'No account mapping configured for "{purpose}"'

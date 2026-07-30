@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Bank, PencilSimple, Plus } from '@phosphor-icons/react'
 import { accountsApi, bankAccountsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
+import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { useOptimisticCreate, useOptimisticUpdate } from '@/hooks/useOptimisticMutation'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
@@ -25,7 +26,9 @@ import {
   Select,
   type Column,
 } from '@/components/ui'
-import type { Account, BankAccount } from '@/types/accounting'
+import type { Account, BankAccount, Paginated } from '@/types/accounting'
+
+const PAGE_SIZE = 25
 
 /** Serializer exposes every model field — extend the shared type with the extras. */
 export interface BankAccountRow extends BankAccount {
@@ -96,7 +99,8 @@ function BankAccountFormModal({
 }) {
   const { data: accounts } = useQuery({
     queryKey: qk.accounts.list({ is_active: true }),
-    queryFn: () => accountsApi.list({ is_active: true }).then((r) => r.data as Account[]),
+    queryFn: () =>
+      accountsApi.list({ is_active: true, page_size: 500 }).then((r) => (r.data.results ?? r.data) as Account[]),
     enabled: open,
   })
   const cashAccounts = (accounts ?? []).filter((a) => a.account_subtype === 'cash')
@@ -227,13 +231,24 @@ export default function BankAccounts() {
   const filters = useUrlFilters(FILTER_CONFIG)
   const [modalOpen, setModalOpen] = useState(false)
   const [editAccount, setEditAccount] = useState<BankAccountRow | null>(null)
+  const [page, setPage] = useState(1)
 
-  const { data: bankAccounts, isFetching } = useQuery({
-    queryKey: qk.bankAccounts.list(filters.params),
-    queryFn: () => bankAccountsApi.list(filtersToQuery(filters.params)).then((r) => r.data as BankAccountRow[]),
-    placeholderData: keepPreviousData,
+  const filterSignature = JSON.stringify(filters.params)
+  useEffect(() => {
+    setPage(1)
+  }, [filterSignature])
+
+  const { data, results, total, isFetching } = usePagedList<BankAccountRow>({
+    keyFor: (p) => qk.bankAccounts.list({ ...filters.params, page: p }),
+    fetchPage: (p) =>
+      bankAccountsApi
+        .list(filtersToQuery(filters.params, { page: p }))
+        .then((r) => r.data as Paginated<BankAccountRow>),
+    page,
+    pageSize: PAGE_SIZE,
   })
-  const isRefreshing = isFetching && !!bankAccounts
+  const bankAccounts = results
+  const isRefreshing = isFetching && !!data
 
   // Warm the bank account detail cache on row hover so opening one is instant.
   const prefetchBankAccount = usePrefetchDetail<BankAccountRow>(
@@ -310,12 +325,18 @@ export default function BankAccounts() {
           <DataTable<BankAccountRow>
             rowKey={(b) => b.id}
             columns={columns}
-            data={bankAccounts ?? []}
-            loading={!bankAccounts}
+            data={bankAccounts}
+            loading={!data}
             onRowClick={(b) => navigate(`/app/bank-accounts/${b.id}`)}
             onRowHover={prefetchBankAccount}
             emptyTitle="No bank accounts"
             emptyDescription="Create a bank account to record receipts and payments."
+            pagination={{
+              page,
+              pageSize: PAGE_SIZE,
+              total,
+              onPageChange: setPage,
+            }}
           />
         </div>
       </div>

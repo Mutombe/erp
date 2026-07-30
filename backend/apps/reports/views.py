@@ -22,9 +22,17 @@ def _parse_date(value, default):
     return date_cls.fromisoformat(value)
 
 
-def _aggregate_balances_from_gl(account_types=None, start_date=None, end_date=None, currency=None):
-    """Per-account Dr/Cr sums from the GL (base currency), respecting dates."""
-    qs = GeneralLedger.objects.all()
+def _aggregate_balances_from_gl(account_types=None, start_date=None, end_date=None, currency=None,
+                                school=None):
+    """Per-account Dr/Cr sums from the GL (base currency), respecting dates.
+
+    Scoped to a single school. TODO(multi-tenant wave 2): report views pass the
+    active school; for now this defaults to the Oceanwaves/default school so
+    single-school behaviour is unchanged."""
+    if school is None:
+        from apps.core.models import School
+        school = School.get_default()
+    qs = GeneralLedger.objects.filter(school=school)
     if account_types:
         qs = qs.filter(account__account_type__in=account_types)
     if start_date:
@@ -803,6 +811,85 @@ class FeeCollectionView(ReportView):
             'rows': rows,
             'total_billed': sum((r['billed'] for r in rows), ZERO),
             'total_collected': sum((r['collected'] for r in rows), ZERO),
+        }
+
+
+class ReceiptListingView(ReportView):
+    def build(self, request):
+        """Daily banking listing: every posted receipt grouped by bank account
+        and date, with per-group subtotals and a payment-method breakdown. The
+        report a bursar reconciles against the bank deposit slips."""
+        from apps.core.models import School
+        from apps.fees.models import Receipt
+
+        school = getattr(request, 'school', None) or School.get_default()
+
+        today = timezone.localdate()
+        start = _parse_date(request.query_params.get('start'), today.replace(day=1))
+        end = _parse_date(request.query_params.get('end'), today)
+
+        qs = (
+            Receipt.objects.filter(status='posted', school=school, date__gte=start, date__lte=end)
+            .select_related('student', 'bank_account')
+            .order_by('bank_account__name', 'date', 'number')
+        )
+        bank_id = request.query_params.get('bank_account')
+        if bank_id:
+            qs = qs.filter(bank_account_id=bank_id)
+        method = request.query_params.get('method')
+        if method:
+            qs = qs.filter(payment_method=method)
+        currency = request.query_params.get('currency')
+        if currency:
+            qs = qs.filter(currency=currency)
+
+        method_labels = dict(Receipt.METHODS)
+        groups = {}
+        by_method = {}
+        total = ZERO
+        count = 0
+        for receipt in qs:
+            key = (receipt.bank_account_id, receipt.date)
+            group = groups.get(key)
+            if group is None:
+                group = groups[key] = {
+                    'bank_account_id': receipt.bank_account_id,
+                    'bank_account_name': receipt.bank_account.name,
+                    'currency': receipt.currency,
+                    'date': receipt.date.isoformat(),
+                    'receipts': [],
+                    'subtotal': ZERO,
+                    'count': 0,
+                }
+            group['receipts'].append({
+                'id': receipt.pk,
+                'number': receipt.number,
+                'student_name': receipt.student.full_name,
+                'method': method_labels.get(receipt.payment_method, receipt.payment_method),
+                'reference': receipt.reference,
+                'amount': receipt.amount,
+            })
+            group['subtotal'] += receipt.amount
+            group['count'] += 1
+
+            m = by_method.setdefault(
+                receipt.payment_method,
+                {'method': method_labels.get(receipt.payment_method, receipt.payment_method),
+                 'total': ZERO, 'count': 0},
+            )
+            m['total'] += receipt.amount
+            m['count'] += 1
+
+            total += receipt.amount
+            count += 1
+
+        return {
+            'start': start.isoformat(),
+            'end': end.isoformat(),
+            'groups': list(groups.values()),
+            'by_method': sorted(by_method.values(), key=lambda r: -r['total']),
+            'total': total,
+            'count': count,
         }
 
 

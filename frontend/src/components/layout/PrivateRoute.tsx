@@ -1,17 +1,17 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
 import { authApi } from '@/services/api'
-import { useAuthStore } from '@/stores/authStore'
+import { useAuthStore, type Me } from '@/stores/authStore'
 
 type AuthStatus = 'loading' | 'authenticated' | 'anonymous'
 
 /**
  * Guards /app/* routes. On mount it bootstraps the session via
- * GET core/auth/me — if the cookie session is valid the user is stored,
- * otherwise the visitor is redirected to /login.
+ * GET core/auth/me — if the cookie session is valid the user + tenancy is
+ * stored, otherwise the visitor is redirected to /login.
  */
 export default function PrivateRoute({ children }: { children: ReactNode }) {
-  const { setUser, logout } = useAuthStore()
+  const { setSession, setActiveSchool, logout } = useAuthStore()
   const [status, setStatus] = useState<AuthStatus>('loading')
 
   useEffect(() => {
@@ -19,9 +19,26 @@ export default function PrivateRoute({ children }: { children: ReactNode }) {
 
     authApi
       .me()
-      .then((res) => {
+      .then(async (res) => {
         if (cancelled) return
-        setUser(res.data?.user ?? res.data)
+        const me = res.data as Me
+        setSession(me)
+
+        // A scoped user with no active school defaults to their home school
+        // (persist it server-side so the middleware scopes subsequent requests).
+        if (!me.active_school && !me.is_hq) {
+          const home =
+            me.accessible_schools.find((s) => s.id === me.home_school) ??
+            me.accessible_schools[0]
+          if (home) {
+            try {
+              await authApi.switchSchool(home.id)
+            } catch {
+              // Non-fatal: fall back to reflecting it locally.
+            }
+            if (!cancelled) setActiveSchool(home)
+          }
+        }
         setStatus('authenticated')
       })
       .catch(() => {
@@ -38,7 +55,7 @@ export default function PrivateRoute({ children }: { children: ReactNode }) {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900">
         <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
       </div>
     )

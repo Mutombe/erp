@@ -12,8 +12,15 @@ TWO = Decimal('0.01')
 ZERO = Decimal('0')
 
 
+def _default_school():
+    from apps.core.models import School
+
+    return School.get_default()
+
+
 class Supplier(models.Model):
-    code = models.CharField(max_length=20, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='suppliers')
+    code = models.CharField(max_length=20)
     name = models.CharField(max_length=200)
     contact_person = models.CharField(max_length=100, blank=True)
     phone = models.CharField(max_length=30, blank=True)
@@ -28,9 +35,15 @@ class Supplier(models.Model):
 
     class Meta:
         ordering = ['name']
+        unique_together = [('school', 'code')]
 
     def __str__(self):
         return f'{self.code} · {self.name}'
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school = _default_school()
+        super().save(*args, **kwargs)
 
 
 class PurchaseOrder(models.Model):
@@ -40,7 +53,8 @@ class PurchaseOrder(models.Model):
         ('closed', 'Closed'), ('cancelled', 'Cancelled'),
     ]
 
-    number = models.CharField(max_length=20, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='purchase_orders')
+    number = models.CharField(max_length=20)
     supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name='purchase_orders')
     date = models.DateField()
     expected_date = models.DateField(null=True, blank=True)
@@ -54,9 +68,15 @@ class PurchaseOrder(models.Model):
 
     class Meta:
         ordering = ['-date', '-id']
+        unique_together = [('school', 'number')]
 
     def __str__(self):
         return f'{self.number} · {self.supplier.name}'
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school_id = self.supplier.school_id if self.supplier_id else _default_school().pk
+        super().save(*args, **kwargs)
 
     @property
     def total(self):
@@ -104,7 +124,8 @@ class POLine(models.Model):
 class GoodsReceivedNote(models.Model):
     STATUS = [('draft', 'Draft'), ('posted', 'Posted')]
 
-    number = models.CharField(max_length=20, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='grns')
+    number = models.CharField(max_length=20)
     po = models.ForeignKey(PurchaseOrder, on_delete=models.PROTECT, related_name='grns')
     warehouse = models.ForeignKey('inventory.Warehouse', on_delete=models.PROTECT, related_name='grns')
     date = models.DateField()
@@ -115,9 +136,15 @@ class GoodsReceivedNote(models.Model):
 
     class Meta:
         ordering = ['-date', '-id']
+        unique_together = [('school', 'number')]
 
     def __str__(self):
         return f'{self.number} ({self.po.number})'
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school_id = self.po.school_id if self.po_id else _default_school().pk
+        super().save(*args, **kwargs)
 
     def post(self, user=None):
         """Receive stock (moving average) and post Dr Inventory / Cr GRNI in base
@@ -128,8 +155,11 @@ class GoodsReceivedNote(models.Model):
             return self.journal
         if self.status != 'draft':
             raise ValidationError(f'GRN {self.number} is already {self.status}.')
+        # Tenancy guard: the PO (its supplier) and the receiving warehouse share a school.
+        if self.po.school_id != self.school_id or self.warehouse.school_id != self.school_id:
+            raise ValidationError(f'GRN {self.number} mixes documents from different schools.')
 
-        rate = ExchangeRate.get_rate(self.po.currency, base_currency(), self.date)
+        rate = ExchangeRate.get_rate(self.po.currency, base_currency(), self.date, school=self.school)
         lines = list(self.lines.select_related('po_line__item__category'))
         if not lines:
             raise ValidationError('GRN has no lines.')
@@ -158,6 +188,7 @@ class GoodsReceivedNote(models.Model):
                     journal=None,
                     user=user,
                     post_gl=False,
+                    school=self.school,
                 )
                 grn_line.unit_cost_base = unit_cost_base
                 grn_line.save(update_fields=['unit_cost_base'])
@@ -183,6 +214,7 @@ class GoodsReceivedNote(models.Model):
                 reference=self.number,
                 exchange_rate=Decimal('1'),
                 user=user,
+                school=self.school,
                 source=('procurement.GoodsReceivedNote', self.pk, self.number),
             )
             self.journal = journal
@@ -210,7 +242,8 @@ class VendorBill(models.Model):
         ('paid', 'Paid'), ('cancelled', 'Cancelled'),
     ]
 
-    number = models.CharField(max_length=20, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='vendor_bills')
+    number = models.CharField(max_length=20)
     supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name='bills')
     supplier_reference = models.CharField(max_length=100, blank=True)
     po = models.ForeignKey(PurchaseOrder, null=True, blank=True, on_delete=models.SET_NULL, related_name='bills')
@@ -230,10 +263,16 @@ class VendorBill(models.Model):
 
     class Meta:
         ordering = ['-date', '-id']
+        unique_together = [('school', 'number')]
         indexes = [models.Index(fields=['status', 'due_date'])]
 
     def __str__(self):
         return f'{self.number} · {self.supplier.name}'
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school_id = self.supplier.school_id if self.supplier_id else _default_school().pk
+        super().save(*args, **kwargs)
 
     @property
     def balance(self):
@@ -246,8 +285,10 @@ class VendorBill(models.Model):
             return self.journal
         if self.status != 'draft':
             raise ValidationError(f'Bill {self.number} is already {self.status}.')
+        if self.supplier.school_id != self.school_id:
+            raise ValidationError(f'Bill {self.number} references a supplier from another school.')
 
-        rate = ExchangeRate.get_rate(self.currency, base_currency(), self.date)
+        rate = ExchangeRate.get_rate(self.currency, base_currency(), self.date, school=self.school)
         lines = list(self.lines.select_related('grn_line__po_line__item', 'expense_account'))
         if not lines:
             raise ValidationError('Bill has no lines.')
@@ -276,7 +317,7 @@ class VendorBill(models.Model):
                                           description=f'{self.number} price variance'))
                 specs.append(LineSpec(
                     mapping_purpose='ap_control', credit=amount,
-                    sub_account=SubAccount.for_supplier(self.supplier, self.currency),
+                    sub_account=SubAccount.for_supplier(self.supplier, self.currency, school=self.school),
                     description=f'{self.number} {line.description or ""}'.strip(),
                 ))
             else:
@@ -288,7 +329,7 @@ class VendorBill(models.Model):
                 ))
                 specs.append(LineSpec(
                     mapping_purpose='ap_control', credit=amount,
-                    sub_account=SubAccount.for_supplier(self.supplier, self.currency),
+                    sub_account=SubAccount.for_supplier(self.supplier, self.currency, school=self.school),
                     description=f'{self.number} {line.description or ""}'.strip(),
                 ))
 
@@ -302,6 +343,7 @@ class VendorBill(models.Model):
                 reference=self.supplier_reference or self.number,
                 exchange_rate=rate,
                 user=user,
+                school=self.school,
                 source=('procurement.VendorBill', self.pk, self.number),
             )
             self.journal = journal
@@ -330,7 +372,8 @@ class VendorBillLine(models.Model):
 class SupplierPayment(models.Model):
     STATUS = [('posted', 'Posted'), ('reversed', 'Reversed')]
 
-    number = models.CharField(max_length=20, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='supplier_payments')
+    number = models.CharField(max_length=20)
     supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name='payments')
     bank_account = models.ForeignKey('accounting.BankAccount', on_delete=models.PROTECT, related_name='supplier_payments')
     date = models.DateField()
@@ -346,9 +389,15 @@ class SupplierPayment(models.Model):
 
     class Meta:
         ordering = ['-date', '-id']
+        unique_together = [('school', 'number')]
 
     def __str__(self):
         return f'{self.number} · {self.supplier.name} {self.currency} {self.amount}'
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school_id = self.supplier.school_id if self.supplier_id else _default_school().pk
+        super().save(*args, **kwargs)
 
 
 class PaymentAllocation(models.Model):
@@ -367,12 +416,16 @@ def create_supplier_payment(*, supplier, bank_account, amount, date, reference='
     amount = Decimal(amount).quantize(TWO)
     if amount <= 0:
         raise ValidationError('Payment amount must be positive.')
+    school = supplier.school
+    if bank_account.school_id != school.id:
+        raise ValidationError('Supplier payment supplier and bank account belong to different schools.')
     currency = bank_account.currency
-    rate = ExchangeRate.get_rate(currency, base_currency(), date)
+    rate = ExchangeRate.get_rate(currency, base_currency(), date, school=school)
 
     with transaction.atomic():
         payment = SupplierPayment.objects.create(
-            number=DocumentSequence.next_for('PAY'),
+            school=school,
+            number=DocumentSequence.next_for('PAY', school),
             supplier=supplier,
             bank_account=bank_account,
             date=date,
@@ -418,7 +471,7 @@ def create_supplier_payment(*, supplier, bank_account, amount, date, reference='
                 f'Payment exceeds open bills by {remaining} {currency}. Reduce the amount or leave bills unallocated.'
             )
 
-        pocket = SubAccount.for_supplier(supplier, currency)
+        pocket = SubAccount.for_supplier(supplier, currency, school=school)
         specs = []
         total_fx_base = ZERO
         for bill, alloc in planned:
@@ -460,6 +513,7 @@ def create_supplier_payment(*, supplier, bank_account, amount, date, reference='
             reference=payment.number,
             exchange_rate=rate,
             user=user,
+            school=school,
             source=('procurement.SupplierPayment', payment.pk, payment.number),
         )
         payment.journal = journal

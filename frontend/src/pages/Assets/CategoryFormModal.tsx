@@ -50,7 +50,7 @@ export default function CategoryFormModal({ open, onClose }: { open: boolean; on
 
   const { data: accounts } = useQuery({
     queryKey: qk.accounts.list(),
-    queryFn: () => accountsApi.list().then((r) => r.data as Account[]),
+    queryFn: () => accountsApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as Account[]),
     enabled: open,
   })
 

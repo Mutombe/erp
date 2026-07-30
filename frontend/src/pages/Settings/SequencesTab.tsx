@@ -14,7 +14,7 @@ interface DocumentSequence {
 export default function SequencesTab() {
   const { data, isFetching } = useQuery({
     queryKey: qk.sequences.list(),
-    queryFn: () => sequencesApi.list().then((r) => r.data as DocumentSequence[]),
+    queryFn: () => sequencesApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as DocumentSequence[]),
   })
 
   const isRefreshing = isFetching && !!data

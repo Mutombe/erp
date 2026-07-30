@@ -2,6 +2,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.core.mixins import TenantScopedViewSet
 from apps.core.permissions import RoleWritePermission
 
 from .filters import AssetFilter, DepreciationRunFilter
@@ -16,7 +17,7 @@ from .serializers import (
 from .services import reverse_depreciation_run, run_depreciation
 
 
-class AssetsViewSet(viewsets.ModelViewSet):
+class AssetsViewSet(TenantScopedViewSet, viewsets.ModelViewSet):
     permission_classes = [RoleWritePermission]
     write_area = 'assets'
 
@@ -51,7 +52,7 @@ class AssetViewSet(AssetsViewSet):
         return Response(self.get_serializer(asset).data)
 
 
-class DepreciationRunViewSet(viewsets.ReadOnlyModelViewSet):
+class DepreciationRunViewSet(TenantScopedViewSet, viewsets.ReadOnlyModelViewSet):
     permission_classes = [RoleWritePermission]
     write_area = 'assets'
     queryset = (

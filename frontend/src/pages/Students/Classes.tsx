@@ -154,7 +154,7 @@ type ClassFormValues = z.infer<typeof classSchema>
 function ClassFormModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { data: grades } = useQuery({
     queryKey: qk.grades.list(),
-    queryFn: () => gradesApi.list().then((r) => r.data as Grade[]),
+    queryFn: () => gradesApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as Grade[]),
   })
   const { data: years } = useQuery({
     queryKey: qk.academicYears.list(),

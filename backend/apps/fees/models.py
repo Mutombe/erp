@@ -12,11 +12,18 @@ TWO = Decimal('0.01')
 ZERO = Decimal('0')
 
 
+def _default_school():
+    from apps.core.models import School
+
+    return School.get_default()
+
+
 class FeeCategory(models.Model):
     """A fee stream (Tuition, Boarding, Levy...) mapped to its income account.
     Also drives the student's sub-ledger pocket for that stream."""
 
-    code = models.CharField(max_length=10, unique=True)  # TUI, BRD, LVY...
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='fee_categories')
+    code = models.CharField(max_length=10)  # TUI, BRD, LVY...
     name = models.CharField(max_length=100)
     income_account = models.ForeignKey('accounting.ChartOfAccount', on_delete=models.PROTECT, related_name='+')
     deferred_account = models.ForeignKey(
@@ -28,14 +35,21 @@ class FeeCategory(models.Model):
     class Meta:
         ordering = ['pocket_order', 'code']
         verbose_name_plural = 'Fee categories'
+        unique_together = [('school', 'code')]
 
     def __str__(self):
         return f'{self.code} · {self.name}'
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school = _default_school()
+        super().save(*args, **kwargs)
 
 
 class FeeStructure(models.Model):
     APPLIES_TO = [('all', 'All students'), ('day', 'Day scholars'), ('boarder', 'Boarders')]
 
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='fee_structures')
     academic_year = models.ForeignKey('students.AcademicYear', on_delete=models.CASCADE, related_name='fee_structures')
     term = models.ForeignKey('students.Term', on_delete=models.CASCADE, related_name='fee_structures')
     grade = models.ForeignKey('students.Grade', on_delete=models.CASCADE, related_name='fee_structures')
@@ -46,16 +60,22 @@ class FeeStructure(models.Model):
     is_mandatory = models.BooleanField(default=True)
 
     class Meta:
-        unique_together = [('term', 'grade', 'fee_category', 'currency', 'applies_to')]
+        unique_together = [('school', 'term', 'grade', 'fee_category', 'currency', 'applies_to')]
         ordering = ['term__start_date', 'grade__level']
 
     def __str__(self):
         return f'{self.grade} {self.term} {self.fee_category.code} {self.currency} {self.amount}'
 
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school_id = self.term.school_id if self.term_id else _default_school().pk
+        super().save(*args, **kwargs)
+
 
 class BursaryAward(models.Model):
     TYPES = [('percent', 'Percentage'), ('fixed', 'Fixed amount')]
 
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='bursary_awards')
     student = models.ForeignKey('students.Student', on_delete=models.CASCADE, related_name='bursaries')
     fee_category = models.ForeignKey(
         FeeCategory, null=True, blank=True, on_delete=models.CASCADE, related_name='+'
@@ -74,6 +94,11 @@ class BursaryAward(models.Model):
     def __str__(self):
         return f'{self.student.code} {self.award_type} {self.value}'
 
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school_id = self.student.school_id if self.student_id else _default_school().pk
+        super().save(*args, **kwargs)
+
     def discount_for(self, fee_category, amount):
         if self.fee_category_id and self.fee_category_id != fee_category.id:
             return ZERO
@@ -88,7 +113,8 @@ class BillingRun(models.Model):
         ('completed', 'Completed'), ('failed', 'Failed'),
     ]
 
-    number = models.CharField(max_length=20, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='billing_runs')
+    number = models.CharField(max_length=20)
     term = models.ForeignKey('students.Term', on_delete=models.PROTECT, related_name='billing_runs')
     currency = models.CharField(max_length=3)
     date = models.DateField()
@@ -104,9 +130,15 @@ class BillingRun(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        unique_together = [('school', 'number')]
 
     def __str__(self):
         return f'{self.number} ({self.term})'
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school_id = self.term.school_id if self.term_id else _default_school().pk
+        super().save(*args, **kwargs)
 
 
 class FeeInvoice(models.Model):
@@ -115,7 +147,8 @@ class FeeInvoice(models.Model):
         ('paid', 'Paid'), ('cancelled', 'Cancelled'),
     ]
 
-    number = models.CharField(max_length=20, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='fee_invoices')
+    number = models.CharField(max_length=20)
     student = models.ForeignKey('students.Student', on_delete=models.PROTECT, related_name='fee_invoices')
     enrollment = models.ForeignKey(
         'students.Enrollment', null=True, blank=True, on_delete=models.PROTECT, related_name='fee_invoices'
@@ -139,6 +172,7 @@ class FeeInvoice(models.Model):
 
     class Meta:
         ordering = ['-date', '-id']
+        unique_together = [('school', 'number')]
         indexes = [
             models.Index(fields=['status', 'due_date']),
             models.Index(fields=['student', 'date']),
@@ -155,6 +189,11 @@ class FeeInvoice(models.Model):
     def __str__(self):
         return f'{self.number} · {self.student.code}'
 
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school_id = self.student.school_id if self.student_id else _default_school().pk
+        super().save(*args, **kwargs)
+
     @property
     def balance(self):
         return self.total - self.amount_paid
@@ -169,23 +208,27 @@ class FeeInvoice(models.Model):
         """Dr AR control (per category, on the student's pocket) / Cr fee income
         (or deferred income). Bursary discounts post gross income with a contra
         debit so I&E shows gross fees less bursaries."""
-        from apps.core.models import SchoolSettings
-
         if self.journal_id:
             return self.journal
         if self.status != 'draft':
             raise ValidationError(f'Invoice {self.number} is {self.status}; only drafts can be posted.')
+        # Tenancy guard: an invoice, its student and its fee categories share a school.
+        if self.student.school_id != self.school_id:
+            raise ValidationError(
+                f'Invoice {self.number} (school {self.school_id}) references a student from '
+                f'another school ({self.student.school_id}).'
+            )
 
         self.compute_totals()
         if self.total <= 0:
             raise ValidationError('Invoice total must be positive.')
 
-        deferred_mode = SchoolSettings.get().revenue_recognition == 'deferred'
+        deferred_mode = self.school.revenue_recognition == 'deferred'
         specs = []
         for line in self.lines.select_related('fee_category').order_by('id'):
             category = line.fee_category
             net = line.amount - line.discount_amount
-            pocket = SubAccount.for_student(self.student, category.code, self.currency)
+            pocket = SubAccount.for_student(self.student, category.code, self.currency, school=self.school)
             specs.append(LineSpec(
                 mapping_purpose='ar_control',
                 debit=net,
@@ -218,6 +261,7 @@ class FeeInvoice(models.Model):
                 lines=specs,
                 reference=self.number,
                 user=user,
+                school=self.school,
                 source=('fees.FeeInvoice', self.pk, self.number),
             )
             self.journal = journal
@@ -265,7 +309,8 @@ class FeeInvoiceLine(models.Model):
 class CreditNote(models.Model):
     STATUS = [('draft', 'Draft'), ('posted', 'Posted')]
 
-    number = models.CharField(max_length=20, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='credit_notes')
+    number = models.CharField(max_length=20)
     student = models.ForeignKey('students.Student', on_delete=models.PROTECT, related_name='credit_notes')
     invoice = models.ForeignKey(FeeInvoice, null=True, blank=True, on_delete=models.PROTECT, related_name='credit_notes')
     date = models.DateField()
@@ -279,17 +324,23 @@ class CreditNote(models.Model):
 
     class Meta:
         ordering = ['-date', '-id']
+        unique_together = [('school', 'number')]
 
     def __str__(self):
         return f'{self.number} · {self.student.code}'
 
-    def post(self, user=None):
-        from apps.core.models import SchoolSettings
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school_id = self.student.school_id if self.student_id else _default_school().pk
+        super().save(*args, **kwargs)
 
+    def post(self, user=None):
         if self.journal_id:
             return self.journal
         if self.status != 'draft':
             raise ValidationError(f'Credit note {self.number} is already {self.status}.')
+        if self.student.school_id != self.school_id:
+            raise ValidationError(f'Credit note {self.number} references a student from another school.')
         agg = self.lines.aggregate(total=models.Sum('amount'))
         self.total = agg['total'] or ZERO
         if self.total <= 0:
@@ -297,13 +348,13 @@ class CreditNote(models.Model):
         if self.invoice_id and self.total > self.invoice.balance:
             raise ValidationError('Credit note exceeds the invoice balance.')
 
-        deferred_mode = SchoolSettings.get().revenue_recognition == 'deferred'
+        deferred_mode = self.school.revenue_recognition == 'deferred'
         specs = []
         for line in self.lines.select_related('fee_category').order_by('id'):
             category = line.fee_category
             income_account = category.deferred_account if (deferred_mode and category.deferred_account_id) \
                 else category.income_account
-            pocket = SubAccount.for_student(self.student, category.code, self.currency)
+            pocket = SubAccount.for_student(self.student, category.code, self.currency, school=self.school)
             specs.append(LineSpec(
                 account=income_account, debit=line.amount,
                 description=f'{self.number} {category.name}',
@@ -322,6 +373,7 @@ class CreditNote(models.Model):
                 lines=specs,
                 reference=self.number,
                 user=user,
+                school=self.school,
                 source=('fees.CreditNote', self.pk, self.number),
             )
             self.journal = journal
@@ -351,7 +403,8 @@ class Receipt(models.Model):
         ('card', 'Card'), ('cheque', 'Cheque'),
     ]
 
-    number = models.CharField(max_length=20, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='receipts')
+    number = models.CharField(max_length=20)
     student = models.ForeignKey('students.Student', on_delete=models.PROTECT, related_name='receipts')
     payer_guardian = models.ForeignKey(
         'students.Guardian', null=True, blank=True, on_delete=models.SET_NULL, related_name='receipts'
@@ -372,10 +425,16 @@ class Receipt(models.Model):
 
     class Meta:
         ordering = ['-date', '-id']
+        unique_together = [('school', 'number')]
         indexes = [models.Index(fields=['student', 'date'])]
 
     def __str__(self):
         return f'{self.number} · {self.student.code} {self.currency} {self.amount}'
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school_id = self.student.school_id if self.student_id else _default_school().pk
+        super().save(*args, **kwargs)
 
 
 class ReceiptAllocation(models.Model):
@@ -391,5 +450,5 @@ class ReceiptAllocation(models.Model):
         return f'{self.receipt.number} → {self.invoice.number}: {self.amount}'
 
 
-def next_number(doc_type):
-    return DocumentSequence.next_for(doc_type)
+def next_number(doc_type, school=None):
+    return DocumentSequence.next_for(doc_type, school)

@@ -313,47 +313,45 @@ def _parse_json(text):
 
 # --------------------------------------------------------------- proposal build
 
-def _guess_expense_account(hint):
-    """Map a free-text expense hint to a ChartOfAccount, else the fallback."""
+def _guess_expense_account(hint, school):
+    """Map a free-text expense hint to a ChartOfAccount, else the fallback.
+    Scoped to the ingestion item's school."""
+    accounts = ChartOfAccount.objects.filter(school=school)
     if hint:
         text = str(hint).strip()
         code_match = re.match(r'^(\d{4})', text)
         if code_match:
-            acct = ChartOfAccount.objects.filter(code=code_match.group(1), account_type='expense').first()
+            acct = accounts.filter(code=code_match.group(1), account_type='expense').first()
             if acct:
                 return acct
-        acct = ChartOfAccount.objects.filter(
+        acct = accounts.filter(
             account_type='expense', is_active=True, name__icontains=text[:20]
         ).first()
         if acct:
             return acct
-    return ChartOfAccount.objects.filter(code=FALLBACK_EXPENSE_CODE).first()
+    return accounts.filter(code=FALLBACK_EXPENSE_CODE).first()
 
 
-def _resolve_bank(bank_hint, currency):
+def _resolve_bank(bank_hint, currency, school):
+    banks = BankAccount.objects.filter(school=school, currency=currency, is_active=True)
     if bank_hint:
         text = str(bank_hint).strip()
-        bank = BankAccount.objects.filter(
-            currency=currency, is_active=True, name__icontains=text[:20]
-        ).first()
+        bank = banks.filter(name__icontains=text[:20]).first()
         if bank:
             return bank
-    return (
-        BankAccount.objects.filter(currency=currency, is_active=True, is_default=True).first()
-        or BankAccount.objects.filter(currency=currency, is_active=True).first()
-    )
+    return banks.filter(is_default=True).first() or banks.first()
 
 
-def _resolve_student(code_or_name):
+def _resolve_student(code_or_name, school):
     from apps.students.models import Student
 
     if not code_or_name:
         return None, False
     text = str(code_or_name).strip()
-    student = Student.objects.filter(code__iexact=text).first()
+    student = Student.objects.filter(school=school, code__iexact=text).first()
     if student:
         return student, False
-    matches = Student.objects.filter(
+    matches = Student.objects.filter(school=school).filter(
         models_q_name(text)
     )[:3]
     matches = list(matches)
@@ -373,8 +371,8 @@ def models_q_name(text):
     return q
 
 
-def _account_exists(code):
-    return ChartOfAccount.objects.filter(code=code).exists()
+def _account_exists(code, school):
+    return ChartOfAccount.objects.filter(school=school, code=code).exists()
 
 
 def build_proposal(item):
@@ -412,13 +410,14 @@ def build_proposal(item):
 def _build_vendor_bill(item, ex, currency, problems):
     tax = _value(ex, 'supplier_tax_number')
     name = _value(ex, 'supplier_name')
+    school = item.school
     from apps.procurement.models import Supplier
 
     supplier = None
     if tax:
-        supplier = Supplier.objects.filter(tax_number=str(tax).strip()).first()
+        supplier = Supplier.objects.filter(school=school, tax_number=str(tax).strip()).first()
     if supplier is None and name:
-        supplier = Supplier.objects.filter(name__iexact=str(name).strip()).first()
+        supplier = Supplier.objects.filter(school=school, name__iexact=str(name).strip()).first()
     will_create = supplier is None
     if will_create and not name:
         problems.append('Supplier name missing; cannot create a supplier.')
@@ -432,7 +431,7 @@ def _build_vendor_bill(item, ex, currency, problems):
         unit = parse_money(raw.get('unit_price')) or ZERO
         amount = (qty * unit).quantize(TWO)
         total += amount
-        acct = _guess_expense_account(raw.get('expense_hint'))
+        acct = _guess_expense_account(raw.get('expense_hint'), school)
         if acct is None:
             problems.append(f'No expense account for line "{desc}".')
         lines.append({
@@ -447,7 +446,7 @@ def _build_vendor_bill(item, ex, currency, problems):
     if not lines:
         # Fall back to a single line from the stated total.
         total = parse_money(_value(ex, 'total')) or ZERO
-        acct = _guess_expense_account(None)
+        acct = _guess_expense_account(None, school)
         if total > 0 and acct is not None:
             lines.append({
                 'description': str(name or 'Vendor bill'),
@@ -457,7 +456,7 @@ def _build_vendor_bill(item, ex, currency, problems):
         else:
             problems.append('No line items and no usable total.')
 
-    ap_code = _ap_code(currency, problems)
+    ap_code = _ap_code(currency, problems, school)
     legs = [
         {'account': l['expense_account_code'], 'dr': l['amount'], 'cr': '0'}
         for l in lines if l['expense_account_code']
@@ -485,7 +484,8 @@ def _build_vendor_bill(item, ex, currency, problems):
 
 
 def _build_fee_receipt(item, ex, currency, problems):
-    student, ambiguous = _resolve_student(_value(ex, 'student_code_or_name'))
+    school = item.school
+    student, ambiguous = _resolve_student(_value(ex, 'student_code_or_name'), school)
     if ambiguous:
         problems.append('Student name is ambiguous; pick the exact student.')
     elif student is None:
@@ -495,7 +495,7 @@ def _build_fee_receipt(item, ex, currency, problems):
     if amount <= 0:
         problems.append('Receipt amount must be positive.')
 
-    bank = _resolve_bank(_value(ex, 'bank_hint'), currency)
+    bank = _resolve_bank(_value(ex, 'bank_hint'), currency, school)
     if bank is None:
         problems.append(f'No bank account for {currency}.')
     else:
@@ -505,7 +505,7 @@ def _build_fee_receipt(item, ex, currency, problems):
     if method not in RECEIPT_METHODS:
         method = 'cash'
 
-    ar_code = _ar_code(currency, problems)
+    ar_code = _ar_code(currency, problems, school)
     legs = []
     if bank and amount > 0:
         legs.append({'account': bank.gl_account.code, 'dr': str(amount), 'cr': '0'})
@@ -533,15 +533,16 @@ def _build_fee_receipt(item, ex, currency, problems):
 
 
 def _build_expense(item, ex, currency, problems):
+    school = item.school
     amount = parse_money(_value(ex, 'amount')) or ZERO
     if amount <= 0:
         problems.append('Expense amount must be positive.')
 
-    acct = _guess_expense_account(_value(ex, 'expense_category_hint'))
+    acct = _guess_expense_account(_value(ex, 'expense_category_hint'), school)
     if acct is None:
         problems.append('No expense account resolved.')
 
-    bank = _resolve_bank(_value(ex, 'bank_hint'), currency)
+    bank = _resolve_bank(_value(ex, 'bank_hint'), currency, school)
     if bank is None:
         problems.append(f'No bank account for {currency}.')
     else:
@@ -567,17 +568,17 @@ def _build_expense(item, ex, currency, problems):
     }
 
 
-def _ap_code(currency, problems):
+def _ap_code(currency, problems, school):
     try:
-        return AccountMapping.resolve('ap_control', currency).code
+        return AccountMapping.resolve('ap_control', currency, school=school).code
     except ValidationError:
         problems.append(f'No AP control account mapped for {currency}.')
         return None
 
 
-def _ar_code(currency, problems):
+def _ar_code(currency, problems, school):
     try:
-        return AccountMapping.resolve('ar_control', currency).code
+        return AccountMapping.resolve('ar_control', currency, school=school).code
     except ValidationError:
         problems.append(f'No AR control account mapped for {currency}.')
         return None
@@ -627,24 +628,27 @@ def approve_item(item, user):
 def _post_vendor_bill(item, proposed, user):
     from apps.procurement.models import Supplier, VendorBill, VendorBillLine
 
+    school = item.school
     sup = proposed['supplier']
     supplier = None
     if sup.get('id'):
-        supplier = Supplier.objects.filter(pk=sup['id']).first()
+        supplier = Supplier.objects.filter(school=school, pk=sup['id']).first()
     if supplier is None and sup.get('tax_number'):
-        supplier = Supplier.objects.filter(tax_number=sup['tax_number']).first()
+        supplier = Supplier.objects.filter(school=school, tax_number=sup['tax_number']).first()
     if supplier is None:
-        supplier = Supplier.objects.filter(name__iexact=sup['name']).first()
+        supplier = Supplier.objects.filter(school=school, name__iexact=sup['name']).first()
     if supplier is None:
         supplier = Supplier.objects.create(
-            code=DocumentSequence.next_for('SUP'),
+            school=school,
+            code=DocumentSequence.next_for('SUP', school),
             name=sup['name'],
             tax_number=sup.get('tax_number') or '',
             default_currency=proposed['currency'],
         )
 
     bill = VendorBill.objects.create(
-        number=DocumentSequence.next_for('BIL'),
+        school=school,
+        number=DocumentSequence.next_for('BIL', school),
         supplier=supplier,
         supplier_reference=proposed.get('supplier_reference', ''),
         date=proposed['date'],
@@ -656,7 +660,7 @@ def _post_vendor_bill(item, proposed, user):
     for line in proposed['lines']:
         VendorBillLine.objects.create(
             bill=bill,
-            expense_account=ChartOfAccount.objects.get(pk=line['expense_account_id']),
+            expense_account=ChartOfAccount.objects.get(school=school, pk=line['expense_account_id']),
             description=line['description'],
             quantity=Decimal(line['quantity']),
             unit_price=Decimal(line['unit_price']),
@@ -669,8 +673,8 @@ def _post_fee_receipt(item, proposed, user):
     from apps.fees.services import create_receipt
     from apps.students.models import Student
 
-    student = Student.objects.get(pk=proposed['student']['id'])
-    bank = BankAccount.objects.get(pk=proposed['bank_account_id'])
+    student = Student.objects.get(school=item.school, pk=proposed['student']['id'])
+    bank = BankAccount.objects.get(school=item.school, pk=proposed['bank_account_id'])
     receipt = create_receipt(
         student=student,
         bank_account=bank,
@@ -684,8 +688,8 @@ def _post_fee_receipt(item, proposed, user):
 
 
 def _post_expense(item, proposed, user):
-    expense_acct = ChartOfAccount.objects.get(pk=proposed['expense_account_id'])
-    bank = BankAccount.objects.get(pk=proposed['bank_account_id'])
+    expense_acct = ChartOfAccount.objects.get(school=item.school, pk=proposed['expense_account_id'])
+    bank = BankAccount.objects.get(school=item.school, pk=proposed['bank_account_id'])
     amount = Decimal(proposed['amount'])
     journal = build_and_post_journal(
         'payments',
@@ -699,6 +703,7 @@ def _post_expense(item, proposed, user):
         ],
         reference=f'INGEST-{item.pk}',
         user=user,
+        school=item.school,
         source=('ingestion.IngestionItem', item.pk, f'INGEST-{item.pk}'),
     )
     return 'accounting.Journal', journal.pk

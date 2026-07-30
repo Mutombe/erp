@@ -146,7 +146,7 @@ function IssueStockModal({
 
   const { data: departments } = useQuery({
     queryKey: qk.departments.list({ is_active: true }),
-    queryFn: () => departmentsApi.list({ is_active: true }).then((r) => r.data as Department[]),
+    queryFn: () => departmentsApi.list({ is_active: true, page_size: 500 }).then((r) => (r.data.results ?? r.data) as Department[]),
   })
 
   const mutation = useMutation({
@@ -325,7 +325,7 @@ export default function ItemDetail() {
 
   const { data: warehouses } = useQuery({
     queryKey: qk.warehouses.list({ is_active: true }),
-    queryFn: () => warehousesApi.list({ is_active: true }).then((r) => r.data as Warehouse[]),
+    queryFn: () => warehousesApi.list({ is_active: true, page_size: 500 }).then((r) => (r.data.results ?? r.data) as Warehouse[]),
   })
 
   // Stock ops touch the GL — invalidate everything a posting can move.

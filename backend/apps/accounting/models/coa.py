@@ -67,7 +67,8 @@ def classify_code(code):
 
 
 class ChartOfAccount(models.Model):
-    code = models.CharField(max_length=10, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='accounts')
+    code = models.CharField(max_length=10)
     name = models.CharField(max_length=200)
     account_type = models.CharField(max_length=10, choices=ACCOUNT_TYPES)
     account_subtype = models.CharField(max_length=30)
@@ -86,6 +87,7 @@ class ChartOfAccount(models.Model):
 
     class Meta:
         ordering = ['code']
+        unique_together = [('school', 'code')]
 
     def __str__(self):
         return f'{self.code} · {self.name}'
@@ -117,6 +119,7 @@ class ChartOfAccount(models.Model):
 
 
 class ExchangeRate(models.Model):
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='exchange_rates')
     from_currency = models.CharField(max_length=3)
     to_currency = models.CharField(max_length=3)
     rate = models.DecimalField(max_digits=18, decimal_places=6)
@@ -126,19 +129,23 @@ class ExchangeRate(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = [('from_currency', 'to_currency', 'effective_date')]
+        unique_together = [('school', 'from_currency', 'to_currency', 'effective_date', 'source')]
         ordering = ['-effective_date']
 
     def __str__(self):
         return f'{self.from_currency}/{self.to_currency} {self.rate} @ {self.effective_date}'
 
     @classmethod
-    def get_rate(cls, from_currency, to_currency, date):
+    def get_rate(cls, from_currency, to_currency, date, school=None):
         if from_currency == to_currency:
             return Decimal('1')
+        if school is None:
+            from apps.core.models import School
+            school = School.get_default()
         row = (
             cls.objects.filter(
-                from_currency=from_currency, to_currency=to_currency, effective_date__lte=date
+                school=school, from_currency=from_currency, to_currency=to_currency,
+                effective_date__lte=date,
             )
             .order_by('-effective_date')
             .first()
@@ -147,7 +154,8 @@ class ExchangeRate(models.Model):
             return row.rate
         inverse = (
             cls.objects.filter(
-                from_currency=to_currency, to_currency=from_currency, effective_date__lte=date
+                school=school, from_currency=to_currency, to_currency=from_currency,
+                effective_date__lte=date,
             )
             .order_by('-effective_date')
             .first()
@@ -160,19 +168,22 @@ class ExchangeRate(models.Model):
 
 
 class FiscalYear(models.Model):
-    name = models.CharField(max_length=20, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='fiscal_years')
+    name = models.CharField(max_length=20)
     start_date = models.DateField()
     end_date = models.DateField()
     status = models.CharField(max_length=10, choices=[('open', 'Open'), ('closed', 'Closed')], default='open')
 
     class Meta:
         ordering = ['start_date']
+        unique_together = [('school', 'name')]
 
     def __str__(self):
         return self.name
 
 
 class FiscalPeriod(models.Model):
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='fiscal_periods')
     fiscal_year = models.ForeignKey(FiscalYear, on_delete=models.CASCADE, related_name='periods')
     period_no = models.PositiveIntegerField()
     start_date = models.DateField()
@@ -189,14 +200,17 @@ class FiscalPeriod(models.Model):
         return f'{self.fiscal_year.name} P{self.period_no}'
 
     @classmethod
-    def for_date(cls, date):
-        return cls.objects.filter(start_date__lte=date, end_date__gte=date).first()
+    def for_date(cls, date, school=None):
+        if school is None:
+            from apps.core.models import School
+            school = School.get_default()
+        return cls.objects.filter(school=school, start_date__lte=date, end_date__gte=date).first()
 
     @classmethod
-    def assert_open(cls, date):
+    def assert_open(cls, date, school=None):
         from django.core.exceptions import ValidationError
 
-        period = cls.for_date(date)
+        period = cls.for_date(date, school=school)
         if period is None:
             raise ValidationError(f'No fiscal period covers {date}. Create the fiscal year first.')
         if period.is_locked or period.fiscal_year.status == 'closed':

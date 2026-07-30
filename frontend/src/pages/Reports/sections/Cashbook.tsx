@@ -48,7 +48,7 @@ export default function Cashbook() {
 
   const { data: banks } = useQuery({
     queryKey: qk.bankAccounts.list(),
-    queryFn: () => bankAccountsApi.list().then((r) => r.data as BankAccount[]),
+    queryFn: () => bankAccountsApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as BankAccount[]),
   })
 
   // Default to the default (or first) active bank account once loaded.

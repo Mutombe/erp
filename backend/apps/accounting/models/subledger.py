@@ -11,7 +11,8 @@ class SubAccount(models.Model):
 
     PARTY_TYPES = [('student', 'Student'), ('supplier', 'Supplier')]
 
-    code = models.CharField(max_length=40, unique=True)
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='sub_accounts')
+    code = models.CharField(max_length=40)
     name = models.CharField(max_length=200)
     party_type = models.CharField(max_length=10, choices=PARTY_TYPES)
     student = models.ForeignKey(
@@ -29,6 +30,7 @@ class SubAccount(models.Model):
     class Meta:
         ordering = ['code']
         unique_together = [
+            ('school', 'code'),
             ('student', 'category', 'currency'),
             ('supplier', 'category', 'currency'),
         ]
@@ -48,12 +50,18 @@ class SubAccount(models.Model):
             raise ValidationError('Supplier sub-accounts must reference a supplier.')
 
     @classmethod
-    def for_student(cls, student, category_code, currency):
+    def for_student(cls, student, category_code, currency, school=None):
+        # TODO(multi-tenant wave 2): the fees app calls this without a school;
+        # it transitionally defaults to the Oceanwaves/default school.
+        if school is None:
+            from apps.core.models import School
+            school = School.get_default()
         obj, _ = cls.objects.get_or_create(
             student=student,
             category=category_code,
             currency=currency,
             defaults={
+                'school': school,
                 'party_type': 'student',
                 'code': f'STU/{student.code}/{category_code}/{currency}',
                 'name': f'{student.full_name} — {category_code} ({currency})',
@@ -62,12 +70,18 @@ class SubAccount(models.Model):
         return obj
 
     @classmethod
-    def for_supplier(cls, supplier, currency):
+    def for_supplier(cls, supplier, currency, school=None):
+        # TODO(multi-tenant wave 2): procurement/ingestion call this without a
+        # school; it transitionally defaults to the Oceanwaves/default school.
+        if school is None:
+            from apps.core.models import School
+            school = School.get_default()
         obj, _ = cls.objects.get_or_create(
             supplier=supplier,
             category='PAYABLE',
             currency=currency,
             defaults={
+                'school': school,
                 'party_type': 'supplier',
                 'code': f'SUP/{supplier.code}/{currency}',
                 'name': f'{supplier.name} — Payable ({currency})',
@@ -87,6 +101,7 @@ class SubAccount(models.Model):
 class SubAccountTransaction(models.Model):
     """Statement rows for a sub-account, with a running balance."""
 
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='sub_account_transactions')
     sub_account = models.ForeignKey(SubAccount, on_delete=models.PROTECT, related_name='transactions')
     date = models.DateField(db_index=True)
     contra_account = models.CharField(max_length=10, blank=True)
@@ -117,6 +132,7 @@ class SubAccountTransaction(models.Model):
                 account.current_balance += credit - debit
             account.save(update_fields=['current_balance'])
             return cls.objects.create(
+                school_id=account.school_id,
                 sub_account=account,
                 date=date,
                 contra_account=contra_account,

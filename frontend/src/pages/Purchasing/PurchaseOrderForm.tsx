@@ -59,7 +59,7 @@ export default function PurchaseOrderForm() {
 
   const { data: accounts } = useQuery({
     queryKey: qk.accounts.list({ is_active: true }),
-    queryFn: () => accountsApi.list({ is_active: true }).then((r) => r.data as Account[]),
+    queryFn: () => accountsApi.list({ is_active: true, page_size: 500 }).then((r) => (r.data.results ?? r.data) as Account[]),
   })
   const expenseAccounts = (accounts ?? []).filter((a) => a.account_type === 'expense')
 

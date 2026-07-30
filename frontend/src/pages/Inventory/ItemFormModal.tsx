@@ -42,7 +42,7 @@ export default function ItemFormModal({
 }) {
   const { data: categories } = useQuery({
     queryKey: qk.itemCategories.list(),
-    queryFn: () => itemCategoriesApi.list().then((r) => r.data as ItemCategory[]),
+    queryFn: () => itemCategoriesApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as ItemCategory[]),
   })
 
   const {

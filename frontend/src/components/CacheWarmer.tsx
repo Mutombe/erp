@@ -23,14 +23,14 @@ const OPTIONS_STALE_TIME = 5 * 60 * 1000
  * actual cache hit rather than a near-miss.
  */
 const warmers: { queryKey: ReturnType<typeof qk.accounts.list>; queryFn: () => Promise<unknown> }[] = [
-  { queryKey: qk.accounts.list({ is_active: true }), queryFn: () => accountsApi.list({ is_active: true }).then((r) => r.data) },
-  { queryKey: qk.bankAccounts.list(), queryFn: () => bankAccountsApi.list().then((r) => r.data) },
-  { queryKey: qk.feeCategories.list({ active: true }), queryFn: () => feeCategoriesApi.list({ is_active: true }).then((r) => r.data) },
-  { queryKey: qk.grades.list(), queryFn: () => gradesApi.list().then((r) => r.data) },
+  { queryKey: qk.accounts.list({ is_active: true }), queryFn: () => accountsApi.list({ is_active: true, page_size: 500 }).then((r) => r.data.results ?? r.data) },
+  { queryKey: qk.bankAccounts.list(), queryFn: () => bankAccountsApi.list({ page_size: 500 }).then((r) => r.data.results ?? r.data) },
+  { queryKey: qk.feeCategories.list({ active: true }), queryFn: () => feeCategoriesApi.list({ is_active: true, page_size: 500 }).then((r) => r.data.results ?? r.data) },
+  { queryKey: qk.grades.list(), queryFn: () => gradesApi.list({ page_size: 500 }).then((r) => r.data.results ?? r.data) },
   { queryKey: qk.terms.list(), queryFn: () => termsApi.list().then((r) => r.data) },
-  { queryKey: qk.departments.list({ is_active: true }), queryFn: () => departmentsApi.list({ is_active: true }).then((r) => r.data) },
-  { queryKey: qk.warehouses.list({ is_active: true }), queryFn: () => warehousesApi.list({ is_active: true }).then((r) => r.data) },
-  { queryKey: qk.itemCategories.list(), queryFn: () => itemCategoriesApi.list().then((r) => r.data) },
+  { queryKey: qk.departments.list({ is_active: true }), queryFn: () => departmentsApi.list({ is_active: true, page_size: 500 }).then((r) => r.data.results ?? r.data) },
+  { queryKey: qk.warehouses.list({ is_active: true }), queryFn: () => warehousesApi.list({ is_active: true, page_size: 500 }).then((r) => r.data.results ?? r.data) },
+  { queryKey: qk.itemCategories.list(), queryFn: () => itemCategoriesApi.list({ page_size: 500 }).then((r) => r.data.results ?? r.data) },
   {
     queryKey: qk.suppliers.list({ for: 'select' }),
     queryFn: () => suppliersApi.list({ is_active: true, page_size: 500 }).then((r) => (r.data as { results: unknown[] }).results),

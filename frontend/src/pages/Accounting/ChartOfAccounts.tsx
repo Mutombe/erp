@@ -1,23 +1,26 @@
-import { useMemo, useState } from 'react'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BookOpen, Plus } from '@phosphor-icons/react'
 import { accountsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
+import { usePagedList } from '@/hooks/usePaginatedQuery'
+import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import {
-  Accordion,
   Badge,
   Button,
   CurrencyDisplay,
+  DataTable,
   FilterBar,
   PageHeader,
   RefreshingOverlay,
   refreshingContentClass,
-  SkeletonTable,
+  type Column,
 } from '@/components/ui'
 import AccountFormModal from './AccountFormModal'
-import type { Account } from '@/types/accounting'
+import type { Account, Paginated } from '@/types/accounting'
+
+const PAGE_SIZE = 25
 
 const TYPE_ORDER: Account['account_type'][] = ['asset', 'liability', 'equity', 'revenue', 'expense']
 const TYPE_LABELS: Record<string, string> = {
@@ -26,6 +29,14 @@ const TYPE_LABELS: Record<string, string> = {
   equity: 'Accumulated Fund / Equity',
   revenue: 'Income',
   expense: 'Expenses',
+}
+
+const TYPE_BADGE: Record<string, 'success' | 'danger' | 'purple' | 'info' | 'warning'> = {
+  asset: 'success',
+  liability: 'danger',
+  equity: 'purple',
+  revenue: 'info',
+  expense: 'warning',
 }
 
 // Static (stable identity — defined at module scope so filter hooks don't churn).
@@ -47,21 +58,59 @@ export default function ChartOfAccounts() {
   const navigate = useNavigate()
   const filters = useUrlFilters(FILTER_CONFIG)
   const [showCreate, setShowCreate] = useState(false)
+  const [page, setPage] = useState(1)
 
-  const { data, isFetching } = useQuery({
-    queryKey: qk.accounts.list(filters.params),
-    queryFn: () => accountsApi.list(filtersToQuery(filters.params)).then((r) => r.data as Account[]),
-    placeholderData: keepPreviousData,
+  const filterSignature = JSON.stringify(filters.params)
+  useEffect(() => {
+    setPage(1)
+  }, [filterSignature])
+
+  const { data, results, total, isFetching } = usePagedList<Account>({
+    keyFor: (p) => qk.accounts.list({ ...filters.params, page: p }),
+    fetchPage: (p) =>
+      accountsApi.list(filtersToQuery(filters.params, { page: p })).then((r) => r.data as Paginated<Account>),
+    page,
+    pageSize: PAGE_SIZE,
   })
   const isRefreshing = isFetching && !!data
 
-  const grouped = useMemo(() => {
-    const accounts = data ?? []
-    return TYPE_ORDER.map((type) => ({
-      type,
-      accounts: accounts.filter((a) => a.account_type === type),
-    })).filter((g) => g.accounts.length > 0)
-  }, [data])
+  const prefetchAccount = usePrefetchDetail<Account>(
+    (a) => qk.accounts.detail(a.id),
+    (a) => accountsApi.get(a.id).then((r) => r.data)
+  )
+
+  const columns: Column<Account>[] = [
+    { key: 'code', header: 'Code', render: (a) => <span className="font-mono text-primary-600 dark:text-primary-400">{a.code}</span> },
+    {
+      key: 'name',
+      header: 'Name',
+      render: (a) => (
+        <span>
+          {a.name}
+          {a.is_system && <Badge variant="secondary" className="ml-2">system</Badge>}
+          {!a.is_active && <Badge variant="danger" className="ml-2">inactive</Badge>}
+        </span>
+      ),
+    },
+    {
+      key: 'account_type',
+      header: 'Type',
+      render: (a) => (
+        <Badge variant={TYPE_BADGE[a.account_type] ?? 'default'}>{TYPE_LABELS[a.account_type] ?? a.account_type}</Badge>
+      ),
+    },
+    { key: 'currency', header: 'Ccy', render: (a) => a.currency || '—' },
+    {
+      key: 'current_balance',
+      header: 'Balance',
+      align: 'right',
+      render: (a) => (
+        <span className="tabular-nums">
+          <CurrencyDisplay amount={parseFloat(a.current_balance)} currency="USD" />
+        </span>
+      ),
+    },
+  ]
 
   return (
     <div className="space-y-6">
@@ -78,47 +127,27 @@ export default function ChartOfAccounts() {
 
       <FilterBar config={FILTER_CONFIG} filters={filters} />
 
-      {!data ? (
-        <SkeletonTable rows={10} />
-      ) : (
-        <div className="relative">
-          <RefreshingOverlay active={isRefreshing} />
-          <div className={refreshingContentClass(isRefreshing, 'space-y-4')}>
-            {grouped.map(({ type, accounts }) => (
-              <Accordion key={type} title={`${TYPE_LABELS[type]} (${accounts.length})`} defaultOpen>
-                <table className="w-full text-sm">
-                  <tbody>
-                    {accounts.map((account) => (
-                      <tr
-                        key={account.id}
-                        onClick={() => navigate(`/app/accounts/${account.id}`)}
-                        className="border-b border-gray-100 dark:border-gray-700/50 last:border-0 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/60"
-                      >
-                        <td className="py-2.5 pr-4 w-24 font-mono text-primary-600 dark:text-primary-400">
-                          {account.code}
-                        </td>
-                        <td className="py-2.5 pr-4 text-gray-900 dark:text-gray-100">
-                          {account.name}
-                          {account.is_system && (
-                            <Badge variant="secondary" className="ml-2">system</Badge>
-                          )}
-                          {!account.is_active && (
-                            <Badge variant="danger" className="ml-2">inactive</Badge>
-                          )}
-                        </td>
-                        <td className="py-2.5 pr-4 w-20 text-gray-500">{account.currency || '—'}</td>
-                        <td className="py-2.5 text-right w-36 tabular-nums">
-                          <CurrencyDisplay amount={parseFloat(account.current_balance)} currency="USD" />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </Accordion>
-            ))}
-          </div>
+      <div className="relative">
+        <RefreshingOverlay active={isRefreshing} />
+        <div className={refreshingContentClass(isRefreshing)}>
+          <DataTable<Account>
+            rowKey={(a) => a.id}
+            columns={columns}
+            data={results}
+            loading={!data}
+            onRowClick={(a) => navigate(`/app/accounts/${a.id}`)}
+            onRowHover={prefetchAccount}
+            emptyTitle="No accounts found"
+            emptyDescription="No accounts match the current filters."
+            pagination={{
+              page,
+              pageSize: PAGE_SIZE,
+              total,
+              onPageChange: setPage,
+            }}
+          />
         </div>
-      )}
+      </div>
 
       <AccountFormModal open={showCreate} onClose={() => setShowCreate(false)} />
     </div>

@@ -37,12 +37,15 @@ import {
   X,
   type Icon,
 } from '@phosphor-icons/react'
-import logoUrl from '@/assets/logo.png'
+import { useQueryClient } from '@tanstack/react-query'
 import CacheWarmer from '@/components/CacheWarmer'
+import SchoolAvatar from '@/components/SchoolAvatar'
 import { cn } from '@/lib/utils'
 import { authApi } from '@/services/api'
-import { useAuthStore } from '@/stores/authStore'
+import { useAuthStore, type SchoolSummary } from '@/stores/authStore'
 import { useUIStore } from '@/stores/uiStore'
+import { showToast, parseApiError } from '@/lib/toast'
+import { Check } from '@phosphor-icons/react'
 
 interface NavItem {
   label: string
@@ -155,7 +158,18 @@ function SidebarNav({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?
   )
 }
 
+// Brand pseudo-school shown when an HQ user is viewing "all schools".
+const ALL_SCHOOLS_BRAND: SchoolSummary = {
+  id: 0,
+  code: 'GK',
+  name: 'Golden Knot',
+  logo: null,
+}
+
 function SidebarBrand({ collapsed }: { collapsed: boolean }) {
+  const activeSchool = useAuthStore((s) => s.activeSchool)
+  const brand = activeSchool ?? ALL_SCHOOLS_BRAND
+  const subtitle = activeSchool ? activeSchool.code : 'All schools'
   return (
     <div
       className={cn(
@@ -163,16 +177,139 @@ function SidebarBrand({ collapsed }: { collapsed: boolean }) {
         collapsed ? 'justify-center px-2' : 'px-5'
       )}
     >
-      <img src={logoUrl} alt="" className="w-9 h-9 object-contain shrink-0" />
+      <SchoolAvatar school={brand} className="w-9 h-9 text-xs" ocwFallbackCrest />
       {!collapsed && (
         <span className="min-w-0">
           <span className="block font-bold text-gray-900 dark:text-slate-100 truncate leading-tight">
-            Oceanwaves Schools
+            {brand.name}
           </span>
           <span className="block text-[10px] uppercase tracking-wider text-ocean-600 dark:text-ocean-400">
-            Sailing To Success
+            {subtitle}
           </span>
         </span>
+      )}
+    </div>
+  )
+}
+
+/** Header school switcher. HQ and multi-school users get a dropdown to change
+ *  the active school (HQ also gets a "Golden Knot — All schools" option);
+ *  single-school users just see their school name. */
+function SchoolSwitcher() {
+  const isHq = useAuthStore((s) => s.isHq)
+  const activeSchool = useAuthStore((s) => s.activeSchool)
+  const accessibleSchools = useAuthStore((s) => s.accessibleSchools)
+  const setActiveSchool = useAuthStore((s) => s.setActiveSchool)
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const [switching, setSwitching] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const hasSwitcher = isHq || accessibleSchools.length > 1
+  const current = activeSchool ?? ALL_SCHOOLS_BRAND
+  const currentSubtitle = activeSchool ? activeSchool.code : 'All schools'
+
+  const applySwitch = async (school: SchoolSummary | null) => {
+    setOpen(false)
+    // No-op if selecting the already-active scope.
+    if ((school?.id ?? null) === (activeSchool?.id ?? null)) return
+    setSwitching(true)
+    try {
+      const res = await authApi.switchSchool(school ? school.id : null)
+      setActiveSchool((res.data.active_school as SchoolSummary | null) ?? null)
+      // Re-scope every cached list/report to the new school.
+      queryClient.clear()
+    } catch (error) {
+      showToast.error(parseApiError(error, 'Could not switch school.'))
+    } finally {
+      setSwitching(false)
+    }
+  }
+
+  // Non-HQ single-school user: static label, no dropdown.
+  if (!hasSwitcher) {
+    return (
+      <span className="flex items-center gap-2 min-w-0">
+        <SchoolAvatar school={current} className="w-7 h-7 text-[10px]" ocwFallbackCrest />
+        <span className="font-semibold text-gray-900 dark:text-slate-100 truncate max-w-[12rem]">
+          {current.name}
+        </span>
+      </span>
+    )
+  }
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        onClick={() => setOpen((prev) => !prev)}
+        disabled={switching}
+        className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors max-w-[16rem] disabled:opacity-60"
+      >
+        <SchoolAvatar school={current} className="w-7 h-7 text-[10px]" ocwFallbackCrest />
+        <span className="min-w-0 text-left hidden sm:block">
+          <span className="block text-sm font-semibold text-gray-900 dark:text-slate-100 truncate leading-tight">
+            {current.name}
+          </span>
+          <span className="block text-[10px] uppercase tracking-wider text-gray-400 dark:text-slate-500 leading-tight">
+            {currentSubtitle}
+          </span>
+        </span>
+        <CaretDown className="w-4 h-4 text-gray-400 shrink-0" />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 mt-2 w-64 rounded-xl border border-gray-200 bg-white shadow-lg z-50 overflow-hidden dark:bg-slate-800 dark:border-slate-700 animate-fade-in">
+          <p className="px-4 pt-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500">
+            Switch school
+          </p>
+          <div className="max-h-80 overflow-y-auto py-1">
+            {isHq && (
+              <button
+                onClick={() => applySwitch(null)}
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
+              >
+                <SchoolAvatar school={ALL_SCHOOLS_BRAND} className="w-7 h-7 text-[10px]" />
+                <span className="min-w-0 flex-1 text-left">
+                  <span className="block font-medium text-gray-900 dark:text-slate-100 truncate">
+                    Golden Knot
+                  </span>
+                  <span className="block text-[11px] text-gray-400 dark:text-slate-500">
+                    All schools
+                  </span>
+                </span>
+                {activeSchool === null && <Check className="w-4 h-4 text-primary-600 shrink-0" />}
+              </button>
+            )}
+            {accessibleSchools.map((school) => (
+              <button
+                key={school.id}
+                onClick={() => applySwitch(school)}
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
+              >
+                <SchoolAvatar school={school} className="w-7 h-7 text-[10px]" ocwFallbackCrest />
+                <span className="min-w-0 flex-1 text-left">
+                  <span className="block font-medium text-gray-900 dark:text-slate-100 truncate">
+                    {school.name}
+                  </span>
+                  <span className="block text-[11px] uppercase tracking-wide text-gray-400 dark:text-slate-500">
+                    {school.code}
+                  </span>
+                </span>
+                {activeSchool?.id === school.id && (
+                  <Check className="w-4 h-4 text-primary-600 shrink-0" />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   )
@@ -353,8 +490,7 @@ export default function Layout() {
             >
               <List className="w-5 h-5" />
             </button>
-            <img src={logoUrl} alt="" className="lg:hidden w-7 h-7 object-contain" />
-            <span className="font-semibold text-gray-900 dark:text-slate-100">Oceanwaves Schools</span>
+            <SchoolSwitcher />
           </div>
 
           <div className="flex items-center gap-1.5">

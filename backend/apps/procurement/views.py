@@ -2,6 +2,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.core.mixins import TenantScopedViewSet
 from apps.core.permissions import RoleWritePermission
 
 from .filters import (
@@ -29,7 +30,7 @@ from .serializers import (
 )
 
 
-class ProcurementViewSet(viewsets.ModelViewSet):
+class ProcurementViewSet(TenantScopedViewSet, viewsets.ModelViewSet):
     permission_classes = [RoleWritePermission]
     write_area = 'procurement'
 

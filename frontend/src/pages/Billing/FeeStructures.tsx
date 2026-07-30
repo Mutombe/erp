@@ -99,7 +99,7 @@ export default function FeeStructures() {
   })
   const { data: grades } = useQuery({
     queryKey: qk.grades.list(),
-    queryFn: () => gradesApi.list().then((r) => r.data as Grade[]),
+    queryFn: () => gradesApi.list({ page_size: 500 }).then((r) => (r.data.results ?? r.data) as Grade[]),
   })
 
   const { data, results, total, isFetching } = usePagedList<FeeStructure>({
@@ -221,7 +221,8 @@ function FeeStructureFormModal({
 }) {
   const { data: categories } = useQuery({
     queryKey: qk.feeCategories.list({ active: true }),
-    queryFn: () => feeCategoriesApi.list({ is_active: true }).then((r) => r.data as FeeCategory[]),
+    queryFn: () =>
+      feeCategoriesApi.list({ is_active: true, page_size: 500 }).then((r) => (r.data.results ?? r.data) as FeeCategory[]),
   })
 
   const {

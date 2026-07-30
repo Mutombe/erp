@@ -3,6 +3,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.core.mixins import TenantScopedViewSet
 from apps.core.permissions import RoleWritePermission
 
 from .filters import (
@@ -42,7 +43,7 @@ from .serializers import (
 )
 
 
-class AccountingViewSet(viewsets.ModelViewSet):
+class AccountingViewSet(TenantScopedViewSet, viewsets.ModelViewSet):
     permission_classes = [RoleWritePermission]
     write_area = 'accounting'
 
@@ -53,7 +54,6 @@ class ChartOfAccountViewSet(AccountingViewSet):
     filterset_class = ChartOfAccountFilter
     search_fields = ['code', 'name', 'description']
     ordering_fields = '__all__'
-    pagination_class = None  # the COA is small and screens want it whole
 
 
 class JournalViewSet(AccountingViewSet):
@@ -82,7 +82,7 @@ class JournalViewSet(AccountingViewSet):
         return Response(JournalSerializer(reversal).data)
 
 
-class GeneralLedgerViewSet(viewsets.ReadOnlyModelViewSet):
+class GeneralLedgerViewSet(TenantScopedViewSet, viewsets.ReadOnlyModelViewSet):
     queryset = GeneralLedger.objects.select_related('account', 'journal').all()
     serializer_class = GeneralLedgerSerializer
     filterset_class = GeneralLedgerFilter
@@ -100,7 +100,7 @@ class GeneralLedgerViewSet(viewsets.ReadOnlyModelViewSet):
         return qs
 
 
-class SubAccountViewSet(viewsets.ReadOnlyModelViewSet):
+class SubAccountViewSet(TenantScopedViewSet, viewsets.ReadOnlyModelViewSet):
     queryset = SubAccount.objects.select_related('student', 'supplier').all()
     serializer_class = SubAccountSerializer
     filterset_class = SubAccountFilter
@@ -125,7 +125,6 @@ class BankAccountViewSet(AccountingViewSet):
     filterset_class = BankAccountFilter
     search_fields = ['code', 'name', 'bank_name', 'account_number']
     ordering_fields = '__all__'
-    pagination_class = None
 
 
 class ExchangeRateViewSet(AccountingViewSet):
@@ -139,14 +138,12 @@ class ExchangeRateViewSet(AccountingViewSet):
 class FiscalYearViewSet(AccountingViewSet):
     queryset = FiscalYear.objects.prefetch_related('periods').all()
     serializer_class = FiscalYearSerializer
-    pagination_class = None
 
 
 class FiscalPeriodViewSet(AccountingViewSet):
     queryset = FiscalPeriod.objects.select_related('fiscal_year').all()
     serializer_class = FiscalPeriodSerializer
     filterset_fields = ['fiscal_year', 'is_locked']
-    pagination_class = None
 
     @action(detail=True, methods=['post'])
     def lock(self, request, pk=None):
@@ -183,4 +180,3 @@ class AccountMappingViewSet(AccountingViewSet):
     queryset = AccountMapping.objects.select_related('account').all()
     serializer_class = AccountMappingSerializer
     filterset_fields = ['purpose', 'currency']
-    pagination_class = None

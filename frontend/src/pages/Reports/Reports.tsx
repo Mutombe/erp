@@ -8,6 +8,7 @@ const BalanceSheet = lazy(() => import('./sections/BalanceSheet'))
 const IncomeStatement = lazy(() => import('./sections/IncomeStatement'))
 const AgedReceivables = lazy(() => import('./sections/AgedReceivables'))
 const FeeCollection = lazy(() => import('./sections/FeeCollection'))
+const ReceiptListing = lazy(() => import('./sections/ReceiptListing'))
 const AgedPayables = lazy(() => import('./sections/AgedPayables'))
 const Cashbook = lazy(() => import('./sections/Cashbook'))
 const CashFlow = lazy(() => import('./sections/CashFlow'))
@@ -23,6 +24,7 @@ const REPORTS: { key: string; label: string; group: string; component?: React.La
   { key: 'cashbook', label: 'Cashbook', group: 'Financial', component: Cashbook },
   { key: 'aged-receivables', label: 'Aged Debtors (Fees)', group: 'Fees', component: AgedReceivables },
   { key: 'fee-collection', label: 'Fee Collection', group: 'Fees', component: FeeCollection },
+  { key: 'receipt-listing', label: 'Receipt Listing (Banking)', group: 'Fees', component: ReceiptListing },
   { key: 'aged-payables', label: 'Aged Creditors', group: 'Purchasing', component: AgedPayables },
   { key: 'asset-register', label: 'Asset Register', group: 'Assets', component: AssetRegister },
   { key: 'stock-valuation', label: 'Stock Valuation', group: 'Inventory', component: StockValuation },

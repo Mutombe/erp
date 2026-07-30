@@ -77,7 +77,8 @@ function PaymentFormModal({ open, onClose }: { open: boolean; onClose: () => voi
 
   const { data: bankAccounts } = useQuery({
     queryKey: qk.bankAccounts.list({ is_active: true }),
-    queryFn: () => bankAccountsApi.list({ is_active: true }).then((r) => r.data as BankAccount[]),
+    queryFn: () =>
+      bankAccountsApi.list({ is_active: true, page_size: 500 }).then((r) => (r.data.results ?? r.data) as BankAccount[]),
   })
 
   const {

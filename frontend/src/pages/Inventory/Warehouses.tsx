@@ -1,12 +1,12 @@
-import { useState } from 'react'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { Plus, Warehouse as WarehouseIcon } from '@phosphor-icons/react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Plus, Warehouse as WarehouseIcon } from '@phosphor-icons/react'
 import { warehousesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
+import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { useOptimisticCreate } from '@/hooks/useOptimisticMutation'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
@@ -25,6 +25,9 @@ import {
   type Column,
 } from '@/components/ui'
 import type { Warehouse } from '@/types/inventory'
+import type { Paginated } from '@/types/accounting'
+
+const PAGE_SIZE = 25
 
 const FILTER_CONFIG: FilterConfig = [
   { type: 'search', placeholder: 'Search code, name, location…' },
@@ -86,14 +89,22 @@ export default function Warehouses() {
   const navigate = useNavigate()
   const filters = useUrlFilters(FILTER_CONFIG)
   const [modalOpen, setModalOpen] = useState(false)
+  const [page, setPage] = useState(1)
 
-  const { data: warehouses, isFetching } = useQuery({
-    queryKey: qk.warehouses.list(filters.params),
-    queryFn: () => warehousesApi.list(filtersToQuery(filters.params)).then((r) => r.data as Warehouse[]),
-    placeholderData: keepPreviousData,
+  const filterSignature = JSON.stringify(filters.params)
+  useEffect(() => {
+    setPage(1)
+  }, [filterSignature])
+
+  const { data, results, total, isFetching } = usePagedList<Warehouse>({
+    keyFor: (p) => qk.warehouses.list({ ...filters.params, page: p }),
+    fetchPage: (p) =>
+      warehousesApi.list(filtersToQuery(filters.params, { page: p })).then((r) => r.data as Paginated<Warehouse>),
+    page,
+    pageSize: PAGE_SIZE,
   })
-
-  const isRefreshing = isFetching && !!warehouses
+  const warehouses = results
+  const isRefreshing = isFetching && !!data
 
   // Warm the warehouse detail cache on row hover so opening a warehouse is instant.
   const prefetchWarehouse = usePrefetchDetail<Warehouse>(
@@ -133,12 +144,18 @@ export default function Warehouses() {
           <DataTable<Warehouse>
             rowKey={(w) => w.id}
             columns={columns}
-            data={warehouses ?? []}
-            loading={!warehouses}
+            data={warehouses}
+            loading={!data}
             onRowClick={(w) => navigate(`/app/warehouses/${w.id}`)}
             onRowHover={prefetchWarehouse}
             emptyTitle="No warehouses"
             emptyDescription="Create a warehouse to start receiving stock."
+            pagination={{
+              page,
+              pageSize: PAGE_SIZE,
+              total,
+              onPageChange: setPage,
+            }}
           />
         </div>
       </div>
