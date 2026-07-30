@@ -14,3 +14,4 @@ dj-database-url>=2.3
 psycopg[binary]>=3.2
 pytest>=8.3
 pytest-django>=4.9
+anthropic>=0.40

@@ -67,6 +67,9 @@ const builtRoutes: [string, React.LazyExoticComponent<() => JSX.Element>][] = [
   ['fixed-assets', lazy(() => import('@/pages/Assets/FixedAssets'))],
   ['fixed-assets/:id', lazy(() => import('@/pages/Assets/AssetDetail'))],
   ['settings', lazy(() => import('@/pages/Settings/Settings'))],
+  // Document ingestion
+  ['ingestion', lazy(() => import('@/pages/Ingestion/Inbox'))],
+  ['ingestion/:id', lazy(() => import('@/pages/Ingestion/ReviewItem'))],
 ]
 
 function PageFallback() {

@@ -13,7 +13,7 @@ export { CurrencyDisplay, CurrencyTotal } from './CurrencyDisplay'
 export { DataTable, useProgressiveReveal, type Column } from './DataTable'
 export { TableFilter } from './TableFilter'
 export { FilterBar, type FilterConfig, type FilterControl, type FilterOption } from './FilterBar'
-export { Badge, StatusBadge } from './Badge'
+export { Badge, StatusBadge, type BadgeVariant } from './Badge'
 export { StatsCard, StatsCardCompact } from './StatsCard'
 export {
   Skeleton,

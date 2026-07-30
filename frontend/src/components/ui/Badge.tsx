@@ -76,6 +76,10 @@ export function StatusBadge({ status }: { status: string }) {
     pending: { variant: 'warning', label: 'Pending' },
     approved: { variant: 'info', label: 'Approved' },
     posted: { variant: 'success', label: 'Posted' },
+
+    // Ingestion pipeline (in-review states — amber)
+    extracted: { variant: 'warning', label: 'Extracted' },
+    needs_review: { variant: 'warning', label: 'Needs review' },
     reversed: { variant: 'default', label: 'Reversed' },
     cancelled: { variant: 'default', label: 'Cancelled' },
     rejected: { variant: 'danger', label: 'Rejected' },

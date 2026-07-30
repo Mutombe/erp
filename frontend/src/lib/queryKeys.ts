@@ -90,6 +90,9 @@ export const qk = {
   assets: entityKeys('assets'),
   depreciationRuns: entityKeys('depreciationRuns'),
 
+  // Ingestion
+  ingestion: entityKeys('ingestion'),
+
   // Reports
   reports: {
     all: ['reports'] as QueryKey,

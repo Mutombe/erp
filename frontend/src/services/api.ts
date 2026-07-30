@@ -260,6 +260,23 @@ export const depreciationRunsApi = {
 }
 
 // ---------------------------------------------------------------------------
+// Ingestion (document inbox: upload → AI extract → review → approve posts)
+// ---------------------------------------------------------------------------
+
+export const ingestionApi = {
+  ...crud('ingestion/items'),
+  upload: (formData: FormData) =>
+    api.post('/ingestion/items/upload/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  extract: (id: Id) => api.post(`/ingestion/items/${id}/extract/`),
+  editExtraction: (id: Id, payload: object) =>
+    api.patch(`/ingestion/items/${id}/extraction/`, payload),
+  approve: (id: Id) => api.post(`/ingestion/items/${id}/approve/`),
+  reject: (id: Id, reason: string) => api.post(`/ingestion/items/${id}/reject/`, { reason }),
+}
+
+// ---------------------------------------------------------------------------
 // Reports
 // ---------------------------------------------------------------------------
 

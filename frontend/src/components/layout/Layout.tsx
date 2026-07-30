@@ -28,6 +28,7 @@ import {
   Gear,
   ShoppingCart,
   Sun,
+  Tray,
   Truck,
   Users,
   UsersFour,
@@ -63,6 +64,10 @@ const navSections: NavSection[] = [
       { label: 'Dashboard', to: '/app', icon: SquaresFour, end: true },
       { label: 'Reports', to: '/app/reports', icon: ChartBar },
     ],
+  },
+  {
+    label: 'Documents',
+    items: [{ label: 'Inbox', to: '/app/ingestion', icon: Tray }],
   },
   {
     label: 'Students & Fees',

@@ -40,6 +40,7 @@ LOCAL_APPS = [
     'apps.inventory',
     'apps.procurement',
     'apps.reports',
+    'apps.ingestion',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -182,3 +183,10 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@school-erp.lo
 BASE_CURRENCY = config('BASE_CURRENCY', default='USD')
 SECONDARY_CURRENCY = config('SECONDARY_CURRENCY', default='ZWG')
 SUPPORTED_CURRENCIES = [BASE_CURRENCY, SECONDARY_CURRENCY]
+
+# AI document ingestion. Fully optional: without a key the ingestion engine
+# falls back to the manual-entry path (see apps.ingestion.services).
+ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY', default='')
+AI_MODEL = config('AI_MODEL', default='claude-sonnet-4-5')
+# Fallback expense account (ChartOfAccount code) for unmapped ingestion lines.
+INGESTION_FALLBACK_EXPENSE_ACCOUNT = config('INGESTION_FALLBACK_EXPENSE_ACCOUNT', default='5400')

@@ -4,6 +4,7 @@ from django.contrib import admin
 from django.http import HttpResponse, JsonResponse
 from django.urls import include, path, re_path
 from django.views.generic import TemplateView
+from django.views.static import serve as static_serve
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 
@@ -41,10 +42,16 @@ urlpatterns = [
     path('api/inventory/', include('apps.inventory.urls')),
     path('api/procurement/', include('apps.procurement.urls')),
     path('api/reports/', include('apps.reports.urls')),
+    path('api/ingestion/', include('apps.ingestion.urls')),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Serve user-uploaded media (ingestion documents, logos) in BOTH dev and prod.
+# Render's disk is ephemeral so these files last only for the container's life —
+# fine for the upload → review → approve flow, which happens within a session.
+# Auth is enforced at the API layer; the files themselves are unguessable paths.
+urlpatterns += [
+    re_path(r'^media/(?P<path>.*)$', static_serve, {'document_root': settings.MEDIA_ROOT}),
+]
 
 # Catch-all LAST: anything not matched above is handed to the SPA.
 urlpatterns += [re_path(r'^(?!api/|admin/|static/|media/|health/).*$', SpaView.as_view())]
