@@ -95,6 +95,8 @@ const builtRoutes: [string, Preloadable][] = [
   // Document ingestion
   ['ingestion', pageLazy(() => import('@/pages/Ingestion/Inbox'))],
   ['ingestion/:id', pageLazy(() => import('@/pages/Ingestion/ReviewItem'))],
+  // Inter-school transfers (HQ only)
+  ['transfers', pageLazy(() => import('@/pages/Transfers/Transfers'))],
 ]
 
 /** Warm every route chunk once the browser is idle after first paint. After

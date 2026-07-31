@@ -367,4 +367,16 @@ export const reportsApi = {
   dashboard: () => api.get('/reports/dashboard/'),
 }
 
+// ---------------------------------------------------------------------------
+// Inter-school transfers (Golden Knot HQ only)
+// ---------------------------------------------------------------------------
+
+export const transfersApi = {
+  ...crud('transfers/transfers'), // list/get used
+  funds: (data: object) => api.post('/transfers/transfers/funds/', data),
+  student: (data: object) => api.post('/transfers/transfers/student/', data),
+  studentPreview: (studentId: Id) =>
+    api.get('/transfers/transfers/student-preview/', { params: { student: studentId } }),
+}
+
 export default api

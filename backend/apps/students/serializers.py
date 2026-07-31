@@ -46,9 +46,10 @@ class ClassRoomSerializer(serializers.ModelSerializer):
     class Meta:
         model = ClassRoom
         fields = [
-            'id', 'grade', 'grade_name', 'name', 'academic_year', 'teacher_name',
+            'id', 'school', 'grade', 'grade_name', 'name', 'academic_year', 'teacher_name',
             'class_teacher', 'class_teacher_name', 'capacity', 'student_count',
         ]
+        read_only_fields = ['school']
 
 
 class StudentBriefSerializer(serializers.ModelSerializer):
@@ -67,12 +68,13 @@ class StudentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Student
         fields = [
-            'id', 'code', 'first_name', 'last_name', 'full_name', 'dob', 'gender',
+            'id', 'school', 'code', 'first_name', 'last_name', 'full_name', 'dob', 'gender',
             'national_id_or_birth_cert', 'admission_date', 'status', 'attendance_type',
             'photo', 'medical_notes', 'custom_fields', 'current_class', 'balances',
             'created_at', 'updated_at',
         ]
         extra_kwargs = {'code': {'required': False}}
+        read_only_fields = ['school']
 
     def get_current_class(self, obj):
         enrollment = obj.current_enrollment

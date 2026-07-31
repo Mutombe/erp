@@ -37,7 +37,9 @@ class StudentFilter(filters.FilterSet):
 
     class Meta:
         model = Student
-        fields = ['status', 'attendance_type', 'gender']
+        # `school` lets HQ (viewing all schools) narrow to one; scoped users are
+        # already limited to their own school by the tenant middleware.
+        fields = ['status', 'attendance_type', 'gender', 'school']
 
 
 class GuardianFilter(filters.FilterSet):
@@ -57,7 +59,7 @@ class ClassRoomFilter(filters.FilterSet):
 
     class Meta:
         model = ClassRoom
-        fields = ['grade', 'academic_year']
+        fields = ['grade', 'academic_year', 'school']
 
 
 class EnrollmentFilter(filters.FilterSet):

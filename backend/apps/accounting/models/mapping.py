@@ -20,6 +20,8 @@ MAPPING_PURPOSES = [
     ('accumulated_fund', 'Accumulated fund'),
     ('vat_payable', 'VAT payable'),
     ('rounding', 'Rounding differences'),
+    ('interschool_due_from', 'Due from related schools'),
+    ('interschool_due_to', 'Due to related schools'),
 ]
 
 

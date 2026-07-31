@@ -134,8 +134,9 @@ class Command(BaseCommand):
         from apps.assets.models import Asset, AssetCategory, DepreciationEntry, DepreciationRun
         from apps.fees.models import (
             BillingRun, BursaryAward, CreditNote, CreditNoteLine, FeeInvoice,
-            FeeInvoiceLine, Receipt, ReceiptAllocation,
+            FeeInvoiceLine, PaymentIntent, Receipt, ReceiptAllocation,
         )
+        from apps.attendance.models import AttendanceRecord, AttendanceSession
         from apps.inventory.models import Item, StockLevel, StockMove
         from apps.procurement.models import (
             GoodsReceivedNote, GRNLine, PaymentAllocation, POLine, PurchaseOrder,
@@ -145,11 +146,18 @@ class Command(BaseCommand):
             ClassRoom, Enrollment, Guardian, Student, StudentGuardian,
         )
         from apps.fees.models import FeeStructure
+        from apps.transfers.models import InterSchoolTransfer
 
         # Ordered so each model is removed before anything that PROTECT-references it.
         # QuerySet.delete() issues bulk SQL (it does NOT call the model.delete()
         # override), so the GeneralLedger immutability guard is bypassed here.
         deletion_order = [
+            # Inter-school transfers PROTECT-reference journals — clear them first.
+            ('InterSchoolTransfer', InterSchoolTransfer),
+            # PaymentIntent PROTECT-references Student; attendance CASCADEs off it.
+            ('PaymentIntent', PaymentIntent),
+            ('AttendanceRecord', AttendanceRecord),
+            ('AttendanceSession', AttendanceSession),
             ('GeneralLedger', GeneralLedger),
             ('SubAccountTransaction', SubAccountTransaction),
             ('ReceiptAllocation', ReceiptAllocation),
@@ -241,6 +249,7 @@ class Command(BaseCommand):
         self._depreciation()
         self._direct_expenses()
         self._extra_opening_balance()
+        self._second_school()
 
     # -------- reference data
     def _exchange_rates(self):
@@ -903,6 +912,104 @@ class Command(BaseCommand):
         )
         ob.post()
 
+    def _second_school(self):
+        """Provision a lean second school (Kingsknot Academy) so the platform
+        actually demonstrates multi-tenancy: the school switcher shows two
+        schools, HQ consolidates both, and inter-school transfers have a real
+        destination. Self-contained — a small enrolled cohort with billing."""
+        from apps.accounting.models import BankAccount
+        from apps.core.models import DocumentSequence, Organization, School
+        from apps.core.provisioning import provision_school
+        from apps.fees.models import BillingRun, FeeCategory, FeeStructure
+        from apps.fees.services import create_receipt, execute_billing_run
+        from apps.students.models import (
+            AcademicYear, ClassRoom, Enrollment, Grade, Guardian, Student, StudentGuardian, Term,
+        )
+
+        # --reset keeps School/COA rows but wipes students/classes/fee-structures,
+        # so create-or-fetch the school, (idempotently) provision it, and reseed
+        # the cohort whenever it's empty.
+        school, _ = School.objects.get_or_create(
+            code='KNS',
+            defaults={
+                'organization': Organization.get(), 'slug': 'kingsknot-academy',
+                'name': 'Kingsknot Academy', 'base_currency': 'USD', 'secondary_currency': 'ZWG',
+                'address': '14 Enterprise Rd, Harare', 'phone': '+263 242 700 700',
+            },
+        )
+        provision_school(school)  # idempotent
+        if Student.objects.filter(school=school).exists():
+            self.counts['schools'] = School.objects.count()
+            self.counts['kns_students'] = Student.objects.filter(school=school).count()
+            return
+        year = AcademicYear.objects.get(school=school, name='2026')
+        term1 = Term.objects.get(school=school, academic_year=year, number=1)
+
+        # A few grades with tuition; boarding kept simple (day scholars only).
+        plan = [('Grade 1', Decimal('300')), ('Grade 4', Decimal('340')),
+                ('Form 1', Decimal('480')), ('Form 4', Decimal('520'))]
+        tui = FeeCategory.objects.get(school=school, code='TUI')
+        lvy = FeeCategory.objects.get(school=school, code='LVY')
+        rooms = {}
+        for i, (grade_name, tuition) in enumerate(plan):
+            grade = Grade.objects.get(school=school, name=grade_name)
+            rooms[grade_name] = ClassRoom.objects.create(
+                school=school, name=f'{grade_name} A', academic_year=year, grade=grade,
+                teacher_name=TEACHERS[i % len(TEACHERS)],
+            )
+            for fee_cat, amount in [(tui, tuition), (lvy, Decimal('40'))]:
+                FeeStructure.objects.get_or_create(
+                    school=school, term=term1, grade=grade, fee_category=fee_cat,
+                    currency='USD', applies_to='all',
+                    defaults={'academic_year': year, 'amount': amount},
+                )
+
+        gseq = [0]
+        for grade_name, _t in plan:
+            room = rooms[grade_name]
+            for _ in range(4):  # 16 students total
+                gseq[0] += 1
+                last = self.rng.choice(LAST_NAMES)
+                guardian = Guardian.objects.create(
+                    school=school, code=f'GRD{gseq[0]:04d}',
+                    first_name=self.rng.choice(FIRST_NAMES), last_name=last, phone=self._phone(),
+                )
+                student = Student.objects.create(
+                    school=school, code=DocumentSequence.next_for('STU', school),
+                    first_name=self.rng.choice(FIRST_NAMES), last_name=last,
+                    gender=self.rng.choice(['male', 'female']),
+                    admission_date=date(2026, 1, 13), status='enrolled', attendance_type='day',
+                )
+                StudentGuardian.objects.create(
+                    student=student, guardian=guardian, is_primary_contact=True, is_billing_contact=True,
+                )
+                Enrollment.objects.create(
+                    student=student, academic_year=year, class_room=room,
+                    enrolled_date=date(2026, 1, 13), status='active',
+                )
+
+        run = BillingRun.objects.create(
+            school=school, number=DocumentSequence.next_for('RUN', school),
+            term=term1, currency='USD', date=date(2026, 1, 15), due_date=date(2026, 2, 15),
+        )
+        execute_billing_run(run.pk)
+
+        # Pay roughly half the invoices in full.
+        from apps.fees.models import FeeInvoice
+        bank = BankAccount.objects.get(school=school, code='BANK-USD')
+        paid = 0
+        for invoice in FeeInvoice.objects.filter(school=school, billing_run=run).select_related('student'):
+            if self.rng.random() < 0.5:
+                create_receipt(
+                    student=invoice.student, bank_account=bank, amount=invoice.total,
+                    date=date(2026, 2, 10), payment_method='bank_transfer',
+                    payer_guardian=invoice.student.guardians.first(), reference=f'PAY-{invoice.number}',
+                )
+                paid += 1
+        self.counts['schools'] = School.objects.count()
+        self.counts['kns_students'] = Student.objects.filter(school=school).count()
+        self.counts['kns_receipts'] = paid
+
     # ------------------------------------------------------------------ output
     def _print_summary(self):
         from apps.accounting.models import GeneralLedger, Journal
@@ -915,6 +1022,9 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.MIGRATE_HEADING('\nDemo dataset built. Summary:'))
         rows = [
+            ('Schools (tenants)', self.counts.get('schools')),
+            ('  - Kingsknot students', self.counts.get('kns_students')),
+            ('  - Kingsknot receipts', self.counts.get('kns_receipts')),
             ('Students (total)', self.counts.get('students')),
             ('  - enrolled', self.counts.get('enrolled')),
             ('  - applicants', self.counts.get('applicants')),

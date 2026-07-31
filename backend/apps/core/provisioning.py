@@ -18,6 +18,7 @@ COA = [
     ('1030', 'Mobile Money (ZWG)', 'current_assets', 'ZWG', False),
     ('1100', 'Accounts Receivable (USD)', 'current_assets', 'USD', True),
     ('1110', 'Accounts Receivable (ZWG)', 'current_assets', 'ZWG', True),
+    ('1180', 'Due from Related Schools', 'current_assets', '', True),
     ('1200', 'Inventory — Consumables', 'current_assets', '', True),
     ('1210', 'Inventory — Uniforms & Resale', 'current_assets', '', False),
     ('1300', 'Prepayments', 'current_assets', '', False),
@@ -37,6 +38,7 @@ COA = [
     ('2010', 'Accounts Payable (ZWG)', 'current_liabilities', 'ZWG', True),
     ('2100', 'Goods Received Not Invoiced', 'current_liabilities', '', True),
     ('2110', 'Accrued Expenses', 'current_liabilities', '', False),
+    ('2180', 'Due to Related Schools', 'current_liabilities', '', True),
     ('2200', 'Deferred Fee Income (USD)', 'current_liabilities', 'USD', True),
     ('2210', 'Deferred Fee Income (ZWG)', 'current_liabilities', 'ZWG', True),
     ('2300', 'VAT Payable', 'current_liabilities', '', True),
@@ -86,6 +88,7 @@ MAPPINGS = [
     ('gain_on_disposal', '', '4510'), ('loss_on_disposal', '', '5720'),
     ('opening_balances', '', '3900'),
     ('accumulated_fund', '', '3000'),
+    ('interschool_due_from', '', '1180'), ('interschool_due_to', '', '2180'),
     ('vat_payable', '', '2300'),
     ('rounding', '', '5700'),
 ]
@@ -104,7 +107,7 @@ SEQUENCES = [
     ('JRN', 'JRN'), ('INV', 'INV'), ('RCT', 'RCT'), ('CRN', 'CRN'),
     ('PO', 'PO'), ('GRN', 'GRN'), ('BIL', 'BIL'), ('PAY', 'PAY'),
     ('AST', 'AST'), ('STU', 'STU'), ('SUP', 'SUP'), ('OPB', 'OPB'), ('ADJ', 'ADJ'), ('RUN', 'RUN'),
-    ('TCH', 'TCH'),
+    ('TCH', 'TCH'), ('TRF', 'TRF'),
 ]
 
 GRADES = (

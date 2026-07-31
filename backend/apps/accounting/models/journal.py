@@ -21,6 +21,7 @@ JOURNAL_TYPES = [
     ('adjustment', 'Adjustment'),
     ('reversal', 'Reversal'),
     ('opening', 'Opening'),
+    ('transfer', 'Inter-school transfer'),
 ]
 
 JOURNAL_STATUS = [('draft', 'Draft'), ('posted', 'Posted'), ('reversed', 'Reversed')]

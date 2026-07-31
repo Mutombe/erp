@@ -131,10 +131,22 @@ const navSections: NavSection[] = [
   },
 ]
 
+// HQ-only group — inter-school transfers cross the tenant boundary, so only
+// Golden Knot HQ sees this entry (gated on `isHq` below).
+const hqSection: NavSection = {
+  label: 'Golden Knot HQ',
+  items: [{ label: 'Inter-School Transfers', to: '/app/transfers', icon: ArrowsLeftRight }],
+}
+
 function SidebarNav({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+  const isHq = useAuthStore((s) => s.isHq)
+  // Slot the HQ group just above Settings (the last section) for HQ users.
+  const sections = isHq
+    ? [...navSections.slice(0, -1), hqSection, navSections[navSections.length - 1]]
+    : navSections
   return (
     <nav className="flex-1 overflow-y-auto sidebar-scroll px-3 py-4 space-y-6">
-      {navSections.map((section) => (
+      {sections.map((section) => (
         <div key={section.label}>
           {!collapsed && (
             <p className="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500">

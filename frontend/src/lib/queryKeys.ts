@@ -108,6 +108,9 @@ export const qk = {
   // Ingestion
   ingestion: entityKeys('ingestion'),
 
+  // Inter-school transfers
+  transfers: entityKeys('transfers'),
+
   // Reports
   reports: {
     all: ['reports'] as QueryKey,

@@ -48,6 +48,7 @@ urlpatterns = [
     path('api/reports/', include('apps.reports.urls')),
     path('api/ingestion/', include('apps.ingestion.urls')),
     path('api/portal/', include('apps.portal.urls')),
+    path('api/transfers/', include('apps.transfers.urls')),
 ]
 
 # Serve user-uploaded media (ingestion documents, logos) in BOTH dev and prod.
