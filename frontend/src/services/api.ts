@@ -247,6 +247,26 @@ export const receiptsApi = {
 
 export const bursariesApi = crud('fees/bursaries')
 
+/** Back-office bursar queue for guardian/student payment declarations. */
+export const paymentIntentsApi = {
+  ...crud('fees/payment-intents'), // list/get only used
+  confirm: (id: Id, data: object) => api.post(`/fees/payment-intents/${id}/confirm/`, data),
+  reject: (id: Id, reason: string) => api.post(`/fees/payment-intents/${id}/reject/`, { reason }),
+}
+
+// ---------------------------------------------------------------------------
+// Portal (guardian & student self-service — session auth, portal-role users)
+// ---------------------------------------------------------------------------
+
+export const portalApi = {
+  context: () => api.get('/portal/context/'),
+  statement: (id: Id) => api.get(`/portal/students/${id}/statement/`),
+  attendance: (id: Id, params?: ListParams) =>
+    api.get(`/portal/students/${id}/attendance/`, { params }),
+  listIntents: () => api.get('/portal/payment-intents/'),
+  createIntent: (data: object) => api.post('/portal/payment-intents/', data),
+}
+
 // ---------------------------------------------------------------------------
 // Inventory
 // ---------------------------------------------------------------------------

@@ -457,5 +457,91 @@ class ReceiptAllocation(models.Model):
         return f'{self.receipt.number} → {self.invoice.number}: {self.amount}'
 
 
+class PaymentIntent(models.Model):
+    """A payment a guardian/student declares from the portal. It never touches
+    the ledger: a bursar reviews it and, on confirm, a real Receipt is created
+    and posted (the portal has no posting rights). This keeps GL integrity while
+    letting families signal "I have paid / I want to pay X".
+    """
+
+    STATUS = [
+        ('submitted', 'Submitted'), ('confirmed', 'Confirmed'),
+        ('rejected', 'Rejected'), ('cancelled', 'Cancelled'),
+    ]
+    METHODS = Receipt.METHODS
+
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='payment_intents')
+    student = models.ForeignKey('students.Student', on_delete=models.PROTECT, related_name='payment_intents')
+    guardian = models.ForeignKey(
+        'students.Guardian', null=True, blank=True, on_delete=models.SET_NULL, related_name='payment_intents'
+    )
+    date = models.DateField()
+    currency = models.CharField(max_length=3)
+    amount = models.DecimalField(max_digits=18, decimal_places=2)
+    payment_method = models.CharField(max_length=15, choices=METHODS, default='bank_transfer')
+    reference = models.CharField(max_length=100, blank=True)  # depositor's bank/EcoCash ref
+    note = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUS, default='submitted', db_index=True)
+    receipt = models.ForeignKey(Receipt, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    review_note = models.CharField(max_length=500, blank=True)  # bursar's reason on reject
+    submitted_by = models.ForeignKey('core.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    reviewed_by = models.ForeignKey('core.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['status', 'school'])]
+
+    def __str__(self):
+        return f'Intent {self.student.code} {self.currency} {self.amount} ({self.status})'
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school_id = self.student.school_id if self.student_id else _default_school().pk
+        super().save(*args, **kwargs)
+
+    def confirm(self, *, bank_account, date=None, user=None, explicit_allocations=None):
+        """Accept the declared payment: create + post a real receipt via the
+        standard fee service, then link it. FIFO-allocates against open invoices."""
+        from .services import create_receipt
+
+        if self.status != 'submitted':
+            raise ValidationError(f'This payment is already {self.status}.')
+        if bank_account.currency != self.currency:
+            raise ValidationError(
+                f'Bank account currency ({bank_account.currency}) does not match the '
+                f'payment currency ({self.currency}).'
+            )
+        with transaction.atomic():
+            receipt = create_receipt(
+                student=self.student,
+                bank_account=bank_account,
+                amount=self.amount,
+                date=date or self.date,
+                payment_method=self.payment_method,
+                payer_guardian=self.guardian,
+                reference=self.reference,
+                notes=f'From portal payment intent #{self.pk}',
+                explicit_allocations=explicit_allocations,
+                user=user,
+            )
+            self.receipt = receipt
+            self.status = 'confirmed'
+            self.reviewed_by = user
+            self.reviewed_at = timezone.now()
+            self.save(update_fields=['receipt', 'status', 'reviewed_by', 'reviewed_at'])
+        return receipt
+
+    def reject(self, *, reason='', user=None):
+        if self.status != 'submitted':
+            raise ValidationError(f'This payment is already {self.status}.')
+        self.status = 'rejected'
+        self.review_note = reason
+        self.reviewed_by = user
+        self.reviewed_at = timezone.now()
+        self.save(update_fields=['status', 'review_note', 'reviewed_by', 'reviewed_at'])
+
+
 def next_number(doc_type, school=None):
     return DocumentSequence.next_for(doc_type, school)

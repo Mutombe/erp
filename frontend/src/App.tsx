@@ -2,6 +2,8 @@ import { lazy, Suspense, useEffect, type ComponentType, type LazyExoticComponent
 import { Navigate, Route, Routes } from 'react-router-dom'
 import PrivateRoute from '@/components/layout/PrivateRoute'
 import Layout from '@/components/layout/Layout'
+import PortalRoute from '@/components/portal/PortalRoute'
+import PortalLayout from '@/components/portal/PortalLayout'
 import { PageSkeleton } from '@/components/ui'
 import { useUIStore } from '@/stores/uiStore'
 
@@ -20,6 +22,12 @@ function pageLazy(factory: () => Promise<{ default: AnyComp }>): Preloadable {
 const Login = pageLazy(() => import('@/pages/Login'))
 const Dashboard = pageLazy(() => import('@/pages/Dashboard'))
 const ComingSoon = pageLazy(() => import('@/pages/ComingSoon'))
+
+// Guardian & student portal pages (family-facing, separate shell)
+const PortalHome = pageLazy(() => import('@/pages/Portal/PortalHome'))
+const StudentStatementPortal = pageLazy(() => import('@/pages/Portal/StudentStatementPortal'))
+const StudentAttendancePortal = pageLazy(() => import('@/pages/Portal/StudentAttendancePortal'))
+const PortalPayments = pageLazy(() => import('@/pages/Portal/PortalPayments'))
 
 // Routes with real pages (everything else stays ComingSoon until built)
 const builtRoutes: [string, Preloadable][] = [
@@ -54,6 +62,7 @@ const builtRoutes: [string, Preloadable][] = [
   ['fee-invoices/:id', pageLazy(() => import('@/pages/Billing/FeeInvoiceDetail'))],
   ['receipts', pageLazy(() => import('@/pages/Billing/Receipts'))],
   ['receipts/:id', pageLazy(() => import('@/pages/Billing/ReceiptDetail'))],
+  ['payment-intents', pageLazy(() => import('@/pages/Billing/PaymentIntents'))],
   ['credit-notes', pageLazy(() => import('@/pages/Billing/CreditNotes'))],
   ['credit-notes/:id', pageLazy(() => import('@/pages/Billing/CreditNoteDetail'))],
   ['bursaries', pageLazy(() => import('@/pages/Billing/Bursaries'))],
@@ -155,6 +164,25 @@ export default function App() {
         ))}
         <Route path="*" element={<ComingSoon />} />
       </Route>
+
+      {/*
+        Guardian & student portal — a separate top-level tree with its own light
+        shell. PortalLayout renders its own Suspense boundary around <Outlet />.
+      */}
+      <Route
+        path="/portal"
+        element={
+          <PortalRoute>
+            <PortalLayout />
+          </PortalRoute>
+        }
+      >
+        <Route index element={<PortalHome />} />
+        <Route path="students/:id" element={<StudentStatementPortal />} />
+        <Route path="students/:id/attendance" element={<StudentAttendancePortal />} />
+        <Route path="payments" element={<PortalPayments />} />
+      </Route>
+
       <Route path="*" element={<Navigate to="/app" replace />} />
     </Routes>
   )

@@ -12,6 +12,7 @@ from .filters import (
     CreditNoteFilter,
     FeeInvoiceFilter,
     FeeStructureFilter,
+    PaymentIntentFilter,
     ReceiptFilter,
 )
 from .models import (
@@ -21,6 +22,7 @@ from .models import (
     FeeCategory,
     FeeInvoice,
     FeeStructure,
+    PaymentIntent,
     Receipt,
 )
 from .serializers import (
@@ -30,6 +32,7 @@ from .serializers import (
     FeeCategorySerializer,
     FeeInvoiceSerializer,
     FeeStructureSerializer,
+    PaymentIntentSerializer,
     ReceiptCreateSerializer,
     ReceiptSerializer,
 )
@@ -177,3 +180,42 @@ class ReceiptViewSet(FeesViewSet):
         services.reverse_receipt(receipt, reason=request.data.get('reason', ''), user=request.user)
         receipt.refresh_from_db()
         return Response(self.get_serializer(receipt).data)
+
+
+class PaymentIntentViewSet(TenantScopedViewSet, viewsets.ReadOnlyModelViewSet):
+    """Bursar queue of portal-declared payments. Read-only + confirm/reject
+    actions; confirming posts a real receipt via the standard fee service."""
+
+    queryset = (
+        PaymentIntent.objects.select_related('student', 'guardian', 'receipt', 'submitted_by')
+        .all()
+    )
+    serializer_class = PaymentIntentSerializer
+    permission_classes = [RoleWritePermission]
+    write_area = 'fees'
+    filterset_class = PaymentIntentFilter
+    search_fields = ['student__code', 'student__first_name', 'student__last_name', 'reference']
+    ordering_fields = '__all__'
+
+    @action(detail=True, methods=['post'])
+    def confirm(self, request, pk=None):
+        from apps.accounting.models import BankAccount
+
+        intent = self.get_object()
+        bank_id = request.data.get('bank_account')
+        bank = BankAccount.objects.filter(pk=bank_id, school=intent.school).first() if bank_id else None
+        if bank is None:
+            return Response(
+                {'detail': 'Choose a bank account in this school to receipt the payment into.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        intent.confirm(bank_account=bank, date=request.data.get('date') or None, user=request.user)
+        intent.refresh_from_db()
+        return Response(self.get_serializer(intent).data)
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        intent = self.get_object()
+        intent.reject(reason=request.data.get('reason', ''), user=request.user)
+        intent.refresh_from_db()
+        return Response(self.get_serializer(intent).data)

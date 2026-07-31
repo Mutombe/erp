@@ -8,7 +8,7 @@ import { CaretLeft, Lock, Envelope, Warning } from '@phosphor-icons/react'
 import SchoolAvatar from '@/components/SchoolAvatar'
 import { Button, Input } from '@/components/ui'
 import { authApi, publicApi } from '@/services/api'
-import { useAuthStore, type Me, type SchoolSummary } from '@/stores/authStore'
+import { useAuthStore, isPortalRole, type Me, type SchoolSummary } from '@/stores/authStore'
 import { showToast, parseApiError } from '@/lib/toast'
 
 const loginSchema = z.object({
@@ -187,7 +187,9 @@ export default function Login() {
 
   const handleSuccess = (me: Me) => {
     setSession(me)
-    navigate('/app', { replace: true })
+    // Guardians and students land in the light family portal; staff go to the
+    // back office.
+    navigate(isPortalRole(me.role) ? '/portal' : '/app', { replace: true })
   }
 
   return (

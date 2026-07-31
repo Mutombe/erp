@@ -14,6 +14,7 @@ from .models import (
     FeeInvoice,
     FeeInvoiceLine,
     FeeStructure,
+    PaymentIntent,
     Receipt,
     ReceiptAllocation,
 )
@@ -238,6 +239,26 @@ class ReceiptSerializer(serializers.ModelSerializer):
             'number', 'currency', 'exchange_rate', 'status', 'journal',
             'unallocated_amount', 'created_by', 'created_at',
         ]
+
+
+class PaymentIntentSerializer(serializers.ModelSerializer):
+    """Back-office view of a portal-declared payment awaiting a bursar."""
+
+    student_code = serializers.CharField(source='student.code', read_only=True)
+    student_name = serializers.CharField(source='student.full_name', read_only=True)
+    guardian_name = serializers.CharField(source='guardian.full_name', read_only=True)
+    receipt_number = serializers.CharField(source='receipt.number', read_only=True)
+    submitted_by_email = serializers.CharField(source='submitted_by.email', read_only=True)
+
+    class Meta:
+        model = PaymentIntent
+        fields = [
+            'id', 'student', 'student_code', 'student_name', 'guardian', 'guardian_name',
+            'date', 'currency', 'amount', 'payment_method', 'reference', 'note', 'status',
+            'receipt', 'receipt_number', 'review_note', 'submitted_by', 'submitted_by_email',
+            'reviewed_by', 'reviewed_at', 'created_at',
+        ]
+        read_only_fields = fields
 
 
 class ReceiptAllocationInput(serializers.Serializer):

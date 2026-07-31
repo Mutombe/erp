@@ -10,5 +10,6 @@ router.register('billing-runs', views.BillingRunViewSet)
 router.register('invoices', views.FeeInvoiceViewSet)
 router.register('credit-notes', views.CreditNoteViewSet)
 router.register('receipts', views.ReceiptViewSet)
+router.register('payment-intents', views.PaymentIntentViewSet)
 
 urlpatterns = router.urls

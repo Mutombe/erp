@@ -15,6 +15,14 @@ export interface User {
   extra_schools?: number[]
 }
 
+/** Portal (family-facing) roles — routed to /portal instead of the back office. */
+export const PORTAL_ROLES = ['guardian_portal', 'student_portal'] as const
+
+/** True when a user's role belongs to the guardian/student portal audience. */
+export function isPortalRole(role: string | null | undefined): boolean {
+  return !!role && (PORTAL_ROLES as readonly string[]).includes(role)
+}
+
 /** Lightweight school card shared by the picker, login response and switcher. */
 export interface SchoolSummary {
   id: number

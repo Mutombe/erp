@@ -8,6 +8,7 @@ from .models import (
     CreditNote,
     FeeInvoice,
     FeeStructure,
+    PaymentIntent,
     Receipt,
 )
 
@@ -123,3 +124,20 @@ class ReceiptFilter(filters.FilterSet):
     class Meta:
         model = Receipt
         fields = ['student', 'bank_account', 'currency', 'status', 'payment_method', 'payer_guardian']
+
+
+class PaymentIntentFilter(filters.FilterSet):
+    status__in = CharInFilter(field_name='status', lookup_expr='in')
+    student__in = NumberInFilter(field_name='student', lookup_expr='in')
+    currency__in = CharInFilter(field_name='currency', lookup_expr='in')
+    payment_method__in = CharInFilter(field_name='payment_method', lookup_expr='in')
+    date__gte = filters.DateFilter(field_name='date', lookup_expr='gte')
+    date__lte = filters.DateFilter(field_name='date', lookup_expr='lte')
+    created_at__gte = filters.DateFilter(field_name='created_at', lookup_expr='gte')
+    created_at__lte = filters.DateFilter(field_name='created_at', lookup_expr='lte')
+    amount__gte = filters.NumberFilter(field_name='amount', lookup_expr='gte')
+    amount__lte = filters.NumberFilter(field_name='amount', lookup_expr='lte')
+
+    class Meta:
+        model = PaymentIntent
+        fields = ['student', 'guardian', 'currency', 'status', 'payment_method']

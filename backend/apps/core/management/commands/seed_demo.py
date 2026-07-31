@@ -232,6 +232,8 @@ class Command(BaseCommand):
         self._bursaries()
         self._billing()
         self._receipts()
+        self._attendance()
+        self._portal_accounts()
         self._credit_notes()
         self._procurement()
         self._stock_issues()
@@ -563,6 +565,96 @@ class Command(BaseCommand):
                 receipts += 1
         self.counts['receipts'] = receipts
 
+    def _attendance(self):
+        """Daily registers for the last ~3 school weeks so the attendance module,
+        its reports and the family portal all have realistic data to show."""
+        from apps.attendance.models import AttendanceRecord, AttendanceSession
+        from apps.students.models import Enrollment
+
+        # Weekdays in a recent window (Term 2).
+        window_start = date(2026, 6, 15)
+        school_days = []
+        day = window_start
+        while len(school_days) < 15:
+            if day.weekday() < 5:  # Mon–Fri
+                school_days.append(day)
+            day += timedelta(days=1)
+
+        by_class = {}
+        for enr in Enrollment.objects.filter(
+            academic_year=self.year, status='active', student__school=self.school
+        ).select_related('student', 'class_room'):
+            by_class.setdefault(enr.class_room, []).append(enr.student)
+
+        sessions = records = 0
+        for room, students in by_class.items():
+            for d in school_days:
+                session = AttendanceSession.objects.create(
+                    school=self.school, class_room=room, date=d, session='full_day',
+                )
+                sessions += 1
+                for student in students:
+                    roll = self.rng.random()
+                    if roll < 0.88:
+                        st = 'present'
+                    elif roll < 0.94:
+                        st = 'absent'
+                    elif roll < 0.98:
+                        st = 'late'
+                    else:
+                        st = 'excused'
+                    AttendanceRecord.objects.create(session=session, student=student, status=st)
+                    records += 1
+        self.counts['attendance_sessions'] = sessions
+        self.counts['attendance_records'] = records
+
+    def _portal_accounts(self):
+        """Wire up demo family-portal logins: one guardian (with the most
+        children, to show multiple students) and one enrolled student."""
+        from django.db.models import Count
+
+        from apps.core.models import Roles, User
+        from apps.students.models import Guardian, Student
+
+        def upsert_portal_user(email, first_name, last_name, role):
+            """Idempotent: --reset keeps User rows (to preserve the admin), so
+            re-seeding must reuse the existing demo login rather than collide."""
+            user, _ = User.objects.update_or_create(
+                email=email,
+                defaults={
+                    'first_name': first_name, 'last_name': last_name,
+                    'role': role, 'home_school': self.school, 'is_active': True,
+                },
+            )
+            user.set_password('demo1234')
+            user.save(update_fields=['password'])
+            return user
+
+        guardian = (
+            Guardian.objects.filter(school=self.school)
+            .annotate(n=Count('students')).filter(n__gte=1).order_by('-n').first()
+        )
+        if guardian is not None:
+            guardian.user = upsert_portal_user(
+                'parent.demo@oceanwaves.school', guardian.first_name, guardian.last_name,
+                Roles.GUARDIAN_PORTAL,
+            )
+            guardian.save(update_fields=['user'])
+
+        student = (
+            Student.objects.filter(school=self.school, status='enrolled')
+            .order_by('code').first()
+        )
+        if student is not None:
+            student.user = upsert_portal_user(
+                'student.demo@oceanwaves.school', student.first_name, student.last_name,
+                Roles.STUDENT_PORTAL,
+            )
+            student.save(update_fields=['user'])
+        self.counts['portal_accounts'] = User.objects.filter(
+            role__in=[Roles.GUARDIAN_PORTAL, Roles.STUDENT_PORTAL]
+        ).count()
+
     def _credit_notes(self):
         from apps.core.models import DocumentSequence
         from apps.fees.models import CreditNote, CreditNoteLine, FeeCategory, FeeInvoice
@@ -828,6 +920,9 @@ class Command(BaseCommand):
             ('  - applicants', self.counts.get('applicants')),
             ('Guardians', self.counts.get('guardians')),
             ('  - sibling reuse', self.sibling_reuse),
+            ('Portal accounts', self.counts.get('portal_accounts')),
+            ('Attendance sessions', self.counts.get('attendance_sessions')),
+            ('Attendance records', self.counts.get('attendance_records')),
             ('Fee invoices', self.counts.get('invoices')),
             ('Receipts', self.counts.get('receipts')),
             ('Credit notes', self.counts.get('credit_notes')),

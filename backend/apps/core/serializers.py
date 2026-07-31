@@ -27,12 +27,18 @@ class UserSerializer(serializers.ModelSerializer):
     # Accepts {'id': <existing teacher>} to link, or profile fields to create.
     teacher_profile = serializers.DictField(write_only=True, required=False)
     teacher = serializers.SerializerMethodField(read_only=True)
+    # Portal onboarding: link an existing Guardian/Student to this login account,
+    # e.g. {'id': <guardian id>} on a guardian_portal user.
+    link_guardian = serializers.DictField(write_only=True, required=False)
+    link_student = serializers.DictField(write_only=True, required=False)
+    portal_profile = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'full_name', 'phone', 'role', 'is_active',
             'home_school', 'is_hq', 'extra_schools', 'password', 'teacher_profile', 'teacher',
+            'link_guardian', 'link_student', 'portal_profile',
         ]
         read_only_fields = ['full_name']
 
@@ -42,25 +48,54 @@ class UserSerializer(serializers.ModelSerializer):
             return None
         return {'id': teacher.id, 'code': teacher.code, 'name': teacher.full_name, 'school': teacher.school_id}
 
+    def get_portal_profile(self, obj):
+        guardian = obj.guardian_profiles.first()
+        if guardian is not None:
+            return {'kind': 'guardian', 'id': guardian.id, 'name': guardian.full_name, 'school': guardian.school_id}
+        student = obj.student_profiles.first()
+        if student is not None:
+            return {'kind': 'student', 'id': student.id, 'name': student.full_name, 'school': student.school_id}
+        return None
+
     def create(self, validated_data):
         password = validated_data.pop('password', None)
         extra_schools = validated_data.pop('extra_schools', [])
         teacher_profile = validated_data.pop('teacher_profile', None)
+        link_guardian = validated_data.pop('link_guardian', None)
+        link_student = validated_data.pop('link_student', None)
         user = User.objects.create_user(email=validated_data.pop('email'), password=password, **validated_data)
         if extra_schools:
             user.extra_schools.set(extra_schools)
         self._sync_teacher(user, teacher_profile)
+        self._sync_portal(user, link_guardian, link_student)
         return user
 
     def update(self, instance, validated_data):
         password = validated_data.pop('password', None)
         teacher_profile = validated_data.pop('teacher_profile', None)
+        link_guardian = validated_data.pop('link_guardian', None)
+        link_student = validated_data.pop('link_student', None)
         user = super().update(instance, validated_data)
         if password:
             user.set_password(password)
             user.save(update_fields=['password'])
         self._sync_teacher(user, teacher_profile)
+        self._sync_portal(user, link_guardian, link_student)
         return user
+
+    def _sync_portal(self, user, link_guardian, link_student):
+        from apps.students.models import Guardian, Student
+
+        if link_guardian and link_guardian.get('id'):
+            guardian = Guardian.objects.filter(id=link_guardian['id']).first()
+            if guardian is not None:
+                guardian.user = user
+                guardian.save(update_fields=['user'])
+        if link_student and link_student.get('id'):
+            student = Student.objects.filter(id=link_student['id']).first()
+            if student is not None:
+                student.user = user
+                student.save(update_fields=['user'])
 
     def _sync_teacher(self, user, teacher_profile):
         if not teacher_profile:

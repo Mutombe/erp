@@ -109,6 +109,9 @@ class Guardian(models.Model):
     address = models.TextField(blank=True)
     national_id = models.CharField(max_length=30, blank=True)
     employer = models.CharField(max_length=200, blank=True)
+    user = models.ForeignKey(
+        'core.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='guardian_profiles'
+    )  # optional portal login account for this guardian
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -152,6 +155,9 @@ class Student(models.Model):
     photo = models.ImageField(upload_to='students/', null=True, blank=True)
     medical_notes = models.TextField(blank=True)
     guardians = models.ManyToManyField(Guardian, through='StudentGuardian', related_name='students')
+    user = models.ForeignKey(
+        'core.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='student_profiles'
+    )  # optional portal login account for this student
     custom_fields = models.JSONField(default=dict, blank=True)  # Studio-style extension point
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
