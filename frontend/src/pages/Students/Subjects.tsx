@@ -8,6 +8,7 @@ import { qk } from '@/lib/queryKeys'
 import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import { useOptimisticCreate, useOptimisticUpdate } from '@/hooks/useOptimisticMutation'
+import { useCan } from '@/hooks/useCan'
 import {
   Badge,
   Button,
@@ -38,6 +39,8 @@ export default function Subjects() {
   const [page, setPage] = useState(1)
   const [editing, setEditing] = useState<Subject | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const canCreate = useCan('students', 'create')
+  const canEdit = useCan('students', 'edit')
 
   const filterSignature = JSON.stringify(filters.params)
   useEffect(() => {
@@ -65,16 +68,17 @@ export default function Subjects() {
       key: 'actions',
       header: '',
       align: 'right',
-      render: (s) => (
-        <IconButton
-          icon={PencilSimple}
-          aria-label="Edit subject"
-          onClick={(e) => {
-            e.stopPropagation()
-            setEditing(s)
-          }}
-        />
-      ),
+      render: (s) =>
+        canEdit ? (
+          <IconButton
+            icon={PencilSimple}
+            aria-label="Edit subject"
+            onClick={(e) => {
+              e.stopPropagation()
+              setEditing(s)
+            }}
+          />
+        ) : null,
     },
   ]
 
@@ -85,9 +89,11 @@ export default function Subjects() {
         description="Subjects taught across the school"
         icon={BookBookmark}
         actions={
-          <Button onClick={() => setShowCreate(true)}>
-            <Plus className="w-4 h-4 mr-2" /> New Subject
-          </Button>
+          canCreate ? (
+            <Button onClick={() => setShowCreate(true)}>
+              <Plus className="w-4 h-4 mr-2" /> New Subject
+            </Button>
+          ) : undefined
         }
       />
 

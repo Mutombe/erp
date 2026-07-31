@@ -6,6 +6,7 @@ import { qk } from '@/lib/queryKeys'
 import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
+import { useCan } from '@/hooks/useCan'
 import {
   Button,
   DataTable,
@@ -49,6 +50,7 @@ export default function Students() {
   const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
   const [showCreate, setShowCreate] = useState(false)
+  const canCreate = useCan('students', 'create')
 
   // Any filter change returns to page 1 (keepPreviousData keeps the old rows on
   // screen so this never blanks the table).
@@ -108,9 +110,11 @@ export default function Students() {
         description="Admissions register — every learner and their fee position"
         icon={GraduationCap}
         actions={
-          <Button onClick={() => setShowCreate(true)}>
-            <Plus className="w-4 h-4 mr-2" /> New Student
-          </Button>
+          canCreate ? (
+            <Button onClick={() => setShowCreate(true)}>
+              <Plus className="w-4 h-4 mr-2" /> New Student
+            </Button>
+          ) : undefined
         }
       />
 

@@ -27,6 +27,10 @@ export const qk = {
     me: ['auth', 'me'] as QueryKey,
   },
   users: entityKeys('users'),
+  permissionSchema: ['permissionSchema'] as QueryKey,
+  roleMatrix: (school: Id, role: string) =>
+    ['roleMatrix', school, role] as QueryKey,
+  userOverrides: (userId: Id) => ['userOverrides', userId] as QueryKey,
   settings: entityKeys('settings'),
   sequences: entityKeys('sequences'),
   auditTrail: entityKeys('auditTrail'),

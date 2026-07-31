@@ -13,6 +13,7 @@ import {
 } from '@phosphor-icons/react'
 import { classesApi, subjectsApi, teachersApi, teachingAssignmentsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
+import { useCan } from '@/hooks/useCan'
 import { formatDate } from '@/lib/utils'
 import RecordLink from '@/components/RecordLink'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -40,6 +41,7 @@ export default function TeacherDetail() {
   const { id } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
   const [editOpen, setEditOpen] = useState(false)
+  const canEdit = useCan('students', 'edit')
   const tabParam = searchParams.get('tab') ?? ''
   const initialTab = (TABS as readonly string[]).includes(tabParam) ? tabParam : 'classes'
 
@@ -66,9 +68,11 @@ export default function TeacherDetail() {
         actions={
           <div className="flex items-center gap-3">
             <StatusBadge status={teacher.status} />
-            <Button variant="secondary" onClick={() => setEditOpen(true)}>
-              <PencilSimple className="w-4 h-4 mr-2" /> Edit
-            </Button>
+            {canEdit && (
+              <Button variant="secondary" onClick={() => setEditOpen(true)}>
+                <PencilSimple className="w-4 h-4 mr-2" /> Edit
+              </Button>
+            )}
           </div>
         }
       />
@@ -171,6 +175,8 @@ function ClassesTab({ teacher }: { teacher: Teacher }) {
 
 function AssignmentsTab({ teacher }: { teacher: Teacher }) {
   const queryClient = useQueryClient()
+  const canCreate = useCan('students', 'create')
+  const canDelete = useCan('students', 'delete')
   const [classRoom, setClassRoom] = useState('')
   const [subject, setSubject] = useState('')
   const [formClass, setFormClass] = useState('')
@@ -255,13 +261,15 @@ function AssignmentsTab({ teacher }: { teacher: Teacher }) {
                     </RecordLink>
                   </td>
                   <td className="px-4 py-2.5 text-right">
-                    <IconButton
-                      icon={Trash}
-                      aria-label="Remove assignment"
-                      variant="ghost"
-                      className="text-red-500 hover:text-red-600"
-                      onClick={() => removeMutation.mutate(a.id)}
-                    />
+                    {canDelete && (
+                      <IconButton
+                        icon={Trash}
+                        aria-label="Remove assignment"
+                        variant="ghost"
+                        className="text-red-500 hover:text-red-600"
+                        onClick={() => removeMutation.mutate(a.id)}
+                      />
+                    )}
                   </td>
                 </tr>
               ))}
@@ -289,13 +297,15 @@ function AssignmentsTab({ teacher }: { teacher: Teacher }) {
               ))}
             </Select>
           </div>
-          <Button
-            onClick={() => addMutation.mutate()}
-            loading={addMutation.isPending}
-            disabled={!classRoom || !subject}
-          >
-            <Plus className="w-4 h-4 mr-2" /> Add assignment
-          </Button>
+          {canCreate && (
+            <Button
+              onClick={() => addMutation.mutate()}
+              loading={addMutation.isPending}
+              disabled={!classRoom || !subject}
+            >
+              <Plus className="w-4 h-4 mr-2" /> Add assignment
+            </Button>
+          )}
         </div>
       </section>
 

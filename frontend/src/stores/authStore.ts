@@ -24,12 +24,16 @@ export interface SchoolSummary {
   logo: string | null
 }
 
+/** Effective permission matrix: `permissions[module][action] === true` when allowed. */
+export type PermissionMatrix = Record<string, Record<string, boolean>>
+
 /** The extended `me` payload returned by login / me / switch-school. */
 export interface Me extends User {
   is_hq: boolean
   home_school: number | null
   accessible_schools: SchoolSummary[]
   active_school: SchoolSummary | null
+  permissions: PermissionMatrix
 }
 
 interface AuthState {
@@ -39,6 +43,8 @@ interface AuthState {
   /** The active school; null means "Golden Knot — all schools" (HQ). */
   activeSchool: SchoolSummary | null
   accessibleSchools: SchoolSummary[]
+  /** Effective {module: {action: bool}} matrix for the active school. */
+  permissions: PermissionMatrix
   /** Populate the whole session from a `me`-shaped payload. */
   setSession: (me: Me) => void
   setActiveSchool: (school: SchoolSummary | null) => void
@@ -53,6 +59,7 @@ export const useAuthStore = create<AuthState>()(
       isHq: false,
       activeSchool: null,
       accessibleSchools: [],
+      permissions: {},
       setSession: (me) =>
         set({
           user: me,
@@ -60,6 +67,7 @@ export const useAuthStore = create<AuthState>()(
           isHq: !!me?.is_hq,
           activeSchool: me?.active_school ?? null,
           accessibleSchools: me?.accessible_schools ?? [],
+          permissions: me?.permissions ?? {},
         }),
       setActiveSchool: (school) => set({ activeSchool: school }),
       logout: () =>
@@ -69,6 +77,7 @@ export const useAuthStore = create<AuthState>()(
           isHq: false,
           activeSchool: null,
           accessibleSchools: [],
+          permissions: {},
         }),
     }),
     {

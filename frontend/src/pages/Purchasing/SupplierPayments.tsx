@@ -10,6 +10,7 @@ import { qk } from '@/lib/queryKeys'
 import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
+import { useCan } from '@/hooks/useCan'
 import { showToast, parseApiError } from '@/lib/toast'
 import {
   Button,
@@ -156,6 +157,7 @@ function PaymentFormModal({ open, onClose }: { open: boolean; onClose: () => voi
 
 export default function SupplierPayments() {
   const navigate = useNavigate()
+  const canCreate = useCan('procurement', 'create')
   const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
@@ -223,11 +225,11 @@ export default function SupplierPayments() {
         title="Supplier Payments"
         description="Payments to vendors, auto-allocated to their oldest open bills"
         icon={Wallet}
-        actions={
+        actions={canCreate ? (
           <Button onClick={() => setModalOpen(true)}>
             <Plus className="w-4 h-4 mr-2" /> New Payment
           </Button>
-        }
+        ) : undefined}
       />
 
       <FilterBar config={FILTER_CONFIG} filters={filters} />

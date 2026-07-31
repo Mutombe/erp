@@ -5,6 +5,7 @@ import { Calculator, Play, ArrowCounterClockwise } from '@phosphor-icons/react'
 import { depreciationRunsApi, fiscalYearsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
+import { useCan } from '@/hooks/useCan'
 import {
   Button,
   ConfirmDialog,
@@ -23,6 +24,7 @@ const money = (v: string | number) =>
 
 export default function DepreciationPanel() {
   const queryClient = useQueryClient()
+  const canPost = useCan('assets', 'post')
   const [periodId, setPeriodId] = useState('')
   const [confirmRun, setConfirmRun] = useState(false)
   const [reverseTarget, setReverseTarget] = useState<DepreciationRun | null>(null)
@@ -99,9 +101,11 @@ export default function DepreciationPanel() {
                 onChange={(e) => setPeriodId(e.target.value)}
               />
             </div>
-            <Button disabled={!periodId} onClick={() => setConfirmRun(true)} loading={runMutation.isPending}>
-              <Play className="w-4 h-4 mr-2" /> Run depreciation
-            </Button>
+            {canPost && (
+              <Button disabled={!periodId} onClick={() => setConfirmRun(true)} loading={runMutation.isPending}>
+                <Play className="w-4 h-4 mr-2" /> Run depreciation
+              </Button>
+            )}
           </div>
         }
       />
@@ -145,7 +149,7 @@ export default function DepreciationPanel() {
                         ) : '—'}
                       </td>
                       <td className="px-4 py-2.5 text-right">
-                        {run.status === 'posted' && (
+                        {canPost && run.status === 'posted' && (
                           <Button size="sm" variant="secondary" onClick={() => setReverseTarget(run)}>
                             <ArrowCounterClockwise className="w-3.5 h-3.5 mr-1.5" /> Reverse
                           </Button>

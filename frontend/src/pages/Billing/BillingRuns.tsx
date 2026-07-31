@@ -6,6 +6,7 @@ import { qk } from '@/lib/queryKeys'
 import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
+import { useCan } from '@/hooks/useCan'
 import { Button, DataTable, FilterBar, PageHeader, RefreshingOverlay, StatusBadge, refreshingContentClass, type Column } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import { fmtMoney, type BillingRun } from '@/types/fees'
@@ -46,6 +47,7 @@ export default function BillingRuns() {
   const navigate = useNavigate()
   const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
+  const canCreate = useCan('fees', 'create')
 
   const filterSignature = JSON.stringify(filters.params)
   useEffect(() => {
@@ -84,9 +86,11 @@ export default function BillingRuns() {
         description="Bulk termly invoicing — preview, then execute to post fee invoices"
         icon={PlayCircle}
         actions={
-          <Button onClick={() => navigate('/app/billing-runs/new')}>
-            <Plus className="w-4 h-4 mr-2" /> New Billing Run
-          </Button>
+          canCreate ? (
+            <Button onClick={() => navigate('/app/billing-runs/new')}>
+              <Plus className="w-4 h-4 mr-2" /> New Billing Run
+            </Button>
+          ) : undefined
         }
       />
 

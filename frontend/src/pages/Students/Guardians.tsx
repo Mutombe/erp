@@ -6,6 +6,7 @@ import { qk } from '@/lib/queryKeys'
 import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
+import { useCan } from '@/hooks/useCan'
 import {
   Button,
   DataTable,
@@ -32,6 +33,8 @@ export default function Guardians() {
   const [page, setPage] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Guardian | null>(null)
+  const canCreate = useCan('students', 'create')
+  const canEdit = useCan('students', 'edit')
 
   const filterSignature = JSON.stringify(filters.params)
   useEffect(() => {
@@ -72,19 +75,20 @@ export default function Guardians() {
       key: 'actions',
       header: '',
       align: 'right',
-      render: (g) => (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            setEditing(g)
-            setModalOpen(true)
-          }}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-800"
-          title="Edit guardian"
-        >
-          <PencilSimple className="w-4 h-4" />
-        </button>
-      ),
+      render: (g) =>
+        canEdit ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setEditing(g)
+              setModalOpen(true)
+            }}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-800"
+            title="Edit guardian"
+          >
+            <PencilSimple className="w-4 h-4" />
+          </button>
+        ) : null,
     },
   ]
 
@@ -95,9 +99,11 @@ export default function Guardians() {
         description="Parents and guardians — billing contacts for student accounts"
         icon={Users}
         actions={
-          <Button onClick={() => { setEditing(null); setModalOpen(true) }}>
-            <Plus className="w-4 h-4 mr-2" /> New Guardian
-          </Button>
+          canCreate ? (
+            <Button onClick={() => { setEditing(null); setModalOpen(true) }}>
+              <Plus className="w-4 h-4 mr-2" /> New Guardian
+            </Button>
+          ) : undefined
         }
       />
 

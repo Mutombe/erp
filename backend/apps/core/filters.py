@@ -20,7 +20,7 @@ class UserFilter(filters.FilterSet):
 
     class Meta:
         model = User
-        fields = ['role', 'is_active', 'is_staff', 'is_superuser']
+        fields = ['role', 'is_active', 'is_staff', 'is_superuser', 'home_school', 'is_hq']
 
 
 class AuditTrailFilter(filters.FilterSet):

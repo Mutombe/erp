@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { CheckCircle, FileText } from '@phosphor-icons/react'
 import { supplierPaymentsApi, vendorBillsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
+import { useCan } from '@/hooks/useCan'
 import { showToast, parseApiError } from '@/lib/toast'
 import {
   Button,
@@ -21,6 +22,7 @@ import { money, type SupplierPayment, type VendorBill } from '@/types/procuremen
 export default function VendorBillDetail() {
   const { id } = useParams()
   const queryClient = useQueryClient()
+  const canPost = useCan('procurement', 'post')
   const [confirmPost, setConfirmPost] = useState(false)
 
   const { data: bill, isFetching } = useQuery({
@@ -77,7 +79,7 @@ export default function VendorBillDetail() {
         actions={
           <div className="flex items-center gap-3">
             <StatusBadge status={bill.status} />
-            {bill.status === 'draft' && (
+            {canPost && bill.status === 'draft' && (
               <Button onClick={() => setConfirmPost(true)} loading={postMutation.isPending}>
                 <CheckCircle className="w-4 h-4 mr-2" /> Post
               </Button>

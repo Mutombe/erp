@@ -23,30 +23,66 @@ class SchoolSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, style={'input_type': 'password'})
+    # Onboarding: create-or-link a students.Teacher for teacher-role users.
+    # Accepts {'id': <existing teacher>} to link, or profile fields to create.
+    teacher_profile = serializers.DictField(write_only=True, required=False)
+    teacher = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'full_name', 'phone', 'role', 'is_active',
-            'home_school', 'is_hq', 'extra_schools', 'password',
+            'home_school', 'is_hq', 'extra_schools', 'password', 'teacher_profile', 'teacher',
         ]
         read_only_fields = ['full_name']
+
+    def get_teacher(self, obj):
+        teacher = obj.teacher_profiles.first()
+        if teacher is None:
+            return None
+        return {'id': teacher.id, 'code': teacher.code, 'name': teacher.full_name, 'school': teacher.school_id}
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)
         extra_schools = validated_data.pop('extra_schools', [])
+        teacher_profile = validated_data.pop('teacher_profile', None)
         user = User.objects.create_user(email=validated_data.pop('email'), password=password, **validated_data)
         if extra_schools:
             user.extra_schools.set(extra_schools)
+        self._sync_teacher(user, teacher_profile)
         return user
 
     def update(self, instance, validated_data):
         password = validated_data.pop('password', None)
+        teacher_profile = validated_data.pop('teacher_profile', None)
         user = super().update(instance, validated_data)
         if password:
             user.set_password(password)
             user.save(update_fields=['password'])
+        self._sync_teacher(user, teacher_profile)
         return user
+
+    def _sync_teacher(self, user, teacher_profile):
+        if not teacher_profile:
+            return
+        from apps.students.models import Teacher
+
+        teacher_id = teacher_profile.get('id')
+        if teacher_id:
+            teacher = Teacher.objects.filter(id=teacher_id).first()
+            if teacher is not None:
+                teacher.user = user
+                teacher.save(update_fields=['user'])
+            return
+        school = user.home_school or School.get_default()
+        Teacher.objects.create(
+            school=school,
+            first_name=teacher_profile.get('first_name') or user.first_name,
+            last_name=teacher_profile.get('last_name') or user.last_name,
+            email=teacher_profile.get('email') or user.email,
+            phone=teacher_profile.get('phone', ''),
+            user=user,
+        )
 
 
 class SchoolSummarySerializer(serializers.ModelSerializer):

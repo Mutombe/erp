@@ -5,6 +5,7 @@ import { Eye, PlayCircle, Lightning } from '@phosphor-icons/react'
 import { billingRunsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
+import { useCan } from '@/hooks/useCan'
 import {
   Badge,
   Button,
@@ -31,6 +32,7 @@ export default function BillingRunDetail() {
   const queryClient = useQueryClient()
   const [preview, setPreview] = useState<BillingPreview | null>(null)
   const [confirmExecute, setConfirmExecute] = useState(false)
+  const canPost = useCan('fees', 'post')
 
   const { data: run, isFetching, refetch } = useQuery({
     queryKey: qk.billingRuns.detail(id!),
@@ -81,7 +83,7 @@ export default function BillingRunDetail() {
         actions={
           <div className="flex items-center gap-3">
             <StatusBadge status={run.status} />
-            {canAct && (
+            {canPost && canAct && (
               <>
                 <Button
                   variant="secondary"

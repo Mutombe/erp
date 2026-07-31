@@ -6,6 +6,7 @@ import { qk } from '@/lib/queryKeys'
 import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
+import { useCan } from '@/hooks/useCan'
 import {
   Button,
   DataTable,
@@ -60,6 +61,7 @@ export default function Journals() {
   const navigate = useNavigate()
   const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
+  const canCreate = useCan('accounting', 'create')
 
   // Any filter change returns to page 1 (keepPreviousData keeps the old rows on
   // screen so this never blanks the table).
@@ -100,9 +102,11 @@ export default function Journals() {
         description="Every posting in the system — documents and manual journals"
         icon={Scroll}
         actions={
-          <Button onClick={() => navigate('/app/journals/new')}>
-            <Plus className="w-4 h-4 mr-2" /> Manual Journal
-          </Button>
+          canCreate ? (
+            <Button onClick={() => navigate('/app/journals/new')}>
+              <Plus className="w-4 h-4 mr-2" /> Manual Journal
+            </Button>
+          ) : undefined
         }
       />
 

@@ -135,6 +135,47 @@ BANKS = [
 ]
 
 
+def seed_permissions(school):
+    """Idempotently seed the editable permission matrix for `school`, reproducing
+    the pre-matrix role gating EXACTLY: admins get everything; the historical
+    write roles keep their per-module writes; every non-portal role reads/exports
+    everything; the users module stays admin-only. Existing (possibly edited)
+    rows are never overwritten."""
+    from apps.core.models import Actions, Modules, RolePermission, Roles
+    from apps.core.permissions import DEFAULT_ALLOWED_ACTIONS, WRITE_ACTIONS, WRITE_ROLES
+
+    all_actions = [value for value, _ in Actions.choices]
+    all_modules = [value for value, _ in Modules.choices]
+    non_portal_roles = [
+        Roles.ADMIN, Roles.BURSAR, Roles.ACCOUNTS_CLERK, Roles.HEAD,
+        Roles.STOREKEEPER, Roles.TEACHER, Roles.AUDITOR,
+    ]
+
+    rows = []
+    for role in non_portal_roles:
+        for module in all_modules:
+            for action in all_actions:
+                if role == Roles.ADMIN:
+                    allowed = True
+                elif module == 'users':
+                    # Users & permissions administration is admin-only, top to
+                    # bottom (mirrors the old IsAdmin-gated users endpoint).
+                    allowed = False
+                elif action in DEFAULT_ALLOWED_ACTIONS:
+                    allowed = True
+                elif action in WRITE_ACTIONS:
+                    allowed = role in WRITE_ROLES.get(module, set())
+                else:
+                    allowed = False
+                rows.append((role, module, action, allowed))
+
+    for role, module, action, allowed in rows:
+        RolePermission.objects.get_or_create(
+            school=school, role=role, module=module, action=action,
+            defaults={'allowed': allowed},
+        )
+
+
 def provision_school(school):
     """Idempotently build out `school`'s COA, mappings, sequences, fiscal
     calendar, banks and the shared catalog. Returns the AcademicYear used."""
@@ -251,5 +292,8 @@ def provision_school(school):
         changed = True
     if changed:
         school.save(update_fields=['current_academic_year', 'statement_footer'])
+
+    # Per-school editable permission matrix (seeded to reproduce today's gating).
+    seed_permissions(school)
 
     return year

@@ -10,6 +10,7 @@ import { qk } from '@/lib/queryKeys'
 import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
+import { useCan } from '@/hooks/useCan'
 import { showToast, parseApiError } from '@/lib/toast'
 import {
   Badge,
@@ -131,6 +132,8 @@ function CategoryFormModal({ open, onClose }: { open: boolean; onClose: () => vo
 
 export default function Items() {
   const navigate = useNavigate()
+  const canCreate = useCan('inventory', 'create')
+  const canEdit = useCan('inventory', 'edit')
   const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
   const [itemModalOpen, setItemModalOpen] = useState(false)
@@ -191,6 +194,7 @@ export default function Items() {
       header: '',
       align: 'right',
       render: (i) => (
+        canEdit ? (
         <button
           onClick={(e) => {
             e.stopPropagation()
@@ -202,6 +206,7 @@ export default function Items() {
         >
           <PencilSimple className="w-4 h-4" />
         </button>
+        ) : null
       ),
     },
   ]
@@ -214,12 +219,16 @@ export default function Items() {
         icon={Package}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={() => setCategoryModalOpen(true)}>
-              <FolderPlus className="w-4 h-4 mr-2" /> New Category
-            </Button>
-            <Button onClick={() => { setEditItem(null); setItemModalOpen(true) }}>
-              <Plus className="w-4 h-4 mr-2" /> New Item
-            </Button>
+            {canCreate && (
+              <Button variant="secondary" onClick={() => setCategoryModalOpen(true)}>
+                <FolderPlus className="w-4 h-4 mr-2" /> New Category
+              </Button>
+            )}
+            {canCreate && (
+              <Button onClick={() => { setEditItem(null); setItemModalOpen(true) }}>
+                <Plus className="w-4 h-4 mr-2" /> New Item
+              </Button>
+            )}
           </div>
         }
       />

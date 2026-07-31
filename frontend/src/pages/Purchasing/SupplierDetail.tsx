@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { FileText, Plus, ShoppingCart, Truck, Wallet } from '@phosphor-icons/react'
 import { purchaseOrdersApi, suppliersApi, supplierPaymentsApi, vendorBillsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
+import { useCan } from '@/hooks/useCan'
 import {
   Badge,
   Button,
@@ -22,6 +23,7 @@ import { PoStatusBadge } from './PurchaseOrders'
 export default function SupplierDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const canCreate = useCan('procurement', 'create')
   const [poPage, setPoPage] = useState(1)
   const [billPage, setBillPage] = useState(1)
   const [paymentPage, setPaymentPage] = useState(1)
@@ -101,9 +103,11 @@ export default function SupplierDetail() {
             <Badge variant={supplier.is_active ? 'success' : 'default'} dot>
               {supplier.is_active ? 'Active' : 'Inactive'}
             </Badge>
-            <Button onClick={() => navigate('/app/purchase-orders/new')}>
-              <Plus className="w-4 h-4 mr-2" /> New PO
-            </Button>
+            {canCreate && (
+              <Button onClick={() => navigate('/app/purchase-orders/new')}>
+                <Plus className="w-4 h-4 mr-2" /> New PO
+              </Button>
+            )}
           </div>
         }
       />

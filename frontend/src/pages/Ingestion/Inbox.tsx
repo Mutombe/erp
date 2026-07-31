@@ -8,6 +8,7 @@ import { showToast, parseApiError } from '@/lib/toast'
 import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
+import { useCan } from '@/hooks/useCan'
 import {
   Button,
   DataTable,
@@ -50,6 +51,7 @@ const FILTER_CONFIG: FilterConfig = [
 
 export default function Inbox() {
   const navigate = useNavigate()
+  const canCreate = useCan('ingestion', 'create')
   const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
   const [uploadOpen, setUploadOpen] = useState(false)
@@ -111,9 +113,11 @@ export default function Inbox() {
         description="Upload bills, receipts and expenses — AI proposes the posting, you review and approve"
         icon={Tray}
         actions={
-          <Button onClick={() => setUploadOpen(true)}>
-            <UploadSimple className="w-4 h-4 mr-2" /> Upload document
-          </Button>
+          canCreate ? (
+            <Button onClick={() => setUploadOpen(true)}>
+              <UploadSimple className="w-4 h-4 mr-2" /> Upload document
+            </Button>
+          ) : undefined
         }
       />
 
@@ -131,7 +135,7 @@ export default function Inbox() {
             onRowHover={prefetchItem}
             emptyTitle="No documents yet"
             emptyDescription="Upload a vendor bill, fee receipt or expense. The engine reads it, drafts the document and journal, and you approve to post it to the ledger."
-            emptyAction={{ label: 'Upload document', onClick: () => setUploadOpen(true) }}
+            emptyAction={canCreate ? { label: 'Upload document', onClick: () => setUploadOpen(true) } : undefined}
             pagination={{ page, pageSize: PAGE_SIZE, total, onPageChange: setPage }}
           />
         </div>

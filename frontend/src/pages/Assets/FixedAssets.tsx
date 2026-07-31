@@ -7,6 +7,7 @@ import { qk } from '@/lib/queryKeys'
 import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
+import { useCan } from '@/hooks/useCan'
 import {
   Button,
   DataTable,
@@ -54,6 +55,7 @@ const FILTER_CONFIG: FilterConfig = [
 
 export default function FixedAssets() {
   const navigate = useNavigate()
+  const canCreate = useCan('assets', 'create')
   const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
   const [showAssetModal, setShowAssetModal] = useState(false)
@@ -108,12 +110,16 @@ export default function FixedAssets() {
         icon={Bank}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setShowCategoryModal(true)}>
-              <TreeStructure className="w-4 h-4 mr-2" /> New Category
-            </Button>
-            <Button onClick={() => setShowAssetModal(true)}>
-              <Plus className="w-4 h-4 mr-2" /> New Asset
-            </Button>
+            {canCreate && (
+              <Button variant="outline" onClick={() => setShowCategoryModal(true)}>
+                <TreeStructure className="w-4 h-4 mr-2" /> New Category
+              </Button>
+            )}
+            {canCreate && (
+              <Button onClick={() => setShowAssetModal(true)}>
+                <Plus className="w-4 h-4 mr-2" /> New Asset
+              </Button>
+            )}
           </div>
         }
       />

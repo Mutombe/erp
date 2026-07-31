@@ -105,6 +105,21 @@ export const publicApi = {
 }
 
 export const usersApi = crud('core/users')
+
+/** Permission "Lego" admin: the schema vocabulary, per-(school,role) role
+ *  matrices and per-user overrides. Responses wrap the matrix under
+ *  `permissions` / `overrides`; callers read those keys. */
+export const permissionsApi = {
+  schema: () => api.get('/core/permission-schema/'),
+  roleMatrix: (school: Id, role: string) =>
+    api.get('/core/role-permissions/', { params: { school, role } }),
+  setRoleMatrix: (school: Id, role: string, permissions: object) =>
+    api.put('/core/role-permissions/', { school, role, permissions }),
+  userOverrides: (userId: Id) => api.get(`/core/user-overrides/${userId}/`),
+  setUserOverrides: (userId: Id, overrides: object) =>
+    api.put(`/core/user-overrides/${userId}/`, { overrides }),
+}
+
 export const settingsApi = crud('core/settings')
 export const sequencesApi = crud('core/sequences')
 export const auditTrailApi = crud('core/audit-trail')

@@ -7,6 +7,7 @@ import { qk } from '@/lib/queryKeys'
 import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import { showToast, parseApiError } from '@/lib/toast'
+import { useCan } from '@/hooks/useCan'
 import {
   Badge,
   Button,
@@ -115,6 +116,7 @@ function RateModal({ onClose }: { onClose: () => void }) {
 }
 
 export default function RatesTab() {
+  const canCreate = useCan('settings', 'create')
   const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
@@ -174,9 +176,11 @@ export default function RatesTab() {
             emptyTitle="No exchange rates yet"
             emptyDescription="Add a ZWG → USD rate so multi-currency documents can translate to base."
             actions={
-              <Button onClick={() => setShowModal(true)}>
-                <Plus className="w-4 h-4 mr-2" /> New Rate
-              </Button>
+              canCreate ? (
+                <Button onClick={() => setShowModal(true)}>
+                  <Plus className="w-4 h-4 mr-2" /> New Rate
+                </Button>
+              ) : undefined
             }
             pagination={{ page, pageSize: PAGE_SIZE, total, onPageChange: setPage }}
           />

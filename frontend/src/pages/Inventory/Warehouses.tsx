@@ -10,6 +10,7 @@ import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { useOptimisticCreate } from '@/hooks/useOptimisticMutation'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
+import { useCan } from '@/hooks/useCan'
 import {
   Badge,
   Button,
@@ -87,6 +88,7 @@ function WarehouseFormModal({ open, onClose }: { open: boolean; onClose: () => v
 
 export default function Warehouses() {
   const navigate = useNavigate()
+  const canCreate = useCan('inventory', 'create')
   const filters = useUrlFilters(FILTER_CONFIG)
   const [modalOpen, setModalOpen] = useState(false)
   const [page, setPage] = useState(1)
@@ -129,11 +131,11 @@ export default function Warehouses() {
         title="Warehouses"
         description="Physical stock locations — stores, labs and departments"
         icon={WarehouseIcon}
-        actions={
+        actions={canCreate ? (
           <Button onClick={() => setModalOpen(true)}>
             <Plus className="w-4 h-4 mr-2" /> New Warehouse
           </Button>
-        }
+        ) : undefined}
       />
 
       <FilterBar config={FILTER_CONFIG} filters={filters} />

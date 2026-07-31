@@ -6,6 +6,7 @@ import { qk } from '@/lib/queryKeys'
 import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
+import { useCan } from '@/hooks/useCan'
 import {
   Button,
   DataTable,
@@ -66,6 +67,7 @@ export default function Teachers() {
   const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
   const [showCreate, setShowCreate] = useState(false)
+  const canCreate = useCan('students', 'create')
 
   const filterSignature = JSON.stringify(filters.params)
   useEffect(() => {
@@ -110,9 +112,11 @@ export default function Teachers() {
         description="Teaching staff, their classes and subjects"
         icon={Chalkboard}
         actions={
-          <Button onClick={() => setShowCreate(true)}>
-            <Plus className="w-4 h-4 mr-2" /> New Teacher
-          </Button>
+          canCreate ? (
+            <Button onClick={() => setShowCreate(true)}>
+              <Plus className="w-4 h-4 mr-2" /> New Teacher
+            </Button>
+          ) : undefined
         }
       />
 

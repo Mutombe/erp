@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { CheckCircle, FilePlus, BoxArrowDown } from '@phosphor-icons/react'
 import { grnsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
+import { useCan } from '@/hooks/useCan'
 import { showToast, parseApiError } from '@/lib/toast'
 import {
   Button,
@@ -20,6 +21,8 @@ export default function GRNDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const canCreate = useCan('procurement', 'create')
+  const canPost = useCan('procurement', 'post')
   const [confirmPost, setConfirmPost] = useState(false)
 
   const { data: grn, isFetching } = useQuery({
@@ -64,12 +67,12 @@ export default function GRNDetail() {
         actions={
           <div className="flex items-center gap-3">
             <StatusBadge status={grn.status} />
-            {grn.status === 'draft' && (
+            {canPost && grn.status === 'draft' && (
               <Button onClick={() => setConfirmPost(true)} loading={postMutation.isPending}>
                 <CheckCircle className="w-4 h-4 mr-2" /> Post
               </Button>
             )}
-            {grn.status === 'posted' && (
+            {canCreate && grn.status === 'posted' && (
               <Button onClick={() => navigate(`/app/vendor-bills?grn=${grn.id}`)}>
                 <FilePlus className="w-4 h-4 mr-2" /> Create Vendor Bill
               </Button>

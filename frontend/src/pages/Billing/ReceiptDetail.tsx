@@ -5,6 +5,7 @@ import { Money, FileArrowDown, ArrowCounterClockwise } from '@phosphor-icons/rea
 import { bankAccountsApi, receiptsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
+import { useCan } from '@/hooks/useCan'
 import {
   Button,
   ConfirmDialog,
@@ -22,6 +23,7 @@ export default function ReceiptDetail() {
   const { id } = useParams()
   const queryClient = useQueryClient()
   const [confirmReverse, setConfirmReverse] = useState(false)
+  const canPost = useCan('fees', 'post')
 
   const { data: receipt, isFetching } = useQuery({
     queryKey: qk.receipts.detail(id!),
@@ -65,7 +67,7 @@ export default function ReceiptDetail() {
             <Button variant="secondary" onClick={() => window.open(`/api/reports/receipt-pdf/${receipt.id}/`, '_blank')}>
               <FileArrowDown className="w-4 h-4 mr-2" /> PDF
             </Button>
-            {receipt.status === 'posted' && (
+            {canPost && receipt.status === 'posted' && (
               <Button variant="secondary" onClick={() => setConfirmReverse(true)}>
                 <ArrowCounterClockwise className="w-4 h-4 mr-2" /> Reverse
               </Button>

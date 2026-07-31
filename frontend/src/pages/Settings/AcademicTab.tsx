@@ -5,6 +5,7 @@ import { CalendarBlank, Plus, Star } from '@phosphor-icons/react'
 import { academicYearsApi, termsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
+import { useCan } from '@/hooks/useCan'
 import {
   Badge,
   Button,
@@ -130,6 +131,7 @@ function TermModal({ years, defaultYear, onClose }: { years: AcademicYear[]; def
 
 export default function AcademicTab() {
   const queryClient = useQueryClient()
+  const canCreate = useCan('settings', 'create')
   const [showYearModal, setShowYearModal] = useState(false)
   const [termModalYear, setTermModalYear] = useState<number | 'closed'>('closed')
   const [currentTarget, setCurrentTarget] = useState<{ kind: 'year' | 'term'; id: number; name: string } | null>(null)
@@ -166,12 +168,16 @@ export default function AcademicTab() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={() => setTermModalYear(years.find((y) => y.is_current)?.id ?? 0)}>
-          <Plus className="w-4 h-4 mr-2" /> New Term
-        </Button>
-        <Button onClick={() => setShowYearModal(true)}>
-          <Plus className="w-4 h-4 mr-2" /> New Academic Year
-        </Button>
+        {canCreate && (
+          <Button variant="outline" onClick={() => setTermModalYear(years.find((y) => y.is_current)?.id ?? 0)}>
+            <Plus className="w-4 h-4 mr-2" /> New Term
+          </Button>
+        )}
+        {canCreate && (
+          <Button onClick={() => setShowYearModal(true)}>
+            <Plus className="w-4 h-4 mr-2" /> New Academic Year
+          </Button>
+        )}
       </div>
 
       <div className="relative">
@@ -198,9 +204,11 @@ export default function AcademicTab() {
                   <Star className="w-3.5 h-3.5 mr-1.5" /> Set current
                 </Button>
               )}
-              <Button size="sm" variant="ghost" onClick={() => setTermModalYear(year.id)}>
-                <Plus className="w-3.5 h-3.5 mr-1.5" /> Add term
-              </Button>
+              {canCreate && (
+                <Button size="sm" variant="ghost" onClick={() => setTermModalYear(year.id)}>
+                  <Plus className="w-3.5 h-3.5 mr-1.5" /> Add term
+                </Button>
+              )}
             </div>
           </div>
 

@@ -10,6 +10,7 @@ import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import { useOptimisticCreate, useOptimisticUpdate } from '@/hooks/useOptimisticMutation'
+import { useCan } from '@/hooks/useCan'
 import {
   Badge,
   Button,
@@ -189,6 +190,8 @@ function SupplierFormModal({
 
 export default function Suppliers() {
   const navigate = useNavigate()
+  const canCreate = useCan('procurement', 'create')
+  const canEdit = useCan('procurement', 'edit')
   const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
@@ -229,6 +232,7 @@ export default function Suppliers() {
       header: '',
       align: 'right',
       render: (s) => (
+        canEdit ? (
         <button
           onClick={(e) => {
             e.stopPropagation()
@@ -240,6 +244,7 @@ export default function Suppliers() {
         >
           <PencilSimple className="w-4 h-4" />
         </button>
+        ) : null
       ),
     },
   ]
@@ -250,11 +255,11 @@ export default function Suppliers() {
         title="Suppliers"
         description="Vendors you purchase goods and services from"
         icon={Truck}
-        actions={
+        actions={canCreate ? (
           <Button onClick={() => { setEditSupplier(null); setModalOpen(true) }}>
             <Plus className="w-4 h-4 mr-2" /> New Supplier
           </Button>
-        }
+        ) : undefined}
       />
 
       <FilterBar config={FILTER_CONFIG} filters={filters} />

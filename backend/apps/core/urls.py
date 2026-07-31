@@ -16,5 +16,8 @@ urlpatterns = [
     path('auth/logout/', views.logout_view),
     path('auth/me/', views.me_view),
     path('auth/switch-school/', views.switch_school_view),
+    path('role-permissions/', views.RolePermissionMatrixView.as_view()),
+    path('user-overrides/<int:user_id>/', views.UserOverrideView.as_view()),
+    path('permission-schema/', views.permission_schema_view),
     path('', include(router.urls)),
 ]

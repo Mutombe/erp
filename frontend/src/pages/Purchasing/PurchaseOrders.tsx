@@ -6,6 +6,7 @@ import { qk } from '@/lib/queryKeys'
 import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
+import { useCan } from '@/hooks/useCan'
 import { Badge, Button, DataTable, FilterBar, PageHeader, RefreshingOverlay, StatusBadge, refreshingContentClass, type Column } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import { PO_STATUSES, money, type PurchaseOrder } from '@/types/procurement'
@@ -61,6 +62,7 @@ export function PoStatusBadge({ status }: { status: string }) {
 
 export default function PurchaseOrders() {
   const navigate = useNavigate()
+  const canCreate = useCan('procurement', 'create')
   const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
 
@@ -110,11 +112,11 @@ export default function PurchaseOrders() {
         title="Purchase Orders"
         description="Draft → approve → receive goods → bill"
         icon={ShoppingCart}
-        actions={
+        actions={canCreate ? (
           <Button onClick={() => navigate('/app/purchase-orders/new')}>
             <Plus className="w-4 h-4 mr-2" /> New PO
           </Button>
-        }
+        ) : undefined}
       />
 
       <FilterBar config={FILTER_CONFIG} filters={filters} />

@@ -5,6 +5,7 @@ import { Link, PencilSimple, Plus } from '@phosphor-icons/react'
 import { accountsApi, mappingsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
+import { useCan } from '@/hooks/useCan'
 import {
   Button,
   DataTable,
@@ -129,6 +130,8 @@ function MappingModal({ mapping, onClose }: { mapping: Mapping | null; onClose: 
 }
 
 export default function MappingsTab() {
+  const canCreate = useCan('settings', 'create')
+  const canEdit = useCan('settings', 'edit')
   // undefined = closed, null = create, Mapping = edit
   const [modalMapping, setModalMapping] = useState<Mapping | null | undefined>(undefined)
 
@@ -157,11 +160,12 @@ export default function MappingsTab() {
       key: 'actions',
       header: '',
       align: 'right',
-      render: (m) => (
-        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setModalMapping(m) }}>
-          <PencilSimple className="w-3.5 h-3.5 mr-1.5" /> Edit
-        </Button>
-      ),
+      render: (m) =>
+        canEdit ? (
+          <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setModalMapping(m) }}>
+            <PencilSimple className="w-3.5 h-3.5 mr-1.5" /> Edit
+          </Button>
+        ) : null,
     },
   ]
 
@@ -178,9 +182,11 @@ export default function MappingsTab() {
             emptyTitle="No account mappings"
             emptyDescription="Posting will fail for purposes without a mapping — configure them here."
             actions={
-              <Button onClick={() => setModalMapping(null)}>
-                <Plus className="w-4 h-4 mr-2" /> New Mapping
-              </Button>
+              canCreate ? (
+                <Button onClick={() => setModalMapping(null)}>
+                  <Plus className="w-4 h-4 mr-2" /> New Mapping
+                </Button>
+              ) : undefined
             }
           />
         </div>

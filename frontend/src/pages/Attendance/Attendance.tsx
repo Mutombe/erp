@@ -5,6 +5,7 @@ import { ClipboardText, Check, FloppyDisk, ClockClockwise } from '@phosphor-icon
 import { attendanceSessionsApi, classesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { cn, formatDate } from '@/lib/utils'
+import { useCan } from '@/hooks/useCan'
 import { showToast, parseApiError } from '@/lib/toast'
 import {
   Button,
@@ -69,6 +70,7 @@ function StatusSegmented({ value, onChange }: { value: AttendanceStatus; onChang
 export default function Attendance() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
+  const canMark = useCan('attendance', 'edit')
 
   const classRoom = searchParams.get('class') ?? ''
   const rawDate = searchParams.get('date') ?? ''
@@ -221,12 +223,16 @@ export default function Attendance() {
                 <SummaryPill label="Excused" value={summary.excused} className="text-blue-600 dark:text-blue-400" />
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="secondary" size="sm" onClick={markAllPresent} title="Shortcut: press A">
-                  <Check className="w-4 h-4 mr-1.5" /> All present
-                </Button>
-                <Button size="sm" onClick={() => saveMutation.mutate()} loading={saveMutation.isPending}>
-                  <FloppyDisk className="w-4 h-4 mr-1.5" /> Save
-                </Button>
+                {canMark && (
+                  <Button variant="secondary" size="sm" onClick={markAllPresent} title="Shortcut: press A">
+                    <Check className="w-4 h-4 mr-1.5" /> All present
+                  </Button>
+                )}
+                {canMark && (
+                  <Button size="sm" onClick={() => saveMutation.mutate()} loading={saveMutation.isPending}>
+                    <FloppyDisk className="w-4 h-4 mr-1.5" /> Save
+                  </Button>
+                )}
               </div>
             </div>
 

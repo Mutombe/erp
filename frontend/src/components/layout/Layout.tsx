@@ -47,7 +47,7 @@ import CacheWarmer from '@/components/CacheWarmer'
 import SchoolAvatar from '@/components/SchoolAvatar'
 import { cn } from '@/lib/utils'
 import { authApi } from '@/services/api'
-import { useAuthStore, type SchoolSummary } from '@/stores/authStore'
+import { useAuthStore, type Me, type SchoolSummary } from '@/stores/authStore'
 import { useUIStore } from '@/stores/uiStore'
 import { showToast, parseApiError } from '@/lib/toast'
 import { Check } from '@phosphor-icons/react'
@@ -210,6 +210,7 @@ function SchoolSwitcher() {
   const activeSchool = useAuthStore((s) => s.activeSchool)
   const accessibleSchools = useAuthStore((s) => s.accessibleSchools)
   const setActiveSchool = useAuthStore((s) => s.setActiveSchool)
+  const setSession = useAuthStore((s) => s.setSession)
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [switching, setSwitching] = useState(false)
@@ -234,7 +235,13 @@ function SchoolSwitcher() {
     setSwitching(true)
     try {
       const res = await authApi.switchSchool(school ? school.id : null)
-      setActiveSchool((res.data.active_school as SchoolSummary | null) ?? null)
+      // The switch response is a full `me` payload — refresh the whole session
+      // so the effective permission matrix reflects the new active school.
+      if (res.data && typeof res.data === 'object' && 'permissions' in res.data) {
+        setSession(res.data as Me)
+      } else {
+        setActiveSchool((res.data.active_school as SchoolSummary | null) ?? null)
+      }
       // Re-scope every cached list/report to the new school.
       queryClient.clear()
     } catch (error) {

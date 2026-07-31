@@ -5,6 +5,7 @@ import { Prohibit, CheckCircle, FileArrowDown, FileText } from '@phosphor-icons/
 import { creditNotesApi, feeInvoicesApi, receiptsApi, termsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
+import { useCan } from '@/hooks/useCan'
 import RecordLink from '@/components/RecordLink'
 import {
   Button,
@@ -25,6 +26,7 @@ export default function FeeInvoiceDetail() {
   const { id } = useParams()
   const queryClient = useQueryClient()
   const [confirmCancel, setConfirmCancel] = useState(false)
+  const canPost = useCan('fees', 'post')
 
   const { data: invoice, isFetching: invoiceFetching } = useQuery({
     queryKey: qk.feeInvoices.detail(id!),
@@ -106,12 +108,12 @@ export default function FeeInvoiceDetail() {
             <Button variant="secondary" onClick={() => window.open(`/api/reports/invoice-pdf/${invoice.id}/`, '_blank')}>
               <FileArrowDown className="w-4 h-4 mr-2" /> PDF
             </Button>
-            {invoice.status === 'draft' && (
+            {canPost && invoice.status === 'draft' && (
               <Button onClick={() => postMutation.mutate()} loading={postMutation.isPending}>
                 <CheckCircle className="w-4 h-4 mr-2" /> Post
               </Button>
             )}
-            {canCancel && (
+            {canPost && canCancel && (
               <Button variant="secondary" onClick={() => setConfirmCancel(true)}>
                 <Prohibit className="w-4 h-4 mr-2" /> Cancel Invoice
               </Button>

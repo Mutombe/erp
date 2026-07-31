@@ -6,6 +6,7 @@ import { qk } from '@/lib/queryKeys'
 import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
+import { useCan } from '@/hooks/useCan'
 import {
   Badge,
   Button,
@@ -59,6 +60,7 @@ export default function ChartOfAccounts() {
   const filters = useUrlFilters(FILTER_CONFIG)
   const [showCreate, setShowCreate] = useState(false)
   const [page, setPage] = useState(1)
+  const canCreate = useCan('accounting', 'create')
 
   const filterSignature = JSON.stringify(filters.params)
   useEffect(() => {
@@ -119,9 +121,11 @@ export default function ChartOfAccounts() {
         description="Range-locked account codes; balances update in real time as documents post"
         icon={BookOpen}
         actions={
-          <Button onClick={() => setShowCreate(true)}>
-            <Plus className="w-4 h-4 mr-2" /> New Account
-          </Button>
+          canCreate ? (
+            <Button onClick={() => setShowCreate(true)}>
+              <Plus className="w-4 h-4 mr-2" /> New Account
+            </Button>
+          ) : undefined
         }
       />
 

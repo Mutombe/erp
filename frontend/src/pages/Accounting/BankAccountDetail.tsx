@@ -5,6 +5,7 @@ import { CalendarCheck, FileArrowUp, Bank, Scales, UploadSimple, Wallet } from '
 import { bankAccountsApi, bankStatementsApi, reportsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
+import { useCan } from '@/hooks/useCan'
 import {
   Accordion,
   Badge,
@@ -167,6 +168,7 @@ export default function BankAccountDetail() {
   const [start, setStart] = useState(monthStart())
   const [end, setEnd] = useState(today())
   const [uploadOpen, setUploadOpen] = useState(false)
+  const canCreate = useCan('accounting', 'create')
 
   const { data: account } = useQuery({
     queryKey: qk.bankAccounts.detail(id!),
@@ -204,9 +206,11 @@ export default function BankAccountDetail() {
           <div className="flex items-center gap-2">
             {account.is_default && <Badge variant="info">Default</Badge>}
             {!account.is_active && <Badge variant="default">Inactive</Badge>}
-            <Button variant="secondary" onClick={() => setUploadOpen(true)}>
-              <UploadSimple className="w-4 h-4 mr-2" /> Upload Statement
-            </Button>
+            {canCreate && (
+              <Button variant="secondary" onClick={() => setUploadOpen(true)}>
+                <UploadSimple className="w-4 h-4 mr-2" /> Upload Statement
+              </Button>
+            )}
             <Button onClick={() => navigate(`/app/bank-reconciliation?account=${account.id}`)}>
               <Scales className="w-4 h-4 mr-2" /> Reconcile
             </Button>

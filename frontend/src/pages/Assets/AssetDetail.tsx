@@ -5,6 +5,7 @@ import { Bank, XSquare, TrendDown, Wallet } from '@phosphor-icons/react'
 import { assetsApi, bankAccountsApi, depreciationRunsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
+import { useCan } from '@/hooks/useCan'
 import {
   Button,
   ConfirmDialog,
@@ -139,6 +140,7 @@ function DisposeModal({
 
 export default function AssetDetail() {
   const { id } = useParams()
+  const canPost = useCan('assets', 'post')
   const [showDispose, setShowDispose] = useState(false)
 
   const { data: asset } = useQuery({
@@ -180,7 +182,7 @@ export default function AssetDetail() {
         actions={
           <div className="flex items-center gap-3">
             <StatusBadge status={asset.status} />
-            {canDispose && (
+            {canPost && canDispose && (
               <Button variant="danger" onClick={() => setShowDispose(true)}>
                 <XSquare className="w-4 h-4 mr-2" /> Dispose
               </Button>

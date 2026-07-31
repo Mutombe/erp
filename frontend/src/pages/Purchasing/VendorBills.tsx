@@ -6,6 +6,7 @@ import { qk } from '@/lib/queryKeys'
 import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
+import { useCan } from '@/hooks/useCan'
 import { Button, DataTable, FilterBar, PageHeader, RefreshingOverlay, StatusBadge, refreshingContentClass, type Column } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import { BILL_STATUSES, money, type VendorBill } from '@/types/procurement'
@@ -49,6 +50,7 @@ const FILTER_CONFIG: FilterConfig = [
 
 export default function VendorBills() {
   const navigate = useNavigate()
+  const canCreate = useCan('procurement', 'create')
   const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
 
@@ -101,11 +103,11 @@ export default function VendorBills() {
         title="Vendor Bills"
         description="Supplier invoices — post to raise the payable, then pay"
         icon={FileText}
-        actions={
+        actions={canCreate ? (
           <Button onClick={() => navigate('/app/vendor-bills/new')}>
             <Plus className="w-4 h-4 mr-2" /> New Bill
           </Button>
-        }
+        ) : undefined}
       />
 
       <FilterBar config={FILTER_CONFIG} filters={filters} />

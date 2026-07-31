@@ -7,30 +7,38 @@ import {
   Hash,
   Link,
   Gear as SettingsIcon,
+  ShieldCheck,
   Users,
 } from '@phosphor-icons/react'
 import { PageHeader } from '@/components/ui'
+import { useCan } from '@/hooks/useCan'
 import SchoolProfileTab from './SchoolProfileTab'
 import UsersTab from './UsersTab'
+import PermissionsTab from './PermissionsTab'
 import AcademicTab from './AcademicTab'
 import RatesTab from './RatesTab'
 import FiscalPeriodsTab from './FiscalPeriodsTab'
 import MappingsTab from './MappingsTab'
 import SequencesTab from './SequencesTab'
 
-const TABS = [
-  { key: 'profile', label: 'School Profile', icon: Buildings, component: SchoolProfileTab },
-  { key: 'users', label: 'Users', icon: Users, component: UsersTab },
-  { key: 'academic', label: 'Academic Years & Terms', icon: CalendarBlank, component: AcademicTab },
-  { key: 'rates', label: 'Currencies & Rates', icon: ArrowsLeftRight, component: RatesTab },
-  { key: 'periods', label: 'Fiscal Periods', icon: CalendarDots, component: FiscalPeriodsTab },
-  { key: 'mappings', label: 'Account Mappings', icon: Link, component: MappingsTab },
-  { key: 'sequences', label: 'Sequences', icon: Hash, component: SequencesTab },
+const ALL_TABS = [
+  { key: 'profile', label: 'School Profile', icon: Buildings, component: SchoolProfileTab, adminOnly: false },
+  { key: 'users', label: 'Users', icon: Users, component: UsersTab, adminOnly: true },
+  { key: 'permissions', label: 'Permissions', icon: ShieldCheck, component: PermissionsTab, adminOnly: true },
+  { key: 'academic', label: 'Academic Years & Terms', icon: CalendarBlank, component: AcademicTab, adminOnly: false },
+  { key: 'rates', label: 'Currencies & Rates', icon: ArrowsLeftRight, component: RatesTab, adminOnly: false },
+  { key: 'periods', label: 'Fiscal Periods', icon: CalendarDots, component: FiscalPeriodsTab, adminOnly: false },
+  { key: 'mappings', label: 'Account Mappings', icon: Link, component: MappingsTab, adminOnly: false },
+  { key: 'sequences', label: 'Sequences', icon: Hash, component: SequencesTab, adminOnly: false },
 ] as const
 
-type TabKey = (typeof TABS)[number]['key']
+type TabKey = (typeof ALL_TABS)[number]['key']
 
 export default function Settings() {
+  // Users & Permissions administration is gated on the `users` module.
+  const canManageUsers = useCan('users', 'edit')
+  const TABS = ALL_TABS.filter((t) => !t.adminOnly || canManageUsers)
+
   const [active, setActive] = useState<TabKey>('profile')
   const activeTab = TABS.find((t) => t.key === active) ?? TABS[0]
   const ActiveComponent = activeTab.component

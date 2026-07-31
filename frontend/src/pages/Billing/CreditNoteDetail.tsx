@@ -4,6 +4,7 @@ import { CheckCircle, Receipt } from '@phosphor-icons/react'
 import { creditNotesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
+import { useCan } from '@/hooks/useCan'
 import RecordLink from '@/components/RecordLink'
 import {
   Button,
@@ -19,6 +20,7 @@ import { fmtMoney, type CreditNote } from '@/types/fees'
 export default function CreditNoteDetail() {
   const { id } = useParams()
   const queryClient = useQueryClient()
+  const canPost = useCan('fees', 'post')
 
   const { data: note, isFetching } = useQuery({
     queryKey: qk.creditNotes.detail(id!),
@@ -52,7 +54,7 @@ export default function CreditNoteDetail() {
         actions={
           <div className="flex items-center gap-3">
             <StatusBadge status={note.status} />
-            {note.status === 'draft' && (
+            {canPost && note.status === 'draft' && (
               <Button onClick={() => postMutation.mutate()} loading={postMutation.isPending}>
                 <CheckCircle className="w-4 h-4 mr-2" /> Post
               </Button>

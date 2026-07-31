@@ -6,6 +6,7 @@ import { qk } from '@/lib/queryKeys'
 import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
+import { useCan } from '@/hooks/useCan'
 import { Button, DataTable, FilterBar, PageHeader, RefreshingOverlay, StatusBadge, refreshingContentClass, type Column } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import { PAYMENT_METHODS, fmtMoney, type Receipt } from '@/types/fees'
@@ -53,6 +54,7 @@ export default function Receipts() {
   // form immediately with the student preselected (captured once, on mount).
   const initialStudent = useRef(filters.params.student ?? null).current
   const [showForm, setShowForm] = useState(Boolean(initialStudent))
+  const canCreate = useCan('fees', 'create')
 
   const filterSignature = JSON.stringify(filters.params)
   useEffect(() => {
@@ -108,9 +110,11 @@ export default function Receipts() {
         description="Fee payments — each receipt posts to the ledger and allocates FIFO"
         icon={Money}
         actions={
-          <Button onClick={() => setShowForm(true)}>
-            <Plus className="w-4 h-4 mr-2" /> New Receipt
-          </Button>
+          canCreate ? (
+            <Button onClick={() => setShowForm(true)}>
+              <Plus className="w-4 h-4 mr-2" /> New Receipt
+            </Button>
+          ) : undefined
         }
       />
 

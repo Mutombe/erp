@@ -17,6 +17,7 @@ import {
 import { ingestionApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
+import { useCan } from '@/hooks/useCan'
 import {
   Button,
   ConfirmDialog,
@@ -107,6 +108,8 @@ export default function ReviewItem() {
   const { id } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const canApprove = useCan('ingestion', 'approve')
+  const canDelete = useCan('ingestion', 'delete')
 
   const [draft, setDraft] = useState<Draft | null>(null)
   const [confirmReject, setConfirmReject] = useState(false)
@@ -330,26 +333,32 @@ export default function ReviewItem() {
             {/* Actions */}
             {!locked && (
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setConfirmDelete(true)}
-                  className="text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900/40 dark:hover:bg-red-900/20"
-                >
-                  <Trash className="w-4 h-4 mr-1.5" /> Delete
-                </Button>
-                <div className="flex items-center gap-3">
-                  <Button variant="secondary" onClick={() => setConfirmReject(true)}>
-                    <Prohibit className="w-4 h-4 mr-1.5" /> Reject
-                  </Button>
+                {canDelete && (
                   <Button
-                    variant="success"
-                    onClick={() => approveMutation.mutate()}
-                    loading={approveMutation.isPending}
-                    disabled={!gatePassed}
-                    title={gatePassed ? undefined : 'Resolve the problems below before posting'}
+                    variant="outline"
+                    onClick={() => setConfirmDelete(true)}
+                    className="text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900/40 dark:hover:bg-red-900/20"
                   >
-                    <CheckCircle className="w-4 h-4 mr-1.5" /> Approve &amp; Post
+                    <Trash className="w-4 h-4 mr-1.5" /> Delete
                   </Button>
+                )}
+                <div className="flex items-center gap-3">
+                  {canApprove && (
+                    <Button variant="secondary" onClick={() => setConfirmReject(true)}>
+                      <Prohibit className="w-4 h-4 mr-1.5" /> Reject
+                    </Button>
+                  )}
+                  {canApprove && (
+                    <Button
+                      variant="success"
+                      onClick={() => approveMutation.mutate()}
+                      loading={approveMutation.isPending}
+                      disabled={!gatePassed}
+                      title={gatePassed ? undefined : 'Resolve the problems below before posting'}
+                    >
+                      <CheckCircle className="w-4 h-4 mr-1.5" /> Approve &amp; Post
+                    </Button>
+                  )}
                 </div>
               </div>
             )}

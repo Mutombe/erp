@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { journalsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
+import { useCan } from '@/hooks/useCan'
 import {
   Button,
   ConfirmDialog,
@@ -22,6 +23,7 @@ export default function JournalDetail() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [confirmReverse, setConfirmReverse] = useState(false)
+  const canPost = useCan('accounting', 'post')
 
   const { data: journal, isFetching } = useQuery({
     queryKey: qk.journals.detail(id!),
@@ -66,12 +68,12 @@ export default function JournalDetail() {
         actions={
           <div className="flex items-center gap-3">
             <StatusBadge status={journal.status} />
-            {journal.status === 'draft' && (
+            {canPost && journal.status === 'draft' && (
               <Button onClick={() => postMutation.mutate()} loading={postMutation.isPending}>
                 <CheckCircle className="w-4 h-4 mr-2" /> Post
               </Button>
             )}
-            {journal.status === 'posted' && (
+            {canPost && journal.status === 'posted' && (
               <Button variant="secondary" onClick={() => setConfirmReverse(true)}>
                 <ArrowCounterClockwise className="w-4 h-4 mr-2" /> Reverse
               </Button>

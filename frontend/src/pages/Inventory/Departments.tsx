@@ -7,6 +7,7 @@ import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import { useOptimisticDelete } from '@/hooks/useOptimisticMutation'
+import { useCan } from '@/hooks/useCan'
 import {
   Badge,
   Button,
@@ -33,6 +34,9 @@ const FILTER_CONFIG: FilterConfig = [
 export default function Departments() {
   const filters = useUrlFilters(FILTER_CONFIG)
   const navigate = useNavigate()
+  const canCreate = useCan('inventory', 'create')
+  const canEdit = useCan('inventory', 'edit')
+  const canDelete = useCan('inventory', 'delete')
   const [modalOpen, setModalOpen] = useState(false)
   const [editDepartment, setEditDepartment] = useState<Department | null>(null)
   const [toDelete, setToDelete] = useState<Department | null>(null)
@@ -115,6 +119,7 @@ export default function Departments() {
       align: 'right',
       render: (d) => (
         <span className="inline-flex items-center gap-1">
+          {canEdit && (
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -126,6 +131,8 @@ export default function Departments() {
           >
             <PencilSimple className="w-4 h-4" />
           </button>
+          )}
+          {canDelete && (
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -136,6 +143,7 @@ export default function Departments() {
           >
             <Trash className="w-4 h-4" />
           </button>
+          )}
         </span>
       ),
     },
@@ -147,7 +155,7 @@ export default function Departments() {
         title="Departments"
         description="Who consumes the stock — the cost dimension behind every issue"
         icon={Buildings}
-        actions={
+        actions={canCreate ? (
           <Button
             onClick={() => {
               setEditDepartment(null)
@@ -156,7 +164,7 @@ export default function Departments() {
           >
             <Plus className="w-4 h-4 mr-2" /> New Department
           </Button>
-        }
+        ) : undefined}
       />
 
       <p className="text-sm text-gray-500 dark:text-gray-400 max-w-3xl">

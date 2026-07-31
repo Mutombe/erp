@@ -8,6 +8,7 @@ import { CheckCircle, Bank, ListChecks, Plus, Scales, Wallet } from '@phosphor-i
 import { bankAccountsApi, bankReconciliationsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
+import { useCan } from '@/hooks/useCan'
 import {
   Badge,
   Button,
@@ -138,6 +139,7 @@ function NewReconciliationModal({
 function ReconciliationWorkspace({ reconId }: { reconId: number }) {
   const queryClient = useQueryClient()
   const [confirmForce, setConfirmForce] = useState(false)
+  const canPost = useCan('accounting', 'post')
 
   const { data: recon, isFetching } = useQuery({
     queryKey: qk.bankReconciliations.detail(reconId),
@@ -178,7 +180,7 @@ function ReconciliationWorkspace({ reconId }: { reconId: number }) {
           </h3>
           <ReconStatusBadge status={recon.status} />
         </div>
-        {!completed && (
+        {canPost && !completed && (
           <Button
             onClick={() => (balanced ? completeMutation.mutate(false) : setConfirmForce(true))}
             loading={completeMutation.isPending}
@@ -295,6 +297,7 @@ export default function BankReconciliation() {
   const accountId = searchParams.get('account') ?? ''
   const [activeId, setActiveId] = useState<number | null>(null)
   const [newOpen, setNewOpen] = useState(false)
+  const canCreate = useCan('accounting', 'create')
 
   const { data: bankAccounts } = useQuery({
     queryKey: qk.bankAccounts.list(),
@@ -325,7 +328,7 @@ export default function BankReconciliation() {
         description="Tick off bank journal lines against the statement, Sage style"
         icon={Scales}
         actions={
-          accountId ? (
+          canCreate && accountId ? (
             <Button onClick={() => setNewOpen(true)}>
               <Plus className="w-4 h-4 mr-2" /> New Reconciliation
             </Button>

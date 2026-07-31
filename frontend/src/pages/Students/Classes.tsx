@@ -11,6 +11,7 @@ import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import { useOptimisticCreate } from '@/hooks/useOptimisticMutation'
+import { useCan } from '@/hooks/useCan'
 import {
   Button,
   DataTable,
@@ -60,6 +61,7 @@ export default function Classes() {
   const filters = useUrlFilters(FILTER_CONFIG)
   const [page, setPage] = useState(1)
   const [showCreate, setShowCreate] = useState(false)
+  const canCreate = useCan('students', 'create')
 
   const filterSignature = JSON.stringify(filters.params)
   useEffect(() => {
@@ -111,9 +113,11 @@ export default function Classes() {
         description="Classrooms per grade and academic year"
         icon={Student}
         actions={
-          <Button onClick={() => setShowCreate(true)}>
-            <Plus className="w-4 h-4 mr-2" /> New Class
-          </Button>
+          canCreate ? (
+            <Button onClick={() => setShowCreate(true)}>
+              <Plus className="w-4 h-4 mr-2" /> New Class
+            </Button>
+          ) : undefined
         }
       />
 

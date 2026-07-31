@@ -9,6 +9,7 @@ import { qk } from '@/lib/queryKeys'
 import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
 import { useOptimisticCreate, useOptimisticDelete } from '@/hooks/useOptimisticMutation'
+import { useCan } from '@/hooks/useCan'
 import {
   Button,
   ConfirmDialog,
@@ -84,6 +85,8 @@ export default function FeeStructures() {
   const [page, setPage] = useState(1)
   const [showCreate, setShowCreate] = useState(false)
   const [toDelete, setToDelete] = useState<FeeStructure | null>(null)
+  const canCreate = useCan('fees', 'create')
+  const canDelete = useCan('fees', 'delete')
 
   // Any filter change returns to page 1 (keepPreviousData keeps the old rows on
   // screen so this never blanks the table).
@@ -135,15 +138,16 @@ export default function FeeStructures() {
       key: 'actions',
       header: '',
       align: 'right',
-      render: (f) => (
-        <button
-          onClick={(e) => { e.stopPropagation(); setToDelete(f) }}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-800"
-          title="Delete fee structure"
-        >
-          <Trash className="w-4 h-4" />
-        </button>
-      ),
+      render: (f) =>
+        canDelete ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); setToDelete(f) }}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+            title="Delete fee structure"
+          >
+            <Trash className="w-4 h-4" />
+          </button>
+        ) : null,
     },
   ]
 
@@ -154,9 +158,11 @@ export default function FeeStructures() {
         description="What each grade is charged per term, category and currency"
         icon={GridFour}
         actions={
-          <Button onClick={() => setShowCreate(true)}>
-            <Plus className="w-4 h-4 mr-2" /> New Fee Structure
-          </Button>
+          canCreate ? (
+            <Button onClick={() => setShowCreate(true)}>
+              <Plus className="w-4 h-4 mr-2" /> New Fee Structure
+            </Button>
+          ) : undefined
         }
       />
 

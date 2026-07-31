@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { PencilSimple, Users } from '@phosphor-icons/react'
 import { guardiansApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
+import { useCan } from '@/hooks/useCan'
 import {
   Button,
   Card,
@@ -22,6 +23,7 @@ export default function GuardianDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [editOpen, setEditOpen] = useState(false)
+  const canEdit = useCan('students', 'edit')
 
   const { data: guardian } = useQuery({
     queryKey: qk.guardians.detail(id!),
@@ -50,9 +52,11 @@ export default function GuardianDetail() {
         icon={Users}
         backLink="/app/guardians"
         actions={
-          <Button variant="secondary" onClick={() => setEditOpen(true)}>
-            <PencilSimple className="w-4 h-4 mr-2" /> Edit
-          </Button>
+          canEdit ? (
+            <Button variant="secondary" onClick={() => setEditOpen(true)}>
+              <PencilSimple className="w-4 h-4 mr-2" /> Edit
+            </Button>
+          ) : undefined
         }
       />
 

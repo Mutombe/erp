@@ -11,6 +11,7 @@ import { usePagedList } from '@/hooks/usePaginatedQuery'
 import { useOptimisticCreate, useOptimisticUpdate } from '@/hooks/useOptimisticMutation'
 import { usePrefetchDetail } from '@/hooks/usePrefetch'
 import { useUrlFilters, filtersToQuery, type FilterConfig } from '@/hooks/useUrlFilters'
+import { useCan } from '@/hooks/useCan'
 import {
   Badge,
   Button,
@@ -232,6 +233,8 @@ export default function BankAccounts() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editAccount, setEditAccount] = useState<BankAccountRow | null>(null)
   const [page, setPage] = useState(1)
+  const canCreate = useCan('accounting', 'create')
+  const canEdit = useCan('accounting', 'edit')
 
   const filterSignature = JSON.stringify(filters.params)
   useEffect(() => {
@@ -288,19 +291,20 @@ export default function BankAccounts() {
       key: 'edit',
       header: '',
       align: 'right',
-      render: (b) => (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            setEditAccount(b)
-            setModalOpen(true)
-          }}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-800"
-          aria-label={`Edit ${b.code}`}
-        >
-          <PencilSimple className="w-4 h-4" />
-        </button>
-      ),
+      render: (b) =>
+        canEdit ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setEditAccount(b)
+              setModalOpen(true)
+            }}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-800"
+            aria-label={`Edit ${b.code}`}
+          >
+            <PencilSimple className="w-4 h-4" />
+          </button>
+        ) : null,
     },
   ]
 
@@ -311,9 +315,11 @@ export default function BankAccounts() {
         description="Bank, mobile money and cash accounts with book vs bank balances"
         icon={Bank}
         actions={
-          <Button onClick={() => { setEditAccount(null); setModalOpen(true) }}>
-            <Plus className="w-4 h-4 mr-2" /> New Bank Account
-          </Button>
+          canCreate ? (
+            <Button onClick={() => { setEditAccount(null); setModalOpen(true) }}>
+              <Plus className="w-4 h-4 mr-2" /> New Bank Account
+            </Button>
+          ) : undefined
         }
       />
 

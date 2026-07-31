@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { CheckCircle, BoxArrowDown, ShoppingCart } from '@phosphor-icons/react'
 import { grnsApi, purchaseOrdersApi, vendorBillsApi, warehousesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
+import { useCan } from '@/hooks/useCan'
 import { showToast, parseApiError } from '@/lib/toast'
 import {
   Button,
@@ -174,6 +175,8 @@ export default function PurchaseOrderDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const canCreate = useCan('procurement', 'create')
+  const canApprovePerm = useCan('procurement', 'approve')
   const [confirmApprove, setConfirmApprove] = useState(false)
   const [receiveOpen, setReceiveOpen] = useState(false)
 
@@ -231,12 +234,12 @@ export default function PurchaseOrderDetail() {
         actions={
           <div className="flex items-center gap-3">
             <PoStatusBadge status={po.status} />
-            {canApprove && (
+            {canApprovePerm && canApprove && (
               <Button onClick={() => setConfirmApprove(true)} loading={approveMutation.isPending}>
                 <CheckCircle className="w-4 h-4 mr-2" /> Approve
               </Button>
             )}
-            {canReceive && (
+            {canCreate && canReceive && (
               <Button onClick={() => setReceiveOpen(true)}>
                 <BoxArrowDown className="w-4 h-4 mr-2" /> Receive Goods
               </Button>

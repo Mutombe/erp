@@ -4,6 +4,7 @@ import { Lock, LockOpen } from '@phosphor-icons/react'
 import { fiscalPeriodsApi, fiscalYearsApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { showToast, parseApiError } from '@/lib/toast'
+import { useCan } from '@/hooks/useCan'
 import {
   Badge,
   Button,
@@ -18,6 +19,7 @@ import type { FiscalPeriod, FiscalYear } from '@/types/assets'
 
 export default function FiscalPeriodsTab() {
   const queryClient = useQueryClient()
+  const canPost = useCan('settings', 'post')
   const [target, setTarget] = useState<{ period: FiscalPeriod; year: FiscalYear; action: 'lock' | 'unlock' } | null>(null)
 
   const { data: years, isFetching } = useQuery({
@@ -96,10 +98,12 @@ export default function FiscalPeriodsTab() {
                           <LockOpen className="w-3.5 h-3.5 mr-1.5" /> Unlock
                         </Button>
                       ) : (
-                        <Button size="sm" variant="outline"
-                          onClick={() => setTarget({ period, year, action: 'lock' })}>
-                          <Lock className="w-3.5 h-3.5 mr-1.5" /> Lock
-                        </Button>
+                        canPost && (
+                          <Button size="sm" variant="outline"
+                            onClick={() => setTarget({ period, year, action: 'lock' })}>
+                            <Lock className="w-3.5 h-3.5 mr-1.5" /> Lock
+                          </Button>
+                        )
                       )}
                     </td>
                   </tr>

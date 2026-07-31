@@ -14,6 +14,7 @@ import {
 } from '@phosphor-icons/react'
 import { departmentsApi, itemsApi, stockLevelsApi, stockMovesApi, warehousesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
+import { useCan } from '@/hooks/useCan'
 import { showToast, parseApiError } from '@/lib/toast'
 import {
   Badge,
@@ -301,6 +302,7 @@ function TransferStockModal({
 export default function ItemDetail() {
   const { id } = useParams()
   const queryClient = useQueryClient()
+  const canCreate = useCan('inventory', 'create')
   const [receiveOpen, setReceiveOpen] = useState(false)
   const [issueOpen, setIssueOpen] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
@@ -358,15 +360,21 @@ export default function ItemDetail() {
           <div className="flex items-center gap-2">
             {isLowStock(item) && <Badge variant="danger">Low stock</Badge>}
             {!item.is_active && <Badge variant="default">Inactive</Badge>}
-            <Button variant="secondary" onClick={() => setIssueOpen(true)}>
-              <ArrowLineUp className="w-4 h-4 mr-2" /> Issue
-            </Button>
-            <Button variant="secondary" onClick={() => setTransferOpen(true)}>
-              <ArrowsLeftRight className="w-4 h-4 mr-2" /> Transfer
-            </Button>
-            <Button onClick={() => setReceiveOpen(true)}>
-              <BoxArrowDown className="w-4 h-4 mr-2" /> Receive Stock
-            </Button>
+            {canCreate && (
+              <Button variant="secondary" onClick={() => setIssueOpen(true)}>
+                <ArrowLineUp className="w-4 h-4 mr-2" /> Issue
+              </Button>
+            )}
+            {canCreate && (
+              <Button variant="secondary" onClick={() => setTransferOpen(true)}>
+                <ArrowsLeftRight className="w-4 h-4 mr-2" /> Transfer
+              </Button>
+            )}
+            {canCreate && (
+              <Button onClick={() => setReceiveOpen(true)}>
+                <BoxArrowDown className="w-4 h-4 mr-2" /> Receive Stock
+              </Button>
+            )}
           </div>
         }
       />

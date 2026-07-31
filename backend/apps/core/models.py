@@ -15,6 +15,33 @@ class Roles(models.TextChoices):
     STUDENT_PORTAL = 'student_portal', 'Student (portal)'
 
 
+class Modules(models.TextChoices):
+    """Functional areas a permission can gate. `settings` is core config;
+    `users` is onboarding + the permission matrix admin."""
+
+    ACCOUNTING = 'accounting', 'Accounting'
+    FEES = 'fees', 'Fees'
+    STUDENTS = 'students', 'Students'
+    ATTENDANCE = 'attendance', 'Attendance'
+    INVENTORY = 'inventory', 'Inventory'
+    PROCUREMENT = 'procurement', 'Procurement'
+    ASSETS = 'assets', 'Assets'
+    INGESTION = 'ingestion', 'Document Ingestion'
+    REPORTS = 'reports', 'Reports'
+    SETTINGS = 'settings', 'Settings'
+    USERS = 'users', 'Users & Permissions'
+
+
+class Actions(models.TextChoices):
+    VIEW = 'view', 'View'
+    CREATE = 'create', 'Create'
+    EDIT = 'edit', 'Edit'
+    DELETE = 'delete', 'Delete'
+    POST = 'post', 'Post'
+    APPROVE = 'approve', 'Approve'
+    EXPORT = 'export', 'Export'
+
+
 class Organization(models.Model):
     """The top-of-tree owner (Golden Knot) that owns many schools/tenants."""
 
@@ -253,3 +280,40 @@ class DocumentSequence(models.Model):
             seq.next_number += 1
             seq.save(update_fields=['next_number'])
             return number
+
+
+class RolePermission(models.Model):
+    """The editable, per-school role matrix (the "Lego" system). One row grants
+    or denies a single (role, module, action). Missing rows fall back to the
+    resolver defaults (see apps.core.permissions.effective_permissions)."""
+
+    school = models.ForeignKey('core.School', on_delete=models.CASCADE, related_name='role_permissions')
+    role = models.CharField(max_length=30, choices=Roles.choices)
+    module = models.CharField(max_length=20, choices=Modules.choices)
+    action = models.CharField(max_length=20, choices=Actions.choices)
+    allowed = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = [('school', 'role', 'module', 'action')]
+        ordering = ['school', 'role', 'module', 'action']
+        indexes = [models.Index(fields=['school', 'role'])]
+
+    def __str__(self):
+        return f'{self.school_id}·{self.role}·{self.module}.{self.action}={self.allowed}'
+
+
+class UserPermissionOverride(models.Model):
+    """Per-user grant/deny layered on top of the user's role matrix. The
+    override always wins over the role for that (module, action)."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='permission_overrides')
+    module = models.CharField(max_length=20, choices=Modules.choices)
+    action = models.CharField(max_length=20, choices=Actions.choices)
+    allowed = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = [('user', 'module', 'action')]
+        ordering = ['user', 'module', 'action']
+
+    def __str__(self):
+        return f'{self.user_id}·{self.module}.{self.action}={self.allowed}'
