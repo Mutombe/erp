@@ -348,6 +348,36 @@ class SchoolViewSet(viewsets.ModelViewSet):
             return qs.filter(id__in=user.accessible_schools.values_list('id', flat=True))
         return qs
 
+    def create(self, request, *args, **kwargs):
+        """Onboard a new school. Only HQ may add schools, and a new school is
+        fully provisioned (COA, mappings, sequences, calendar, banks, permission
+        matrix) so it can trade immediately."""
+        from django.utils.text import slugify
+
+        user = request.user
+        if not (user.is_superuser or user.is_hq):
+            raise PermissionDenied('Only Golden Knot HQ can add schools.')
+
+        data = request.data.copy()
+        if not data.get('organization'):
+            data['organization'] = Organization.get().id
+        if not data.get('slug'):
+            base = slugify(data.get('name') or data.get('code') or '') or 'school'
+            slug, i = base, 2
+            while School.objects.filter(slug=slug).exists():
+                slug, i = f'{base}-{i}', i + 1
+            data['slug'] = slug
+
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        school = serializer.save()
+
+        from apps.core.provisioning import provision_school
+
+        provision_school(school)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
 
 class SchoolSettingsViewSet(viewsets.ViewSet):
     """Settings for the active/default school: GET/PUT /api/core/settings/.
