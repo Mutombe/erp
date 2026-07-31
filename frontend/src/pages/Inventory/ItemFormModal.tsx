@@ -16,6 +16,8 @@ const schema = z.object({
   uom: z.string().min(1, 'Unit of measure is required'),
   item_type: z.enum(['stockable', 'consumable', 'service']),
   reorder_level: z.coerce.number().min(0).default(0),
+  reorder_qty: z.coerce.number().min(0).default(0),
+  track_lots: z.boolean().default(false),
   barcode: z.string().default(''),
 })
 
@@ -28,6 +30,8 @@ const emptyValues: FormValues = {
   uom: 'each',
   item_type: 'stockable',
   reorder_level: 0,
+  reorder_qty: 0,
+  track_lots: false,
   barcode: '',
 }
 
@@ -62,6 +66,8 @@ export default function ItemFormModal({
         uom: item.uom,
         item_type: item.item_type,
         reorder_level: parseFloat(item.reorder_level) || 0,
+        reorder_qty: parseFloat(item.reorder_qty) || 0,
+        track_lots: item.track_lots,
         barcode: item.barcode,
       })
     } else {
@@ -77,6 +83,7 @@ export default function ItemFormModal({
   const toPayload = (values: FormValues) => ({
     ...values,
     reorder_level: values.reorder_level.toFixed(2),
+    reorder_qty: values.reorder_qty.toFixed(2),
   })
 
   const createMutation = useOptimisticCreate<Item, FormValues>({
@@ -93,7 +100,11 @@ export default function ItemFormModal({
       avg_cost: '0.00',
       qty_on_hand: '0.00',
       reorder_level: values.reorder_level.toFixed(2),
+      reorder_qty: values.reorder_qty.toFixed(2),
+      track_lots: values.track_lots,
       barcode: values.barcode,
+      is_low_stock: false,
+      suggested_order_qty: '0.00',
       is_active: true,
     }),
     successMessage: 'Item created',
@@ -139,6 +150,9 @@ export default function ItemFormModal({
         </FormRow>
         <FormRow>
           <Input label="Unit of measure" placeholder="e.g. each, box, ream" error={errors.uom?.message} {...register('uom')} />
+          <Input label="Barcode" placeholder="Scanned or printed code" error={errors.barcode?.message} {...register('barcode')} />
+        </FormRow>
+        <FormRow>
           <Input
             type="number"
             step="0.01"
@@ -147,8 +161,28 @@ export default function ItemFormModal({
             error={errors.reorder_level?.message}
             {...register('reorder_level')}
           />
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            label="Reorder quantity"
+            error={errors.reorder_qty?.message}
+            {...register('reorder_qty')}
+          />
         </FormRow>
-        <Input label="Barcode" error={errors.barcode?.message} {...register('barcode')} />
+        <label className="flex items-start gap-3 rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2.5 cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800"
+            {...register('track_lots')}
+          />
+          <span className="text-sm">
+            <span className="font-medium text-gray-700 dark:text-gray-200">Track lots / batches</span>
+            <span className="block text-xs text-gray-500 dark:text-gray-400">
+              Enables expiry dates and FEFO consumption. Receipts will require a lot code and expiry.
+            </span>
+          </span>
+        </label>
         <ModalFooter>
           <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
           <Button type="submit" loading={isSubmitting || mutation.isPending}>

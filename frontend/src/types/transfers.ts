@@ -1,6 +1,6 @@
 // Shapes mirror backend/apps/transfers/serializers.py
 
-export type TransferKind = 'funds' | 'student'
+export type TransferKind = 'funds' | 'student' | 'stock'
 export type TransferStatus = 'draft' | 'completed' | 'reversed'
 
 export interface Transfer {
@@ -23,6 +23,13 @@ export interface Transfer {
   from_student_name: string | null
   to_student: number | null
   to_student_code: string | null
+  from_item: number | null
+  from_item_code: string | null
+  to_item: number | null
+  to_item_code: string | null
+  from_warehouse: number | null
+  to_warehouse: number | null
+  quantity: string | null
   from_journal: number | null
   from_journal_number: string | null
   to_journal: number | null
@@ -43,6 +50,7 @@ export interface TransferStudentPreview {
 export const TRANSFER_KIND_OPTIONS = [
   { value: 'funds', label: 'Funds' },
   { value: 'student', label: 'Student' },
+  { value: 'stock', label: 'Stock' },
 ] as const
 
 export const TRANSFER_STATUS_OPTIONS = [

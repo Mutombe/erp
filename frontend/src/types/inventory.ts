@@ -21,7 +21,11 @@ export interface Item {
   avg_cost: string
   qty_on_hand: string
   reorder_level: string
+  reorder_qty: string
+  track_lots: boolean
   barcode: string
+  is_low_stock: boolean
+  suggested_order_qty: string
   is_active: boolean
   created_at: string
 }
@@ -115,3 +119,96 @@ export function isLowStock(item: Item): boolean {
   const reorder = parseFloat(item.reorder_level)
   return reorder > 0 && parseFloat(item.qty_on_hand) <= reorder
 }
+
+// ---------------------------------------------------------------------------
+// Lots & expiry (Phase 5B)
+// ---------------------------------------------------------------------------
+
+export interface StockLot {
+  id: number
+  item: number
+  item_code: string
+  item_name: string
+  warehouse: number
+  warehouse_code: string
+  lot_code: string
+  expiry_date: string | null
+  quantity: string
+  received_date: string
+  created_at: string
+}
+
+/** Days-to-expiry threshold that flags a lot as urgent (highlighted red). */
+export const LOT_EXPIRY_WARN_DAYS = 30
+
+/** Whole days from today until `expiry_date` (negative if already expired). */
+export function daysUntil(date: string | null): number | null {
+  if (!date) return null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const target = new Date(`${date}T00:00:00`)
+  return Math.round((target.getTime() - today.getTime()) / 86_400_000)
+}
+
+// ---------------------------------------------------------------------------
+// Requisitions (Phase 5B)
+// ---------------------------------------------------------------------------
+
+export type RequisitionStatus =
+  | 'draft'
+  | 'submitted'
+  | 'approved'
+  | 'rejected'
+  | 'issued'
+  | 'partially_issued'
+
+export interface RequisitionLine {
+  id: number
+  item: number
+  item_code: string
+  item_name: string
+  qty_requested: string
+  qty_approved: string
+  qty_issued: string
+}
+
+export interface Requisition {
+  id: number
+  number: string
+  warehouse: number
+  warehouse_code: string
+  department: number | null
+  department_name: string | null
+  date: string
+  status: RequisitionStatus
+  note: string
+  review_note: string
+  requested_by: number | null
+  requested_by_email: string | null
+  reviewed_by: number | null
+  reviewed_at: string | null
+  lines: RequisitionLine[]
+  created_at: string
+}
+
+export const REQUISITION_STATUS_LABELS: Record<RequisitionStatus, string> = {
+  draft: 'Draft',
+  submitted: 'Submitted',
+  approved: 'Approved',
+  rejected: 'Rejected',
+  issued: 'Issued',
+  partially_issued: 'Partially issued',
+}
+
+export const REQUISITION_STATUS_VARIANTS: Record<RequisitionStatus, BadgeVariant> = {
+  draft: 'default',
+  submitted: 'warning',
+  approved: 'info',
+  rejected: 'danger',
+  issued: 'success',
+  partially_issued: 'purple',
+}
+
+export const REQUISITION_STATUS_OPTIONS = (
+  Object.keys(REQUISITION_STATUS_LABELS) as RequisitionStatus[]
+).map((value) => ({ value, label: REQUISITION_STATUS_LABELS[value] }))

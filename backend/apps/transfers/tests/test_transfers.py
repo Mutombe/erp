@@ -189,6 +189,62 @@ class TestStudentTransfer:
             )
 
 
+class TestStockTransfer:
+    def _stocked_item(self, school, store_code='MAIN', code='PEN', qty=D('100'), cost=D('2')):
+        from apps.accounting.models import ChartOfAccount
+        from apps.inventory.models import ItemCategory, Item, Warehouse, receive_stock
+
+        cat, _ = ItemCategory.objects.get_or_create(
+            school=school, name='Stationery',
+            defaults={
+                'inventory_account': ChartOfAccount.objects.get(school=school, code='1200'),
+                'consumption_expense_account': ChartOfAccount.objects.get(school=school, code='5210'),
+            },
+        )
+        store = Warehouse.objects.create(school=school, code=store_code, name='Store')
+        item = Item.objects.create(school=school, code=code, name='Pens', category=cat)
+        if qty:
+            receive_stock(item=item, warehouse=store, quantity=qty, unit_cost_base=cost, date=date(2026, 2, 1))
+            item.refresh_from_db()
+        return item, store
+
+    def test_stock_moves_between_schools_and_mirrors(self, school_a, school_b):
+        from apps.transfers.services import execute_stock_transfer
+
+        src_item, src_store = self._stocked_item(school_a, qty=D('100'), cost=D('2'))
+        dst_item, dst_store = self._stocked_item(school_b, code='PEN', qty=D('0'))
+
+        t = execute_stock_transfer(
+            from_warehouse=src_store, from_item=src_item, to_warehouse=dst_store,
+            to_item=dst_item, quantity=D('30'), date=date(2026, 3, 1),
+        )
+        assert t.kind == 'stock' and t.status == 'completed'
+        assert t.amount == D('60.00')  # 30 x avg cost 2
+
+        src_item.refresh_from_db()
+        dst_item.refresh_from_db()
+        assert src_item.qty_on_hand == D('70')
+        assert dst_item.qty_on_hand == D('30')
+        assert dst_item.avg_cost == D('2.0000')  # received at the transferred cost
+
+        assert _coa(school_a, '1180').current_balance == D('60.00')  # A owed by B
+        assert _coa(school_b, '2180').current_balance == D('60.00')  # B owes A
+        assert_gl_balanced(school=school_a)
+        assert_gl_balanced(school=school_b)
+        assert_gl_balanced()
+
+    def test_rejects_same_school(self, school_a):
+        from apps.transfers.services import execute_stock_transfer
+
+        item, store = self._stocked_item(school_a)
+        _item2, store2 = self._stocked_item(school_a, store_code='ANNEX', code='PEN2', qty=D('0'))
+        with pytest.raises(Exception):
+            execute_stock_transfer(
+                from_warehouse=store, from_item=item, to_warehouse=store2, to_item=item,
+                quantity=D('5'), date=date(2026, 3, 1),
+            )
+
+
 class TestTransferApi:
     def _hq(self, school_a):
         from rest_framework.test import APIClient

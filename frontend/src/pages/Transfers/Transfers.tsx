@@ -84,8 +84,8 @@ export default function Transfers() {
       key: 'kind',
       header: 'Kind',
       render: (t) => (
-        <Badge variant={t.kind === 'funds' ? 'info' : 'purple'}>
-          {t.kind === 'funds' ? 'Funds' : 'Student'}
+        <Badge variant={t.kind === 'funds' ? 'info' : t.kind === 'stock' ? 'success' : 'purple'}>
+          {t.kind === 'funds' ? 'Funds' : t.kind === 'stock' ? 'Stock' : 'Student'}
         </Badge>
       ),
     },
@@ -101,28 +101,44 @@ export default function Transfers() {
       ),
     },
     {
-      key: 'pupil',
-      header: 'Pupil',
-      render: (t) =>
-        t.kind === 'student' ? (
-          <span className="flex items-center gap-1.5 text-sm">
-            {t.from_student ? (
-              <RecordLink to={`/app/students/${t.from_student}`}>{t.from_student_name}</RecordLink>
-            ) : (
-              <span className="text-gray-400">—</span>
-            )}
-            {t.to_student && (
-              <>
-                <ArrowRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                <RecordLink to={`/app/students/${t.to_student}`} mono>
-                  {t.to_student_code}
-                </RecordLink>
-              </>
-            )}
-          </span>
-        ) : (
-          <span className="text-gray-400">—</span>
-        ),
+      key: 'detail',
+      header: 'Pupil / Item',
+      render: (t) => {
+        if (t.kind === 'student') {
+          return (
+            <span className="flex items-center gap-1.5 text-sm">
+              {t.from_student ? (
+                <RecordLink to={`/app/students/${t.from_student}`}>{t.from_student_name}</RecordLink>
+              ) : (
+                <span className="text-gray-400">—</span>
+              )}
+              {t.to_student && (
+                <>
+                  <ArrowRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  <RecordLink to={`/app/students/${t.to_student}`} mono>
+                    {t.to_student_code}
+                  </RecordLink>
+                </>
+              )}
+            </span>
+          )
+        }
+        if (t.kind === 'stock') {
+          return (
+            <span className="flex items-center gap-1.5 text-sm">
+              {t.from_item ? (
+                <RecordLink to={`/app/items/${t.from_item}`} mono>{t.from_item_code}</RecordLink>
+              ) : (
+                <span className="text-gray-400">—</span>
+              )}
+              {t.quantity != null && (
+                <span className="text-gray-500 dark:text-slate-400 tabular-nums">× {fmtMoney(t.quantity)}</span>
+              )}
+            </span>
+          )
+        }
+        return <span className="text-gray-400">—</span>
+      },
     },
     { key: 'date', header: 'Date', render: (t) => t.date },
     {

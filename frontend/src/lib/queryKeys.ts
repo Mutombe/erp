@@ -91,6 +91,8 @@ export const qk = {
   warehouses: entityKeys('warehouses'),
   stockMoves: entityKeys('stockMoves'),
   stockLevels: entityKeys('stockLevels'),
+  stockLots: entityKeys('stockLots'),
+  requisitions: entityKeys('requisitions'),
   departments: entityKeys('departments'),
 
   // Procurement

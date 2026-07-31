@@ -82,6 +82,108 @@ def execute_fund_transfer(*, from_bank, to_bank, amount, date, note='', user=Non
     return transfer
 
 
+# -------------------------------------------------------------- stock transfers
+
+def execute_stock_transfer(*, from_warehouse, from_item, to_warehouse, to_item, quantity,
+                           date, note='', user=None):
+    """Move stock between two schools' warehouses at moving-average cost, settled
+    inter-unit on the inventory value. The value leaves the source school's
+    inventory (credit) and lands in the destination's (debit); the two schools
+    settle via Due-from / Due-to, so the group nets to zero."""
+    from django.conf import settings
+
+    from apps.inventory.models import (
+        Item, StockMove, _adjust_level, _consume_lots_fefo, _receive_lot,
+    )
+
+    quantity = Decimal(quantity)
+    if quantity <= 0:
+        raise ValidationError('Transfer quantity must be positive.')
+    from_school, to_school = from_warehouse.school, to_warehouse.school
+    if from_school.id == to_school.id:
+        raise ValidationError('Use a warehouse transfer to move stock within a school.')
+    if from_item.school_id != from_school.id:
+        raise ValidationError('The source item and warehouse belong to different schools.')
+    if to_item.school_id != to_school.id:
+        raise ValidationError('The destination item and warehouse belong to different schools.')
+
+    base = settings.BASE_CURRENCY
+    with transaction.atomic():
+        src = Item.objects.select_for_update().get(pk=from_item.pk)
+        cost = (quantity * src.avg_cost).quantize(Decimal('0.01'))
+
+        transfer = InterSchoolTransfer.objects.create(
+            number=DocumentSequence.next_for('TRF', from_school),
+            kind='stock', from_school=from_school, to_school=to_school,
+            date=date, currency=base, amount=cost, note=note,
+            from_item=src, to_item=to_item, from_warehouse=from_warehouse,
+            to_warehouse=to_warehouse, quantity=quantity, created_by=user,
+        )
+
+        # --- source school: stock out, book the inter-unit receivable ---
+        _adjust_level(src, from_warehouse, -quantity)
+        if src.track_lots:
+            _consume_lots_fefo(src, from_warehouse, quantity)
+        src.qty_on_hand -= quantity
+        src.save(update_fields=['qty_on_hand'])
+        out_move = StockMove.objects.create(
+            school=from_school, number=DocumentSequence.next_for('ADJ', from_school),
+            move_type='transfer', item=src, warehouse_from=from_warehouse,
+            quantity=quantity, unit_cost=src.avg_cost, total_cost_base=cost, date=date,
+            reason=f'{transfer.number} → {to_school.name}', created_by=user,
+        )
+        if cost > 0:
+            transfer.from_journal = build_and_post_journal(
+                journal_type='transfer', date=date, currency=base,
+                description=f'{transfer.number} — stock to {to_school.name}: {src.code} x{quantity}',
+                lines=[
+                    _due_lines(school_owes_counterparty=False, amount=cost),
+                    LineSpec(account=src.category.inventory_account, credit=cost,
+                             description=f'{transfer.number} stock out'),
+                ],
+                reference=transfer.number, user=user, school=from_school,
+                source=('inventory.StockMove', out_move.pk, out_move.number),
+            )
+            out_move.journal = transfer.from_journal
+            out_move.save(update_fields=['journal'])
+
+        # --- destination school: stock in at the transferred cost, mirror leg ---
+        dst = Item.objects.select_for_update().get(pk=to_item.pk)
+        unit = (cost / quantity).quantize(Decimal('0.0001')) if quantity else ZERO
+        new_qty = dst.qty_on_hand + quantity
+        if new_qty > 0:
+            dst.avg_cost = ((dst.qty_on_hand * dst.avg_cost + cost) / new_qty).quantize(Decimal('0.0001'))
+        dst.qty_on_hand = new_qty
+        dst.save(update_fields=['avg_cost', 'qty_on_hand'])
+        _adjust_level(dst, to_warehouse, quantity)
+        if dst.track_lots:
+            _receive_lot(dst, to_warehouse, quantity, f'{transfer.number}', None, date)
+        in_move = StockMove.objects.create(
+            school=to_school, number=DocumentSequence.next_for('ADJ', to_school),
+            move_type='receipt', item=dst, warehouse_to=to_warehouse,
+            quantity=quantity, unit_cost=unit, total_cost_base=cost, date=date,
+            reason=f'{transfer.number} ← {from_school.name}', created_by=user,
+        )
+        if cost > 0:
+            transfer.to_journal = build_and_post_journal(
+                journal_type='transfer', date=date, currency=base,
+                description=f'{transfer.number} — stock from {from_school.name}: {dst.code} x{quantity}',
+                lines=[
+                    LineSpec(account=dst.category.inventory_account, debit=cost,
+                             description=f'{transfer.number} stock in'),
+                    _due_lines(school_owes_counterparty=True, amount=cost),
+                ],
+                reference=transfer.number, user=user, school=to_school,
+                source=('inventory.StockMove', in_move.pk, in_move.number),
+            )
+            in_move.journal = transfer.to_journal
+            in_move.save(update_fields=['journal'])
+
+        transfer.status = 'completed'
+        transfer.save(update_fields=['from_journal', 'to_journal', 'status'])
+    return transfer
+
+
 # ------------------------------------------------------------ student transfers
 
 def _student_balance_by_currency(student):

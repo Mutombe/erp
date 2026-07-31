@@ -137,7 +137,9 @@ class Command(BaseCommand):
             FeeInvoiceLine, PaymentIntent, Receipt, ReceiptAllocation,
         )
         from apps.attendance.models import AttendanceRecord, AttendanceSession
-        from apps.inventory.models import Item, StockLevel, StockMove
+        from apps.inventory.models import (
+            Item, StockLevel, StockLot, StockMove, StockRequisition, StockRequisitionLine,
+        )
         from apps.procurement.models import (
             GoodsReceivedNote, GRNLine, PaymentAllocation, POLine, PurchaseOrder,
             Supplier, SupplierPayment, VendorBill, VendorBillLine,
@@ -173,6 +175,9 @@ class Command(BaseCommand):
             ('DepreciationRun', DepreciationRun),
             ('Asset', Asset),
             ('AssetCategory', AssetCategory),
+            ('StockRequisitionLine', StockRequisitionLine),
+            ('StockRequisition', StockRequisition),
+            ('StockLot', StockLot),
             ('StockMove', StockMove),
             ('StockLevel', StockLevel),
             ('VendorBillLine', VendorBillLine),
@@ -182,7 +187,6 @@ class Command(BaseCommand):
             ('POLine', POLine),
             ('PurchaseOrder', PurchaseOrder),
             ('SupplierPayment', SupplierPayment),
-            ('Supplier', Supplier),
             ('Item', Item),
             ('OpeningBalance', OpeningBalance),
             # Bank reconciliation rows PROTECT-reference journal lines.
@@ -193,6 +197,8 @@ class Command(BaseCommand):
             ('JournalLine', JournalLine),
             ('Journal', Journal),
             ('SubAccount', SubAccount),
+            # Supplier must follow SubAccount, which PROTECT-references it.
+            ('Supplier', Supplier),
             ('Enrollment', Enrollment),
             ('StudentGuardian', StudentGuardian),
             ('Student', Student),
@@ -245,6 +251,7 @@ class Command(BaseCommand):
         self._credit_notes()
         self._procurement()
         self._stock_issues()
+        self._inventory_depth()
         self._assets_and_capitalization()
         self._depreciation()
         self._direct_expenses()
@@ -336,11 +343,13 @@ class Command(BaseCommand):
         ]
         self.items = {}
         self.procured_items = []
-        for code, name, cat_name, wh_code, reorder, procured in catalog:
+        for i, (code, name, cat_name, wh_code, reorder, procured) in enumerate(catalog):
             item = Item.objects.create(
                 school=self.school, code=code, name=name,
                 category=self.item_categories[cat_name],
                 reorder_level=Decimal(reorder),
+                reorder_qty=Decimal(reorder) * 4,  # replenish to ~4× the trigger level
+                barcode=f'60011{i:05d}{(i * 7) % 10}',
             )
             self.items[code] = item
             if procured:
@@ -799,6 +808,52 @@ class Command(BaseCommand):
                 issues += 1
         self.counts['stock_issues'] = issues
 
+    def _inventory_depth(self):
+        """Lot-tracked perishable + a couple of stock requisitions so the lots /
+        expiry watch and requisition-approval pages have data."""
+        from apps.core.models import DocumentSequence
+        from apps.inventory.models import (
+            Department, Item, StockRequisition, StockRequisitionLine, receive_stock,
+        )
+
+        main = self.warehouses['MAIN']
+
+        # A lot-tracked perishable with two batches (one expiring soon).
+        milk = Item.objects.create(
+            school=self.school, code='MILK-01', name='UHT Milk (1L, case of 12)',
+            category=self.item_categories['Kitchen/Food'], track_lots=True,
+            reorder_level=Decimal('40'), reorder_qty=Decimal('200'), barcode='6001199000015',
+        )
+        receive_stock(item=milk, warehouse=main, quantity=Decimal('60'), unit_cost_base=Decimal('11.50'),
+                      date=date(2026, 6, 20), lot_code='MILK-2608', expiry_date=date(2026, 8, 20))
+        receive_stock(item=milk, warehouse=main, quantity=Decimal('120'), unit_cost_base=Decimal('11.80'),
+                      date=date(2026, 7, 5), lot_code='MILK-2611', expiry_date=date(2026, 11, 15))
+
+        # Two requisitions from the main store to Kitchen: one issued, one pending.
+        kitchen = Department.objects.get(school=self.school, code='KITC')
+        academic = Department.objects.get(school=self.school, code='ACAD')
+
+        issued = StockRequisition.objects.create(
+            school=self.school, number=DocumentSequence.next_for('REQ', self.school),
+            warehouse=main, department=kitchen, date=date(2026, 6, 28),
+            note='Weekly kitchen draw', requested_by=None,
+        )
+        StockRequisitionLine.objects.create(requisition=issued, item=self.items['MEAL-01'], qty_requested=Decimal('20'))
+        issued.submit()
+        issued.approve()
+        issued.issue()
+
+        pending = StockRequisition.objects.create(
+            school=self.school, number=DocumentSequence.next_for('REQ', self.school),
+            warehouse=main, department=academic, date=date(2026, 7, 15),
+            note='Term 3 stationery request — awaiting approval',
+        )
+        StockRequisitionLine.objects.create(requisition=pending, item=self.items['BOOK-01'], qty_requested=Decimal('50'))
+        pending.submit()
+
+        self.counts['lots'] = milk.lots.count()
+        self.counts['requisitions'] = StockRequisition.objects.filter(school=self.school).count()
+
     # -------- assets + depreciation
     def _assets_and_capitalization(self):
         from apps.accounting.models import OpeningBalance
@@ -1044,6 +1099,8 @@ class Command(BaseCommand):
             ('Vendor bills', self.counts.get('bills')),
             ('Supplier payments', self.counts.get('payments')),
             ('Stock issues', self.counts.get('stock_issues')),
+            ('Stock lots', self.counts.get('lots')),
+            ('Requisitions', self.counts.get('requisitions')),
             ('Assets', self.counts.get('assets')),
             ('Depreciation runs', self.counts.get('depreciation_runs')),
             ('Expense journals', self.counts.get('expense_journals')),

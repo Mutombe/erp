@@ -27,13 +27,15 @@ class ItemFilter(filters.FilterSet):
 
     class Meta:
         model = Item
-        fields = ['category', 'item_type', 'is_active']
+        # `school` lets HQ (all-schools view) scope pickers to one school; scoped
+        # users are already limited by the tenant middleware.
+        fields = ['category', 'item_type', 'is_active', 'school']
 
 
 class WarehouseFilter(filters.FilterSet):
     class Meta:
         model = Warehouse
-        fields = ['is_active', 'storekeeper']
+        fields = ['is_active', 'storekeeper', 'school']
 
 
 class DepartmentFilter(filters.FilterSet):

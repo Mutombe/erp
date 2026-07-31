@@ -16,7 +16,7 @@ class InterSchoolTransfer(models.Model):
                   fee balance is carried across via the inter-unit settlement.
     """
 
-    KINDS = [('funds', 'Funds'), ('student', 'Student')]
+    KINDS = [('funds', 'Funds'), ('student', 'Student'), ('stock', 'Stock')]
     STATUS = [('draft', 'Draft'), ('completed', 'Completed'), ('reversed', 'Reversed')]
 
     number = models.CharField(max_length=20)
@@ -44,6 +44,21 @@ class InterSchoolTransfer(models.Model):
     to_student = models.ForeignKey(
         'students.Student', null=True, blank=True, on_delete=models.SET_NULL, related_name='transfers_in'
     )
+
+    # stock transfers
+    from_item = models.ForeignKey(
+        'inventory.Item', null=True, blank=True, on_delete=models.PROTECT, related_name='transfers_out'
+    )
+    to_item = models.ForeignKey(
+        'inventory.Item', null=True, blank=True, on_delete=models.PROTECT, related_name='transfers_in'
+    )
+    from_warehouse = models.ForeignKey(
+        'inventory.Warehouse', null=True, blank=True, on_delete=models.PROTECT, related_name='transfers_out'
+    )
+    to_warehouse = models.ForeignKey(
+        'inventory.Warehouse', null=True, blank=True, on_delete=models.PROTECT, related_name='transfers_in'
+    )
+    quantity = models.DecimalField(max_digits=18, decimal_places=2, null=True, blank=True)
 
     # mirror journals, one per school
     from_journal = models.ForeignKey('accounting.Journal', null=True, blank=True, on_delete=models.PROTECT, related_name='+')

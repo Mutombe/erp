@@ -73,6 +73,9 @@ const builtRoutes: [string, Preloadable][] = [
   ['warehouses/:id', pageLazy(() => import('@/pages/Inventory/WarehouseDetail'))],
   ['stock-moves', pageLazy(() => import('@/pages/Inventory/StockMoves'))],
   ['stock-moves/:id', pageLazy(() => import('@/pages/Inventory/StockMoveDetail'))],
+  ['low-stock', pageLazy(() => import('@/pages/Inventory/LowStock'))],
+  ['stock-lots', pageLazy(() => import('@/pages/Inventory/StockLots'))],
+  ['requisitions', pageLazy(() => import('@/pages/Inventory/Requisitions'))],
   ['departments', pageLazy(() => import('@/pages/Inventory/Departments'))],
   ['departments/:id', pageLazy(() => import('@/pages/Inventory/DepartmentDetail'))],
   // Purchasing

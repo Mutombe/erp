@@ -8,6 +8,7 @@ from .models import InterSchoolTransfer
 from .serializers import (
     FundTransferInput,
     InterSchoolTransferSerializer,
+    StockTransferInput,
     StudentTransferInput,
 )
 
@@ -53,6 +54,18 @@ class InterSchoolTransferViewSet(viewsets.ReadOnlyModelViewSet):
         d = payload.validated_data
         transfer = services.execute_student_transfer(
             from_student=d['from_student'], to_class=d['to_class'],
+            date=d['date'], note=d['note'], user=request.user,
+        )
+        return Response(self.get_serializer(transfer).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'])
+    def stock(self, request):
+        payload = StockTransferInput(data=request.data)
+        payload.is_valid(raise_exception=True)
+        d = payload.validated_data
+        transfer = services.execute_stock_transfer(
+            from_warehouse=d['from_warehouse'], from_item=d['from_item'],
+            to_warehouse=d['to_warehouse'], to_item=d['to_item'], quantity=d['quantity'],
             date=d['date'], note=d['note'], user=request.user,
         )
         return Response(self.get_serializer(transfer).data, status=status.HTTP_201_CREATED)

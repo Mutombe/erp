@@ -272,7 +272,11 @@ export const portalApi = {
 // ---------------------------------------------------------------------------
 
 export const itemCategoriesApi = crud('inventory/categories')
-export const itemsApi = crud('inventory/items')
+export const itemsApi = {
+  ...crud('inventory/items'),
+  lowStock: (params?: ListParams) => api.get('/inventory/items/low-stock/', { params }), // paginated
+  byBarcode: (barcode: string) => api.get('/inventory/items/by-barcode/', { params: { barcode } }), // single item or 404
+}
 export const warehousesApi = crud('inventory/warehouses')
 export const departmentsApi = crud('inventory/departments')
 
@@ -281,6 +285,20 @@ export const stockMovesApi = {
   issue: (payload: object) => api.post('/inventory/stock-ops/issue/', payload),
   transferStock: (payload: object) => api.post('/inventory/stock-ops/transfer/', payload),
   receive: (payload: object) => api.post('/inventory/stock-ops/receive/', payload),
+}
+
+export const stockLotsApi = {
+  ...crud('inventory/stock-lots'), // list/get (read-only) — paginated
+  expiring: (params?: ListParams) => api.get('/inventory/stock-lots/expiring/', { params }), // paginated; ?before=YYYY-MM-DD
+}
+
+export const requisitionsApi = {
+  ...crud('inventory/requisitions'),
+  submit: (id: Id) => api.post(`/inventory/requisitions/${id}/submit/`),
+  approve: (id: Id, approvals?: object) =>
+    api.post(`/inventory/requisitions/${id}/approve/`, approvals ? { approvals } : {}),
+  reject: (id: Id, reason: string) => api.post(`/inventory/requisitions/${id}/reject/`, { reason }),
+  issue: (id: Id) => api.post(`/inventory/requisitions/${id}/issue/`),
 }
 
 export const stockLevelsApi = crud('inventory/stock-levels')
@@ -375,6 +393,7 @@ export const transfersApi = {
   ...crud('transfers/transfers'), // list/get used
   funds: (data: object) => api.post('/transfers/transfers/funds/', data),
   student: (data: object) => api.post('/transfers/transfers/student/', data),
+  stock: (data: object) => api.post('/transfers/transfers/stock/', data),
   studentPreview: (studentId: Id) =>
     api.get('/transfers/transfers/student-preview/', { params: { student: studentId } }),
 }

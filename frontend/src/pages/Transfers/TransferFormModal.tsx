@@ -3,8 +3,8 @@ import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowsLeftRight, Bank, Student as StudentIcon, Info } from '@phosphor-icons/react'
-import { bankAccountsApi, classesApi, studentsApi, transfersApi } from '@/services/api'
+import { ArrowsLeftRight, Bank, Package, Student as StudentIcon, Info } from '@phosphor-icons/react'
+import { bankAccountsApi, classesApi, itemsApi, studentsApi, transfersApi, warehousesApi } from '@/services/api'
 import { qk } from '@/lib/queryKeys'
 import { useDebounce, formatCurrency } from '@/lib/utils'
 import { showToast, parseApiError } from '@/lib/toast'
@@ -25,6 +25,7 @@ import {
 } from '@/components/ui'
 import type { Paginated } from '@/types/accounting'
 import type { ClassRoom, Student } from '@/types/students'
+import type { Item, Warehouse } from '@/types/inventory'
 import type { Transfer, TransferBank, TransferStudentPreview } from '@/types/transfers'
 
 const TODAY = () => new Date().toISOString().slice(0, 10)
@@ -60,6 +61,9 @@ export default function TransferFormModal({ open, onClose }: { open: boolean; on
           <TabsTrigger value="student" icon={StudentIcon}>
             Student
           </TabsTrigger>
+          <TabsTrigger value="stock" icon={Package}>
+            Stock
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="funds">
@@ -67,6 +71,9 @@ export default function TransferFormModal({ open, onClose }: { open: boolean; on
         </TabsContent>
         <TabsContent value="student">
           <StudentTransferForm open={open} onClose={onClose} />
+        </TabsContent>
+        <TabsContent value="stock">
+          <StockTransferForm open={open} onClose={onClose} />
         </TabsContent>
       </Tabs>
     </Modal>
@@ -572,6 +579,270 @@ function StudentTransferForm({ open, onClose }: { open: boolean; onClose: () => 
         </Button>
         <Button type="submit" loading={isSubmitting || mutation.isPending} disabled={!canSubmit}>
           Transfer pupil
+        </Button>
+      </ModalFooter>
+    </form>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Stock
+// ---------------------------------------------------------------------------
+
+const stockSchema = z.object({
+  from_school: z.coerce.number().min(1, 'Select the sending school'),
+  from_warehouse: z.coerce.number().min(1, 'Select the source warehouse'),
+  from_item: z.coerce.number().min(1, 'Select the item to send'),
+  to_school: z.coerce.number().min(1, 'Select the receiving school'),
+  to_warehouse: z.coerce.number().min(1, 'Select the destination warehouse'),
+  to_item: z.coerce.number().min(1, 'Select the receiving item'),
+  quantity: z.coerce.number().positive('Quantity must be positive'),
+  date: z.string().min(1, 'Date is required'),
+  note: z.string().default(''),
+})
+
+type StockValues = z.infer<typeof stockSchema>
+
+/** Warehouses/items for a school. The `school` query param is passed per the
+ *  API contract; when the backend does not narrow by it, all accessible rows
+ *  are returned and the backend still validates cross-school consistency. */
+function useSchoolWarehouses(school: number, open: boolean) {
+  return useQuery({
+    queryKey: qk.warehouses.list({ picker: 'stock-transfer', school }),
+    queryFn: () =>
+      warehousesApi
+        .list({ is_active: true, page_size: 500, school: school || undefined })
+        .then((r) => (r.data.results ?? r.data) as Warehouse[]),
+    enabled: open && school > 0,
+  })
+}
+
+function useSchoolItems(school: number, open: boolean) {
+  return useQuery({
+    queryKey: qk.items.list({ picker: 'stock-transfer', school }),
+    queryFn: () =>
+      itemsApi
+        .list({ is_active: true, page_size: 500, school: school || undefined })
+        .then((r) => (r.data.results ?? r.data) as Item[]),
+    enabled: open && school > 0,
+  })
+}
+
+function StockTransferForm({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const queryClient = useQueryClient()
+  const schools = useAuthStore((s) => s.accessibleSchools)
+
+  const {
+    control,
+    register,
+    watch,
+    setValue,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<StockValues>({
+    resolver: zodResolver(stockSchema),
+    defaultValues: {
+      from_school: 0, from_warehouse: 0, from_item: 0,
+      to_school: 0, to_warehouse: 0, to_item: 0,
+      quantity: 0, date: TODAY(), note: '',
+    },
+  })
+
+  const fromSchool = Number(watch('from_school')) || 0
+  const toSchool = Number(watch('to_school')) || 0
+
+  const { data: fromWarehouses } = useSchoolWarehouses(fromSchool, open)
+  const { data: fromItems } = useSchoolItems(fromSchool, open)
+  const { data: toWarehouses } = useSchoolWarehouses(toSchool, open)
+  const { data: toItems } = useSchoolItems(toSchool, open)
+
+  // Reset dependent pickers when their school changes.
+  useEffect(() => {
+    setValue('from_warehouse', 0)
+    setValue('from_item', 0)
+  }, [fromSchool, setValue])
+  useEffect(() => {
+    setValue('to_warehouse', 0)
+    setValue('to_item', 0)
+  }, [toSchool, setValue])
+
+  const whOptions = (rows?: Warehouse[]) => (rows ?? []).map((w) => ({ value: w.id, label: `${w.code} · ${w.name}` }))
+  const itemOptions = (rows?: Item[]) => (rows ?? []).map((i) => ({ value: i.id, label: `${i.code} · ${i.name}`, description: i.uom }))
+
+  const differentSchools = fromSchool > 0 && toSchool > 0 && fromSchool !== toSchool
+  const quantity = Number(watch('quantity')) || 0
+  const canSubmit =
+    differentSchools &&
+    Number(watch('from_warehouse')) > 0 && Number(watch('from_item')) > 0 &&
+    Number(watch('to_warehouse')) > 0 && Number(watch('to_item')) > 0 &&
+    quantity > 0
+
+  const mutation = useMutation({
+    mutationFn: (values: StockValues) =>
+      transfersApi.stock({
+        from_warehouse: values.from_warehouse,
+        from_item: values.from_item,
+        to_warehouse: values.to_warehouse,
+        to_item: values.to_item,
+        quantity: values.quantity.toFixed(2),
+        date: values.date,
+        note: values.note,
+      }),
+    onSuccess: (r) => {
+      const t = r.data as Transfer
+      showToast.success(`Stock transfer ${t.number} completed`)
+      queryClient.invalidateQueries({ queryKey: qk.transfers.all })
+      queryClient.invalidateQueries({ queryKey: qk.items.all })
+      queryClient.invalidateQueries({ queryKey: qk.stockLevels.all })
+      queryClient.invalidateQueries({ queryKey: qk.stockMoves.all })
+      queryClient.invalidateQueries({ queryKey: qk.journals.all })
+      queryClient.invalidateQueries({ queryKey: qk.reports.all })
+      reset()
+      onClose()
+    },
+    onError: (error) => showToast.error(parseApiError(error, 'Failed to transfer stock')),
+  })
+
+  return (
+    <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
+      <FormRow>
+        <Controller
+          control={control}
+          name="from_school"
+          render={({ field }) => (
+            <Select
+              label="From school"
+              value={String(field.value || '')}
+              onChange={(e) => field.onChange(Number(e.target.value) || 0)}
+              error={errors.from_school?.message}
+              required
+            >
+              <option value="">Select school…</option>
+              {schools.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </Select>
+          )}
+        />
+        <Controller
+          control={control}
+          name="to_school"
+          render={({ field }) => (
+            <Select
+              label="To school"
+              value={String(field.value || '')}
+              onChange={(e) => field.onChange(Number(e.target.value) || 0)}
+              error={errors.to_school?.message}
+              required
+            >
+              <option value="">Select school…</option>
+              {schools.filter((s) => s.id !== fromSchool).map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </Select>
+          )}
+        />
+      </FormRow>
+
+      <FormRow>
+        <Controller
+          control={control}
+          name="from_warehouse"
+          render={({ field }) => (
+            <AsyncSelect
+              label="From warehouse"
+              placeholder={fromSchool ? 'Search warehouse…' : 'Pick a school first'}
+              value={field.value || null}
+              onChange={(v) => field.onChange(Number(v) || 0)}
+              options={whOptions(fromWarehouses)}
+              searchable
+              disabled={!fromSchool}
+              error={errors.from_warehouse?.message}
+              emptyMessage="No warehouses"
+              required
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="from_item"
+          render={({ field }) => (
+            <AsyncSelect
+              label="From item"
+              placeholder={fromSchool ? 'Search item…' : 'Pick a school first'}
+              value={field.value || null}
+              onChange={(v) => field.onChange(Number(v) || 0)}
+              options={itemOptions(fromItems)}
+              searchable
+              disabled={!fromSchool}
+              error={errors.from_item?.message}
+              emptyMessage="No items"
+              required
+            />
+          )}
+        />
+      </FormRow>
+
+      <FormRow>
+        <Controller
+          control={control}
+          name="to_warehouse"
+          render={({ field }) => (
+            <AsyncSelect
+              label="To warehouse"
+              placeholder={toSchool ? 'Search warehouse…' : 'Pick a school first'}
+              value={field.value || null}
+              onChange={(v) => field.onChange(Number(v) || 0)}
+              options={whOptions(toWarehouses)}
+              searchable
+              disabled={!toSchool}
+              error={errors.to_warehouse?.message}
+              emptyMessage="No warehouses"
+              required
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="to_item"
+          render={({ field }) => (
+            <AsyncSelect
+              label="To item"
+              placeholder={toSchool ? 'Search item…' : 'Pick a school first'}
+              value={field.value || null}
+              onChange={(v) => field.onChange(Number(v) || 0)}
+              options={itemOptions(toItems)}
+              searchable
+              disabled={!toSchool}
+              error={errors.to_item?.message}
+              emptyMessage="No items"
+              required
+            />
+          )}
+        />
+      </FormRow>
+
+      <FormRow>
+        <Input type="number" step="0.01" min="0" label="Quantity" error={errors.quantity?.message} {...register('quantity')} />
+        <Input type="date" label="Date" error={errors.date?.message} {...register('date')} />
+      </FormRow>
+
+      <Textarea label="Note (optional)" rows={2} error={errors.note?.message} {...register('note')} />
+
+      <p className="flex items-start gap-2 text-xs text-gray-500 dark:text-slate-400">
+        <Info className="w-4 h-4 mt-0.5 shrink-0" />
+        <span>
+          Ships stock out of the source school's warehouse and receives it into the destination
+          school's warehouse at moving-average cost, settling the value between the two schools. The
+          item and warehouse on each side must belong to that side's school.
+        </span>
+      </p>
+
+      <ModalFooter>
+        <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
+        <Button type="submit" loading={isSubmitting || mutation.isPending} disabled={!canSubmit}>
+          Transfer stock
         </Button>
       </ModalFooter>
     </form>

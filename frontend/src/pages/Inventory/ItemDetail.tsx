@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { Controller, useForm } from 'react-hook-form'
@@ -35,7 +35,6 @@ import type { Paginated } from '@/types/accounting'
 import {
   MOVE_TYPE_LABELS,
   MOVE_TYPE_VARIANTS,
-  isLowStock,
   type Department,
   type Item,
   type StockLevel,
@@ -50,45 +49,55 @@ const today = () => new Date().toISOString().slice(0, 10)
 // Stock operation modals
 // ---------------------------------------------------------------------------
 
-const receiveSchema = z.object({
-  warehouse: z.coerce.number().min(1, 'Warehouse is required'),
-  quantity: z.coerce.number().positive('Quantity must be positive'),
-  unit_cost_base: z.coerce.number().min(0, 'Unit cost is required'),
-  date: z.string().min(1, 'Date is required'),
-})
+const makeReceiveSchema = (trackLots: boolean) =>
+  z.object({
+    warehouse: z.coerce.number().min(1, 'Warehouse is required'),
+    quantity: z.coerce.number().positive('Quantity must be positive'),
+    unit_cost_base: z.coerce.number().min(0, 'Unit cost is required'),
+    date: z.string().min(1, 'Date is required'),
+    lot_code: trackLots ? z.string().min(1, 'Lot code is required') : z.string().default(''),
+    expiry_date: trackLots ? z.string().min(1, 'Expiry date is required') : z.string().default(''),
+  })
+
+type ReceiveValues = z.infer<ReturnType<typeof makeReceiveSchema>>
 
 function ReceiveStockModal({
   open,
   onClose,
   itemId,
+  trackLots,
   warehouses,
   onDone,
 }: {
   open: boolean
   onClose: () => void
   itemId: number
+  trackLots: boolean
   warehouses: Warehouse[]
   onDone: () => void
 }) {
-  type Values = z.infer<typeof receiveSchema>
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<Values>({
-    resolver: zodResolver(receiveSchema),
-    defaultValues: { warehouse: 0, quantity: 0, unit_cost_base: 0, date: today() },
+  const schema = useMemo(() => makeReceiveSchema(trackLots), [trackLots])
+  const emptyReceive: ReceiveValues = { warehouse: 0, quantity: 0, unit_cost_base: 0, date: today(), lot_code: '', expiry_date: '' }
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<ReceiveValues>({
+    resolver: zodResolver(schema),
+    defaultValues: emptyReceive,
   })
 
   const mutation = useMutation({
-    mutationFn: (values: Values) =>
+    mutationFn: (values: ReceiveValues) =>
       stockMovesApi.receive({
         item: itemId,
         warehouse: values.warehouse,
         quantity: values.quantity.toFixed(2),
         unit_cost_base: values.unit_cost_base.toFixed(4),
         date: values.date,
+        ...(values.lot_code ? { lot_code: values.lot_code } : {}),
+        ...(values.expiry_date ? { expiry_date: values.expiry_date } : {}),
       }),
     onSuccess: (r) => {
       showToast.success(`Stock received — ${r.data.number}`)
       onDone()
-      reset({ warehouse: 0, quantity: 0, unit_cost_base: 0, date: today() })
+      reset(emptyReceive)
       onClose()
     },
     onError: (error) => showToast.error(parseApiError(error, 'Failed to receive stock')),
@@ -107,6 +116,12 @@ function ReceiveStockModal({
           <Input type="number" step="0.01" min="0" label="Quantity" error={errors.quantity?.message} {...register('quantity')} />
           <Input type="number" step="0.0001" min="0" label="Unit cost (base)" error={errors.unit_cost_base?.message} {...register('unit_cost_base')} />
         </FormRow>
+        {trackLots ? (
+          <FormRow>
+            <Input label="Lot / batch code" placeholder="e.g. LOT-2026-07" error={errors.lot_code?.message} {...register('lot_code')} />
+            <Input type="date" label="Expiry date" error={errors.expiry_date?.message} {...register('expiry_date')} />
+          </FormRow>
+        ) : null}
         <Input type="date" label="Date" error={errors.date?.message} {...register('date')} />
         <ModalFooter>
           <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
@@ -335,6 +350,7 @@ export default function ItemDetail() {
     queryClient.invalidateQueries({ queryKey: qk.items.all })
     queryClient.invalidateQueries({ queryKey: qk.stockMoves.all })
     queryClient.invalidateQueries({ queryKey: qk.stockLevels.all })
+    queryClient.invalidateQueries({ queryKey: qk.stockLots.all })
     queryClient.invalidateQueries({ queryKey: qk.journals.all })
     queryClient.invalidateQueries({ queryKey: qk.accounts.all })
     queryClient.invalidateQueries({ queryKey: qk.reports.all })
@@ -358,7 +374,8 @@ export default function ItemDetail() {
         backLink="/app/items"
         actions={
           <div className="flex items-center gap-2">
-            {isLowStock(item) && <Badge variant="danger">Low stock</Badge>}
+            {item.is_low_stock && <Badge variant="danger">Low stock</Badge>}
+            {item.track_lots && <Badge variant="purple">Lot-tracked</Badge>}
             {!item.is_active && <Badge variant="default">Inactive</Badge>}
             {canCreate && (
               <Button variant="secondary" onClick={() => setIssueOpen(true)}>
@@ -383,9 +400,13 @@ export default function ItemDetail() {
         <StatsCard
           title="Quantity on hand"
           value={money(qty)}
-          subtitle={`Reorder level ${money(item.reorder_level)}`}
+          subtitle={
+            item.is_low_stock
+              ? `Below reorder ${money(item.reorder_level)} · suggest ordering ${money(item.suggested_order_qty)}`
+              : `Reorder level ${money(item.reorder_level)}`
+          }
           icon={Package}
-          color="blue"
+          color={item.is_low_stock ? 'red' : 'blue'}
         />
         <StatsCard title="Average cost" value={money(avgCost)} subtitle="Moving average, base currency" icon={CurrencyDollar} color="purple" />
         <StatsCard title="Total stock value" value={money(qty * avgCost)} subtitle="qty × avg cost" icon={Wallet} color="green" />
@@ -491,6 +512,7 @@ export default function ItemDetail() {
         open={receiveOpen}
         onClose={() => setReceiveOpen(false)}
         itemId={item.id}
+        trackLots={item.track_lots}
         warehouses={warehouses ?? []}
         onDone={invalidateAll}
       />

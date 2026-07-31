@@ -83,6 +83,10 @@ class Item(models.Model):
     avg_cost = models.DecimalField(max_digits=18, decimal_places=4, default=ZERO)
     qty_on_hand = models.DecimalField(max_digits=18, decimal_places=2, default=ZERO)
     reorder_level = models.DecimalField(max_digits=18, decimal_places=2, default=ZERO)
+    # Target quantity to bring stock back up to when reordering (the "max").
+    reorder_qty = models.DecimalField(max_digits=18, decimal_places=2, default=ZERO)
+    # When true, receipts/issues track quantities against dated lots (FEFO).
+    track_lots = models.BooleanField(default=False)
     barcode = models.CharField(max_length=64, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -98,6 +102,18 @@ class Item(models.Model):
         if self.school_id is None:
             self.school_id = self.category.school_id if self.category_id else _default_school().pk
         super().save(*args, **kwargs)
+
+    @property
+    def is_low_stock(self):
+        return self.reorder_level > 0 and self.qty_on_hand <= self.reorder_level
+
+    @property
+    def suggested_order_qty(self):
+        """How much to buy to reach the reorder target (or clear the shortfall)."""
+        if not self.is_low_stock:
+            return ZERO
+        target = self.reorder_qty if self.reorder_qty > 0 else self.reorder_level
+        return max(target - self.qty_on_hand, ZERO)
 
 
 class Warehouse(models.Model):
@@ -131,6 +147,66 @@ class StockLevel(models.Model):
 
     def __str__(self):
         return f'{self.item.code} @ {self.warehouse.code}: {self.quantity}'
+
+
+class StockLot(models.Model):
+    """A dated batch of an item in a warehouse (for lot-tracked items). Costing
+    stays moving-average at the item level; lots add batch + expiry visibility
+    and drive FEFO (first-expiry-first-out) issuing."""
+
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='stock_lots')
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='lots')
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE, related_name='lots')
+    lot_code = models.CharField(max_length=60)
+    expiry_date = models.DateField(null=True, blank=True)
+    quantity = models.DecimalField(max_digits=18, decimal_places=2, default=ZERO)
+    received_date = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['expiry_date', 'id']
+        unique_together = [('item', 'warehouse', 'lot_code')]
+        indexes = [models.Index(fields=['item', 'warehouse', 'expiry_date'])]
+
+    def __str__(self):
+        return f'{self.item.code} · lot {self.lot_code} x{self.quantity}'
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school_id = self.item.school_id if self.item_id else _default_school().pk
+        super().save(*args, **kwargs)
+
+
+def _receive_lot(item, warehouse, quantity, lot_code, expiry_date, date):
+    lot, _ = StockLot.objects.select_for_update().get_or_create(
+        item=item, warehouse=warehouse, lot_code=lot_code,
+        defaults={'school_id': item.school_id, 'expiry_date': expiry_date, 'received_date': date},
+    )
+    lot.quantity += quantity
+    if expiry_date and not lot.expiry_date:
+        lot.expiry_date = expiry_date
+    lot.save(update_fields=['quantity', 'expiry_date'])
+    return lot
+
+
+def _consume_lots_fefo(item, warehouse, quantity):
+    """Draw `quantity` from a warehouse's lots, earliest-expiry first. Raises if
+    the lots don't cover it (guards against issuing untracked stock)."""
+    remaining = quantity
+    lots = StockLot.objects.select_for_update().filter(
+        item=item, warehouse=warehouse, quantity__gt=0
+    ).order_by('expiry_date', 'id')
+    for lot in lots:
+        if remaining <= 0:
+            break
+        take = min(lot.quantity, remaining)
+        lot.quantity -= take
+        lot.save(update_fields=['quantity'])
+        remaining -= take
+    if remaining > 0:
+        raise ValidationError(
+            f'{item.code} is lot-tracked but its lots in {warehouse.code} are short by {remaining}.'
+        )
 
 
 class StockMove(models.Model):
@@ -191,9 +267,12 @@ def _adjust_level(item, warehouse, delta):
 
 
 def receive_stock(*, item, warehouse, quantity, unit_cost_base, date, source=None, journal=None,
-                  user=None, post_gl=True, school=None):
+                  user=None, post_gl=True, school=None, lot_code='', expiry_date=None):
     """Stock receipt at actual cost; updates the moving average under a row lock.
-    When post_gl is False the caller (e.g. GRN) posts the journal itself."""
+    When post_gl is False the caller (e.g. GRN) posts the journal itself.
+
+    Lot-tracked items require a `lot_code`; the batch (and optional expiry) is
+    recorded for FEFO issuing and expiry reporting."""
     quantity = Decimal(quantity)
     if quantity <= 0:
         raise ValidationError('Receipt quantity must be positive.')
@@ -201,6 +280,8 @@ def receive_stock(*, item, warehouse, quantity, unit_cost_base, date, source=Non
     school = school or warehouse.school
     if item.school_id != school.id or warehouse.school_id != school.id:
         raise ValidationError('Stock receipt item and warehouse belong to different schools.')
+    if item.track_lots and not lot_code:
+        raise ValidationError(f'{item.code} is lot-tracked; a lot/batch code is required.')
 
     with transaction.atomic():
         item = Item.objects.select_for_update().get(pk=item.pk)
@@ -212,6 +293,8 @@ def receive_stock(*, item, warehouse, quantity, unit_cost_base, date, source=Non
         item.qty_on_hand = new_qty
         item.save(update_fields=['avg_cost', 'qty_on_hand'])
         _adjust_level(item, warehouse, quantity)
+        if item.track_lots:
+            _receive_lot(item, warehouse, quantity, lot_code, expiry_date, date)
 
         move = StockMove.objects.create(
             school=school,
@@ -279,6 +362,8 @@ def issue_stock(*, item, warehouse, quantity, date, department=None, reason='', 
         item = Item.objects.select_for_update().get(pk=item.pk)
         cost = (quantity * item.avg_cost).quantize(TWO)
         _adjust_level(item, warehouse, -quantity)
+        if item.track_lots:
+            _consume_lots_fefo(item, warehouse, quantity)
         item.qty_on_hand -= quantity
         item.save(update_fields=['qty_on_hand'])
 
@@ -320,7 +405,8 @@ def issue_stock(*, item, warehouse, quantity, date, department=None, reason='', 
 
 
 def transfer_stock(*, item, warehouse_from, warehouse_to, quantity, date, user=None, school=None):
-    """Warehouse transfer — no GL impact, quantities only."""
+    """Warehouse transfer — no GL impact, quantities only. Lot-tracked items move
+    their earliest-expiry lots FEFO into the destination warehouse."""
     quantity = Decimal(quantity)
     if quantity <= 0:
         raise ValidationError('Transfer quantity must be positive.')
@@ -333,6 +419,8 @@ def transfer_stock(*, item, warehouse_from, warehouse_to, quantity, date, user=N
         item = Item.objects.select_for_update().get(pk=item.pk)
         _adjust_level(item, warehouse_from, -quantity)
         _adjust_level(item, warehouse_to, quantity)
+        if item.track_lots:
+            _move_lots_fefo(item, warehouse_from, warehouse_to, quantity, date)
         return StockMove.objects.create(
             school=school,
             number=DocumentSequence.next_for('ADJ', school),
@@ -346,3 +434,136 @@ def transfer_stock(*, item, warehouse_from, warehouse_to, quantity, date, user=N
             date=date,
             created_by=user,
         )
+
+
+def _move_lots_fefo(item, warehouse_from, warehouse_to, quantity, date):
+    """Move `quantity` of lot-tracked stock between warehouses, FEFO, preserving
+    each lot's code and expiry on the destination side."""
+    remaining = quantity
+    lots = StockLot.objects.select_for_update().filter(
+        item=item, warehouse=warehouse_from, quantity__gt=0
+    ).order_by('expiry_date', 'id')
+    for lot in lots:
+        if remaining <= 0:
+            break
+        take = min(lot.quantity, remaining)
+        lot.quantity -= take
+        lot.save(update_fields=['quantity'])
+        _receive_lot(item, warehouse_to, take, lot.lot_code, lot.expiry_date, date)
+        remaining -= take
+    if remaining > 0:
+        raise ValidationError(
+            f'{item.code} is lot-tracked but its lots in {warehouse_from.code} are short by {remaining}.'
+        )
+
+
+class StockRequisition(models.Model):
+    """An internal request to draw stock from a store to a department. Flows
+    draft → submitted → approved/rejected → issued. Issuing runs the standard
+    issue_stock() per line, so the GL/consumption postings are unchanged."""
+
+    STATUS = [
+        ('draft', 'Draft'), ('submitted', 'Submitted'), ('approved', 'Approved'),
+        ('rejected', 'Rejected'), ('issued', 'Issued'), ('partially_issued', 'Partially issued'),
+    ]
+
+    school = models.ForeignKey('core.School', on_delete=models.PROTECT, related_name='requisitions')
+    number = models.CharField(max_length=20)
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.PROTECT, related_name='requisitions')
+    department = models.ForeignKey(
+        Department, null=True, blank=True, on_delete=models.PROTECT, related_name='requisitions'
+    )
+    date = models.DateField()
+    status = models.CharField(max_length=20, choices=STATUS, default='draft', db_index=True)
+    note = models.TextField(blank=True)
+    review_note = models.CharField(max_length=500, blank=True)
+    requested_by = models.ForeignKey('core.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    reviewed_by = models.ForeignKey('core.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = [('school', 'number')]
+        indexes = [models.Index(fields=['status', 'school'])]
+
+    def __str__(self):
+        return f'{self.number} ({self.status})'
+
+    def save(self, *args, **kwargs):
+        if self.school_id is None:
+            self.school_id = self.warehouse.school_id if self.warehouse_id else _default_school().pk
+        super().save(*args, **kwargs)
+
+    def submit(self):
+        if self.status != 'draft':
+            raise ValidationError(f'Requisition {self.number} is already {self.status}.')
+        if not self.lines.exists():
+            raise ValidationError('A requisition needs at least one line.')
+        self.status = 'submitted'
+        self.save(update_fields=['status'])
+
+    def approve(self, *, user=None, approvals=None):
+        """Approve (optionally adjusting per-line quantities). `approvals` maps
+        line id → approved qty; omitted lines approve their requested quantity."""
+        from django.utils import timezone
+
+        if self.status != 'submitted':
+            raise ValidationError(f'Only submitted requisitions can be approved (this is {self.status}).')
+        approvals = approvals or {}
+        for line in self.lines.all():
+            qty = approvals.get(line.id, approvals.get(str(line.id), line.qty_requested))
+            line.qty_approved = Decimal(qty)
+            line.save(update_fields=['qty_approved'])
+        self.status = 'approved'
+        self.reviewed_by = user
+        self.reviewed_at = timezone.now()
+        self.save(update_fields=['status', 'reviewed_by', 'reviewed_at'])
+
+    def reject(self, *, reason='', user=None):
+        from django.utils import timezone
+
+        if self.status not in ('submitted', 'approved'):
+            raise ValidationError(f'Cannot reject a {self.status} requisition.')
+        self.status = 'rejected'
+        self.review_note = reason
+        self.reviewed_by = user
+        self.reviewed_at = timezone.now()
+        self.save(update_fields=['status', 'review_note', 'reviewed_by', 'reviewed_at'])
+
+    def issue(self, *, user=None):
+        """Issue the approved quantities from the store to the department, posting
+        the usual consumption journals via issue_stock()."""
+        if self.status not in ('approved', 'partially_issued'):
+            raise ValidationError(f'Only approved requisitions can be issued (this is {self.status}).')
+        fully = True
+        with transaction.atomic():
+            for line in self.lines.select_related('item').all():
+                outstanding = line.qty_approved - line.qty_issued
+                if outstanding <= 0:
+                    continue
+                issue_stock(
+                    item=line.item, warehouse=self.warehouse, quantity=outstanding,
+                    date=self.date, department=self.department,
+                    reason=f'Requisition {self.number}', user=user,
+                )
+                line.qty_issued += outstanding
+                line.save(update_fields=['qty_issued'])
+                if line.qty_issued < line.qty_approved:
+                    fully = False
+            self.status = 'issued' if fully else 'partially_issued'
+            self.save(update_fields=['status'])
+
+
+class StockRequisitionLine(models.Model):
+    requisition = models.ForeignKey(StockRequisition, on_delete=models.CASCADE, related_name='lines')
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name='+')
+    qty_requested = models.DecimalField(max_digits=18, decimal_places=2)
+    qty_approved = models.DecimalField(max_digits=18, decimal_places=2, default=ZERO)
+    qty_issued = models.DecimalField(max_digits=18, decimal_places=2, default=ZERO)
+
+    class Meta:
+        ordering = ['id']
+
+    def __str__(self):
+        return f'{self.requisition.number} · {self.item.code} x{self.qty_requested}'
