@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { CaretLeft, Lock, Envelope, Warning } from '@phosphor-icons/react'
 import SchoolAvatar from '@/components/SchoolAvatar'
+import goldenKnotLogo from '@/assets/golden-knot.png'
 import { Button, Input } from '@/components/ui'
 import { authApi, publicApi } from '@/services/api'
 import { useAuthStore, isPortalRole, type Me, type SchoolSummary } from '@/stores/authStore'
@@ -22,13 +23,12 @@ type LoginForm = z.infer<typeof loginSchema>
 function GoldenKnotHeader() {
   return (
     <div className="flex flex-col items-center text-center mb-8">
-      <div className="w-14 h-14 rounded-2xl bg-primary-600 text-white flex items-center justify-center shadow-lg shadow-primary-600/25 mb-4">
-        <span className="font-black text-xl tracking-tighter">GK</span>
-      </div>
-      <h1 className="text-2xl font-black tracking-tight text-primary-700 dark:text-primary-300">
-        GOLDEN KNOT
-      </h1>
-      <p className="text-[11px] uppercase tracking-[0.25em] text-gray-500 dark:text-slate-400 mt-1.5">
+      <img
+        src={goldenKnotLogo}
+        alt="Golden Knot"
+        className="w-28 h-28 object-contain mb-3 drop-shadow-sm"
+      />
+      <p className="text-[11px] uppercase tracking-[0.25em] text-gray-500 dark:text-slate-400">
         School Management Platform
       </p>
     </div>

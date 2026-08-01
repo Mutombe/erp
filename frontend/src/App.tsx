@@ -1,10 +1,12 @@
-import { lazy, Suspense, useEffect, type ComponentType, type LazyExoticComponent } from 'react'
+import { lazy, useEffect, type ComponentType, type LazyExoticComponent } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import PrivateRoute from '@/components/layout/PrivateRoute'
 import Layout from '@/components/layout/Layout'
 import PortalRoute from '@/components/portal/PortalRoute'
 import PortalLayout from '@/components/portal/PortalLayout'
-import { PageSkeleton } from '@/components/ui'
+// Login is the entry point — loaded eagerly so its Golden Knot shell paints
+// instantly (no full-page fallback); only the dynamic school list loads scoped.
+import Login from '@/pages/Login'
 import { useUIStore } from '@/stores/uiStore'
 
 type AnyComp = ComponentType<Record<string, never>>
@@ -19,7 +21,6 @@ function pageLazy(factory: () => Promise<{ default: AnyComp }>): Preloadable {
   return Comp
 }
 
-const Login = pageLazy(() => import('@/pages/Login'))
 const Dashboard = pageLazy(() => import('@/pages/Dashboard'))
 const ComingSoon = pageLazy(() => import('@/pages/ComingSoon'))
 
@@ -139,14 +140,9 @@ export default function App() {
 
   return (
     <Routes>
-      <Route
-        path="/login"
-        element={
-          <Suspense fallback={<PageSkeleton />}>
-            <Login />
-          </Suspense>
-        }
-      />
+      {/* Login is eager: its branded shell paints immediately and the school
+          list carries its own scoped skeletons — no full-page fallback. */}
+      <Route path="/login" element={<Login />} />
       <Route path="/" element={<Navigate to="/app" replace />} />
       {/*
         No Suspense here: Layout renders its own boundary around <Outlet /> so the

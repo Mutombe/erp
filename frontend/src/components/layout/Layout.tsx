@@ -49,6 +49,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 import CacheWarmer from '@/components/CacheWarmer'
 import SchoolAvatar from '@/components/SchoolAvatar'
+import goldenKnotLogo from '@/assets/golden-knot.png'
 import { cn } from '@/lib/utils'
 import { authApi } from '@/services/api'
 import { useAuthStore, type Me, type SchoolSummary } from '@/stores/authStore'
@@ -193,7 +194,7 @@ const ALL_SCHOOLS_BRAND: SchoolSummary = {
   id: 0,
   code: 'GK',
   name: 'Golden Knot',
-  logo: null,
+  logo: goldenKnotLogo,
 }
 
 function SidebarBrand({ collapsed }: { collapsed: boolean }) {

@@ -2,6 +2,7 @@ import { Suspense, useEffect, useRef } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { House, HandCoins, Moon, SignOut, Sun } from '@phosphor-icons/react'
 import SchoolAvatar from '@/components/SchoolAvatar'
+import goldenKnotLogo from '@/assets/golden-knot.png'
 import { usePortalContext } from '@/hooks/usePortalContext'
 import { authApi } from '@/services/api'
 import { cn } from '@/lib/utils'
@@ -64,9 +65,11 @@ export default function PortalLayout() {
       {/* Top bar — fixed row, never scrolls with the content */}
       <header className="shrink-0 h-16 flex items-center justify-between gap-3 px-4 sm:px-6 bg-white/85 backdrop-blur-xl border-b border-gray-200 dark:bg-slate-900/85 dark:border-slate-700">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-primary-600 text-white flex items-center justify-center shadow-sm shrink-0">
-            <span className="font-black text-xs tracking-tighter">GK</span>
-          </div>
+          <img
+            src={goldenKnotLogo}
+            alt="Golden Knot"
+            className="w-9 h-9 object-contain shrink-0"
+          />
           {school && (
             <span className="flex items-center gap-2 min-w-0">
               <SchoolAvatar school={school} className="w-7 h-7 text-[10px]" ocwFallbackCrest />
